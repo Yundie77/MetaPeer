@@ -1,0 +1,21 @@
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# SQLite 
+backend/data.sqlite
+
+# Python 
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Build 
+dist/
+build/
+
+# System files
+.DS_Store
+Thumbs.db

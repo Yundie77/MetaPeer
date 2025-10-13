@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+﻿import React, { useEffect, useMemo, useState } from 'react';
 import Nav from './components/Nav.jsx';
 import Assignments from './pages/Assignments.jsx';
 import Submissions from './pages/Submissions.jsx';
 import Reviews from './pages/Reviews.jsx';
+import ZipViewer from './components/ZipViewer.jsx';
 import { API } from './api.js';
 
 const currentRoute = () => `${window.location.pathname}${window.location.search}`;
@@ -79,6 +80,8 @@ export default function App() {
   let content = <Assignments onNavigate={navigate} />;
   if (pathname === '/submissions') {
     content = <Submissions assignmentId={assignmentId} onNavigate={navigate} />;
+  } else if (pathname === '/zip-viewer') {
+    content = <ZipViewer />;
   } else if (pathname === '/reviews') {
     content = (
       <Reviews
@@ -130,3 +133,4 @@ const exportButtonStyle = {
 const mainStyle = {
   marginTop: '1rem'
 };
+

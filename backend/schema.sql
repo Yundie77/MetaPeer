@@ -1,6 +1,6 @@
 PRAGMA foreign_keys = ON;
 
-CREATE TABLE usuario (
+CREATE TABLE IF NOT EXISTS usuario (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   correo           TEXT NOT NULL UNIQUE,
   nombre_completo  TEXT NOT NULL,
@@ -11,13 +11,13 @@ CREATE TABLE usuario (
   ultimo_acceso    TEXT
 );
 
-CREATE TABLE asignatura (
+CREATE TABLE IF NOT EXISTS asignatura (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   codigo     TEXT NOT NULL UNIQUE,         
   nombre     TEXT NOT NULL
 );
 
-CREATE TABLE usuario_asignatura (
+CREATE TABLE IF NOT EXISTS usuario_asignatura (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   id_usuario     INTEGER NOT NULL,         
   id_asignatura  INTEGER NOT NULL,
@@ -27,7 +27,7 @@ CREATE TABLE usuario_asignatura (
 );
 
 
-CREATE TABLE tarea (
+CREATE TABLE IF NOT EXISTS tarea (
   id                    INTEGER PRIMARY KEY AUTOINCREMENT,
   id_asignatura         INTEGER,                            
   titulo                TEXT NOT NULL,
@@ -42,14 +42,14 @@ CREATE TABLE tarea (
 );
 
 
-CREATE TABLE equipo (
+CREATE TABLE IF NOT EXISTS equipo (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   id_tarea  INTEGER NOT NULL,
   nombre    TEXT,                                         
   FOREIGN KEY (id_tarea) REFERENCES tarea(id) ON DELETE CASCADE
 );
 
-CREATE TABLE miembro_equipo (
+CREATE TABLE IF NOT EXISTS miembro_equipo (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
   id_equipo  INTEGER NOT NULL,
   id_usuario INTEGER NOT NULL,                              -- (ALUM)
@@ -59,13 +59,13 @@ CREATE TABLE miembro_equipo (
 );
 
 
-CREATE TABLE asignacion (
+CREATE TABLE IF NOT EXISTS asignacion (
   id        INTEGER PRIMARY KEY AUTOINCREMENT,
   id_tarea  INTEGER NOT NULL UNIQUE,                        -- 1:1 con tarea
   FOREIGN KEY (id_tarea) REFERENCES tarea(id) ON DELETE CASCADE
 );
 
-CREATE TABLE rubrica_items (
+CREATE TABLE IF NOT EXISTS rubrica_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   id_asignacion INTEGER NOT NULL,
   titulo_rubrica TEXT,                                      
@@ -82,7 +82,7 @@ CREATE TABLE rubrica_items (
 );
 
 
-CREATE TABLE entregas (
+CREATE TABLE IF NOT EXISTS entregas (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   id_tarea    INTEGER NOT NULL,
   id_equipo   INTEGER NOT NULL,
@@ -98,7 +98,7 @@ CREATE TABLE entregas (
 );
 
 
-CREATE TABLE revision (
+CREATE TABLE IF NOT EXISTS revision (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   id_asignacion    INTEGER NOT NULL,                   
   id_entrega       INTEGER NOT NULL,                      
@@ -115,7 +115,7 @@ CREATE TABLE revision (
 );
 
 
-CREATE TABLE meta_revision (
+CREATE TABLE IF NOT EXISTS meta_revision (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
   id_tarea       INTEGER NOT NULL,
   id_entrega     INTEGER,                     
@@ -133,24 +133,24 @@ CREATE TABLE meta_revision (
 );
 
 
-CREATE INDEX idx_usuario_asig_user   ON usuario_asignatura(id_usuario);
-CREATE INDEX idx_usuario_asig_asig   ON usuario_asignatura(id_asignatura);
+CREATE INDEX IF NOT EXISTS idx_usuario_asig_user   ON usuario_asignatura(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_usuario_asig_asig   ON usuario_asignatura(id_asignatura);
 
-CREATE INDEX idx_tarea_asignatura    ON tarea(id_asignatura);
-CREATE INDEX idx_tarea_creado_por    ON tarea(creado_por);
+CREATE INDEX IF NOT EXISTS idx_tarea_asignatura    ON tarea(id_asignatura);
+CREATE INDEX IF NOT EXISTS idx_tarea_creado_por    ON tarea(creado_por);
 
-CREATE INDEX idx_equipo_tarea        ON equipo(id_tarea);
-CREATE INDEX idx_miembro_equipo_eq   ON miembro_equipo(id_equipo);
+CREATE INDEX IF NOT EXISTS idx_equipo_tarea        ON equipo(id_tarea);
+CREATE INDEX IF NOT EXISTS idx_miembro_equipo_eq   ON miembro_equipo(id_equipo);
 
-CREATE INDEX idx_asignacion_tarea    ON asignacion(id_tarea);
-CREATE INDEX idx_rubrica_asignacion  ON rubrica_items(id_asignacion);
+CREATE INDEX IF NOT EXISTS idx_asignacion_tarea    ON asignacion(id_tarea);
+CREATE INDEX IF NOT EXISTS idx_rubrica_asignacion  ON rubrica_items(id_asignacion);
 
-CREATE INDEX idx_entregas_tarea      ON entregas(id_tarea);
-CREATE INDEX idx_entregas_equipo     ON entregas(id_equipo);
+CREATE INDEX IF NOT EXISTS idx_entregas_tarea      ON entregas(id_tarea);
+CREATE INDEX IF NOT EXISTS idx_entregas_equipo     ON entregas(id_equipo);
 
-CREATE INDEX idx_revision_entrega    ON revision(id_entrega);
-CREATE INDEX idx_revision_revisores  ON revision(id_revisores);
+CREATE INDEX IF NOT EXISTS idx_revision_entrega    ON revision(id_entrega);
+CREATE INDEX IF NOT EXISTS idx_revision_revisores  ON revision(id_revisores);
 
-CREATE INDEX idx_meta_tarea          ON meta_revision(id_tarea);
-CREATE INDEX idx_meta_entrega        ON meta_revision(id_entrega);
-CREATE INDEX idx_meta_revision       ON meta_revision(id_revision);
+CREATE INDEX IF NOT EXISTS idx_meta_tarea          ON meta_revision(id_tarea);
+CREATE INDEX IF NOT EXISTS idx_meta_entrega        ON meta_revision(id_entrega);
+CREATE INDEX IF NOT EXISTS idx_meta_revision       ON meta_revision(id_revision);

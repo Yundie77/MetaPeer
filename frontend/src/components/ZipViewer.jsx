@@ -1,321 +1,169 @@
-﻿import React, { useEffect, useMemo, useState } from "react";
-import JSZip from "jszip";
-import CodeMirror from "@uiw/react-codemirror";
-import { javascript } from "@codemirror/lang-javascript";
+import React, { useEffect, useMemo, useState } from 'react';
+import JSZip from 'jszip';
+import FileTree from './FileTree.jsx';
+import Breadcrumbs from './Breadcrumbs.jsx';
+import EditorPane from './EditorPane.jsx';
+import { isTextFile } from '../utils/textFileTypes.js';
+import { readFromURL, writeToURL } from '../utils/permalink.js';
 
-const VIEWER_HEIGHT = 520;
-
-// Lista de extensiones consideradas de texto para previsualización.
-const TEXT_EXTENSIONS = [
-  ".js",
-  ".jsx",
-  ".ts",
-  ".tsx",
-  ".py",
-  ".java",
-  ".c",
-  ".cpp",
-  ".cs",
-  ".rb",
-  ".php",
-  ".go",
-  ".rs",
-  ".swift",
-  ".kt",
-  ".m",
-  ".scala",
-  ".html",
-  ".css",
-  ".json",
-  ".md",
-  ".txt"
-];
-
-// Devuelve true si el archivo se puede abrir como texto.
-const isTextFile = (filename) => {
-  const normalized = filename.toLowerCase();
-  return TEXT_EXTENSIONS.some((extension) => normalized.endsWith(extension));
-};
-
-// Construye un árbol jerárquico a partir de las entradas del ZIP.
-const buildTree = (entries) => {
-  const root = new Map();
-
-  entries.forEach((entry) => {
-    const normalizedName = entry.name.replace(/\\/g, "/");
-    const segments = normalizedName.split("/").filter(Boolean);
-    if (!segments.length) {
-      return;
-    }
-
-    let currentLevel = root;
-    let accumulatedPath = "";
-
-    segments.forEach((segment, index) => {
-      const isLast = index === segments.length - 1;
-      accumulatedPath = accumulatedPath ? `${accumulatedPath}/${segment}` : segment;
-
-      if (!currentLevel.has(segment)) {
-        currentLevel.set(segment, {
-          name: segment,
-          path: accumulatedPath,
-          isFile: false,
-          entry: undefined,
-          children: new Map()
-        });
-      }
-
-      const node = currentLevel.get(segment);
-      if (isLast) {
-        node.isFile = !entry.dir;
-        node.entry = entry;
-      }
-
-      currentLevel = node.children;
-    });
-  });
-
-  const toArray = (level) =>
-    Array.from(level.values())
-      .sort((a, b) => {
-        if (a.isFile === b.isFile) {
-          return a.name.localeCompare(b.name);
-        }
-        return a.isFile ? 1 : -1;
-      })
-      .map((node) => ({
-        name: node.name,
-        path: node.path,
-        isFile: node.isFile,
-        entry: node.entry,
-        children: toArray(node.children)
-      }));
-
-  return toArray(root);
-};
-
-const treeListStyle = {
-  listStyle: "none",
-  margin: 0,
-  padding: 0
-};
-
-const treeFileButtonStyle = {
-  display: "block",
-  width: "100%",
-  textAlign: "left",
-  padding: "0.35rem 0.45rem",
-  borderRadius: "4px",
-  border: "1px solid transparent",
-  background: "transparent",
-  fontFamily: "Consolas, SFMono-Regular, Menlo, monospace",
-  fontSize: "0.85rem",
-  cursor: "pointer"
-};
-
-const treeFolderStyle = {
-  display: "block",
-  padding: "0.35rem 0.45rem",
-  borderRadius: "4px",
-  fontWeight: 600,
-  fontFamily: "Consolas, SFMono-Regular, Menlo, monospace",
-  fontSize: "0.85rem",
-  color: "#333333"
-};
-
-function TreeNode({ node, depth, onSelect, selectedPath }) {
-  const isSelected = selectedPath === node.path;
-  const paddingLeft = `${depth * 14 + 8}px`;
-
-  return (
-    <li style={{ listStyle: "none" }}>
-      {node.isFile ? (
-        <button
-          type="button"
-          onClick={() => onSelect(node.entry)}
-          style={{
-            ...treeFileButtonStyle,
-            paddingLeft,
-            backgroundColor: isSelected ? "#d9ecff" : "transparent",
-            borderColor: isSelected ? "#8cc4ff" : "transparent"
-          }}
-        >
-          {node.name}
-        </button>
-      ) : (
-        <div
-          style={{
-            ...treeFolderStyle,
-            paddingLeft,
-            backgroundColor: "transparent"
-          }}
-        >
-          [DIR] {node.name}
-        </div>
-      )}
-      {node.children.length > 0 && (
-        <ul style={treeListStyle}>
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              onSelect={onSelect}
-              selectedPath={selectedPath}
-            />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-}
-
-function FileTree({ nodes, onSelect, selectedPath }) {
-  if (!nodes.length) {
-    return <p style={{ color: "#555", margin: 0 }}>El ZIP no contiene ficheros.</p>;
-  }
-  return (
-    <ul style={treeListStyle}>
-      {nodes.map((node) => (
-        <TreeNode
-          key={node.path}
-          node={node}
-          depth={0}
-          onSelect={onSelect}
-          selectedPath={selectedPath}
-        />
-      ))}
-    </ul>
-  );
-}
+// Componente principal: orquesta carga del ZIP, árbol, breadcrumbs y editor.
+// Código comentado y simple para aprender la estructura.
 
 export default function ZipViewer() {
+  // Entradas del ZIP (solo archivos, no carpetas)
   const [zipEntries, setZipEntries] = useState([]);
-  const [selectedEntry, setSelectedEntry] = useState(null);
-  const [fileContents, setFileContents] = useState("");
-  const [errorMessage, setErrorMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
 
-  // Reiniciamos la selección cuando cambia el ZIP cargado.
+  // Navegación y selección
+  const [currentDir, setCurrentDir] = useState(''); // carpeta actual (filtra el árbol)
+  const [currentPath, setCurrentPath] = useState(''); // archivo seleccionado
+  const [initialLine, setInitialLine] = useState(0); // línea a resaltar/scroll si viene de permalink
+
+  // Contenido del archivo seleccionado
+  const [fileContents, setFileContents] = useState('');
+  const [notText, setNotText] = useState(false);
+
+  // Comentarios en memoria: Map("path:line" => string[])
+  const [comments, setComments] = useState(new Map());
+
+  // Al cargar, leemos ?path&line (permite recargar con permalink)
   useEffect(() => {
-    setSelectedEntry(null);
-    setFileContents("");
-  }, [zipEntries]);
+    const { path, line } = readFromURL();
+    if (path) setCurrentPath(path);
+    if (line) setInitialLine(line);
+  }, []);
 
-  const treeData = useMemo(() => buildTree(zipEntries), [zipEntries]);
+  // Cuando cambia el archivo abierto, escribimos ?path= en la URL (sin router)
+  useEffect(() => {
+    if (currentPath) writeToURL({ path: currentPath, line: undefined });
+  }, [currentPath]);
 
-  // Lee el ZIP en memoria, lista los ficheros y muestra errores si falla.
+  // Árbol de archivos filtrado por currentDir
+  const treeData = useMemo(() => buildTree(zipEntries, currentDir), [zipEntries, currentDir]);
+
+  // Subir ZIP y leer entradas
   const handleZipUpload = async (event) => {
     const file = event.target.files?.[0];
-    if (!file) {
-      return;
-    }
-
+    if (!file) return;
     setIsBusy(true);
-    setErrorMessage("");
+    setErrorMessage('');
     setZipEntries([]);
-
+    setCurrentDir('');
     try {
       const data = await file.arrayBuffer();
       const zip = await JSZip.loadAsync(data);
-      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
-
-      if (!entries.length) {
-        setErrorMessage("El archivo ZIP no contiene ficheros.");
-      }
-
+      const entries = Object.values(zip.files).filter((e) => !e.dir);
       setZipEntries(entries);
-    } catch (error) {
-      console.error("ZIP parsing failed", error);
-      setErrorMessage("No se pudo leer el archivo ZIP. Comprueba que sea válido.");
+      // Si la URL ya traía path/line, intentamos abrir tras cargar
+      const { path, line } = readFromURL();
+      if (path && entries.some((e) => normalize(e.name) === normalize(path))) {
+        openByPath(path, line || 0, entries);
+      }
+    } catch (err) {
+      console.error('ZIP parsing failed', err);
+      setErrorMessage('No se pudo leer el archivo ZIP. Comprueba que sea válido.');
     } finally {
       setIsBusy(false);
     }
   };
 
-  // Abre un fichero del ZIP y lo decodifica en UTF-8 para CodeMirror.
-  const openEntry = async (entry) => {
-    setSelectedEntry(entry);
-    setFileContents("");
-    setErrorMessage("");
-
-    if (!isTextFile(entry.name)) {
-      setErrorMessage("Solo se pueden previsualizar ficheros de texto.");
+  // Abrir archivo por ruta (desde árbol o permalink)
+  const openByPath = async (path, line = 0, entries = zipEntries) => {
+    const entry = entries.find((e) => normalize(e.name) === normalize(path));
+    setCurrentPath(path);
+    setInitialLine(line || 0);
+    if (!entry) return;
+    if (!isTextFile(path)) {
+      setNotText(true);
+      setFileContents('');
       return;
     }
-
-    setIsBusy(true);
+    setNotText(false);
     try {
-      const bytes = await entry.async("uint8array");
-      const decoder = new TextDecoder("utf-8", { fatal: false });
-      const decoded = decoder.decode(bytes);
+      const bytes = await entry.async('uint8array');
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
       setFileContents(decoded);
-    } catch (error) {
-      console.error("File decoding failed", error);
-      setErrorMessage("No se pudo leer el contenido del fichero seleccionado.");
-    } finally {
-      setIsBusy(false);
+    } catch (err) {
+      console.error('File decoding failed', err);
+      setErrorMessage('No se pudo leer el contenido del fichero seleccionado.');
     }
   };
 
-  const selectedPath = selectedEntry?.name || "";
+  // Añadir comentario a una línea del archivo abierto
+  const handleAddComment = (line, text) => {
+    if (!currentPath) return;
+    const key = `${currentPath}:${line}`;
+    setComments((prev) => {
+      const next = new Map(prev);
+      const arr = next.get(key) || [];
+      next.set(key, [...arr, text]);
+      return next;
+    });
+  };
+
+  // Comentarios del archivo actual como Map<number, string[]>
+  const commentsForFile = useMemo(() => {
+    const map = new Map();
+    comments.forEach((list, key) => {
+      const [p, ln] = key.split(':');
+      if (p === currentPath) {
+        const n = Number(ln) || 0;
+        map.set(n, list);
+      }
+    });
+    return map;
+  }, [comments, currentPath]);
+
+  // Breadcrumbs: navegar a directorios
+  const handleBreadcrumbNav = (segPath) => setCurrentDir(segPath);
 
   return (
-    <div style={wrapperStyle}>
-      <label htmlFor="zip-input" style={{ fontWeight: 600 }}>
-        Selecciona una entrega (.zip):
-      </label>
-      <input
-        id="zip-input"
-        type="file"
-        accept=".zip"
-        onChange={handleZipUpload}
-        style={inputStyle}
-      />
+    <div style={container}>
+      <label htmlFor="zip-input" style={{ fontWeight: 600 }}>Selecciona una entrega (.zip):</label>
+      <input id="zip-input" type="file" accept=".zip" onChange={handleZipUpload} style={fileInput} />
 
-      {isBusy && <p style={{ color: "#555" }}>Procesando archivo…</p>}
-      {errorMessage && <p style={{ color: "crimson" }}>{errorMessage}</p>}
+      {isBusy && <p style={{ color: '#555' }}>Procesando archivo…</p>}
+      {errorMessage && <p style={{ color: 'crimson' }}>{errorMessage}</p>}
 
       {!zipEntries.length && !errorMessage && (
-        <p style={{ color: "#555" }}>Sube un ZIP para ver su contenido.</p>
+        <p style={{ color: '#555' }}>Sube un ZIP para ver su contenido.</p>
       )}
 
       {!!zipEntries.length && (
-        <div style={viewerLayoutStyle}>
-          <div style={treePaneStyle}>
-            <div style={treeHeaderStyle}>Estructura del ZIP</div>
-            <div style={treeScrollStyle}>
-              <FileTree nodes={treeData} onSelect={openEntry} selectedPath={selectedPath} />
+        <div style={viewerArea}>
+          {/* Panel izquierdo: árbol filtrado por currentDir */}
+          <div style={leftPane}>
+            <div style={leftHeader}>Estructura</div>
+            <div style={leftScroll}>
+              <FileTree
+                nodes={treeData}
+                selectedPath={currentPath}
+                onOpenDir={setCurrentDir}
+                onOpenFile={(p) => openByPath(p)}
+              />
             </div>
           </div>
 
-          <div style={editorColumnStyle}>
-            <div style={selectedPathStyle}>
-              {selectedPath ? selectedPath : "Selecciona un fichero para previsualizarlo"}
-            </div>
-            <div style={editorShellStyle}>
-              {selectedEntry ? (
-                isTextFile(selectedEntry.name) ? (
-                  isBusy && !fileContents ? (
-                    <p style={placeholderStyle}>Cargando contenido…</p>
-                  ) : (
-                    <CodeMirror
-                      value={fileContents}
-                      height="100%"
-                      extensions={[javascript()]}
-                      editable={false}
-                      basicSetup={{
-                        highlightActiveLine: false,
-                        highlightActiveLineGutter: false
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                  )
+          {/* Panel derecho: breadcrumbs + editor */}
+          <div style={rightPane}>
+            <Breadcrumbs path={currentPath || currentDir} onNavigate={handleBreadcrumbNav} />
+            <div style={{ flex: 1, display: 'flex' }}>
+              {currentPath ? (
+                notText ? (
+                  <div style={placeholder}>Este fichero no es de texto</div>
                 ) : (
-                  <p style={placeholderStyle}>El fichero seleccionado no es de texto.</p>
+                  <EditorPane
+                    path={currentPath}
+                    code={fileContents}
+                    height={'100%'}
+                    initialLine={initialLine}
+                    commentsByLine={commentsForFile}
+                    onAddComment={handleAddComment}
+                  />
                 )
               ) : (
-                <p style={placeholderStyle}>Selecciona un fichero para previsualizarlo.</p>
+                <div style={placeholder}>Selecciona un fichero para previsualizarlo</div>
               )}
             </div>
           </div>
@@ -325,74 +173,52 @@ export default function ZipViewer() {
   );
 }
 
-const wrapperStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "1rem"
-};
+// Construye árbol simple desde las entradas del ZIP, filtrando por currentDir
+function buildTree(entries, currentDir) {
+  const normDir = normalize(currentDir);
+  const root = new Map();
+  const ensure = (level, name, path) => {
+    if (!level.has(name)) level.set(name, { name, path, isFile: false, children: new Map() });
+    return level.get(name);
+  };
 
-const inputStyle = {
-  border: "1px solid #ccc",
-  padding: "0.5rem",
-  borderRadius: "4px"
-};
+  entries.forEach((e) => {
+    const full = normalize(e.name);
+    const segs = full.split('/').filter(Boolean);
+    if (!segs.length) return;
 
-const viewerLayoutStyle = {
-  display: "grid",
-  gridTemplateColumns: "320px 1fr",
-  gap: "1.5rem"
-};
+    if (normDir && !full.startsWith(normDir + '/')) return;
+    const relevant = normDir ? full.slice(normDir.length + 1) : full;
+    const parts = relevant.split('/').filter(Boolean);
 
-const treePaneStyle = {
-  display: "flex",
-  flexDirection: "column",
-  border: "1px solid #ddd",
-  borderRadius: "6px",
-  backgroundColor: "#fdfdfd",
-  height: `${VIEWER_HEIGHT}px`
-};
+    let level = root;
+    let acc = normDir || '';
+    parts.forEach((part, idx) => {
+      const isLast = idx === parts.length - 1;
+      acc = acc ? `${acc}/${part}` : part;
+      const node = ensure(level, part, acc);
+      if (isLast) node.isFile = true;
+      level = node.children;
+    });
+  });
 
-const treeHeaderStyle = {
-  padding: "0.5rem 0.75rem",
-  fontWeight: 600,
-  borderBottom: "1px solid #ececec",
-  backgroundColor: "#f5f7fb"
-};
+  const toArray = (level) =>
+    Array.from(level.values())
+      .sort((a, b) => (a.isFile === b.isFile ? a.name.localeCompare(b.name) : a.isFile ? 1 : -1))
+      .map((n) => ({ ...n, children: toArray(n.children) }));
 
-const treeScrollStyle = {
-  flex: 1,
-  overflowY: "auto",
-  padding: "0.5rem"
-};
+  return toArray(root);
+}
 
-const editorColumnStyle = {
-  display: "flex",
-  flexDirection: "column",
-  height: `${VIEWER_HEIGHT}px`
-};
+function normalize(p = '') { return p.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''); }
 
-const selectedPathStyle = {
-  minHeight: "2.5rem",
-  padding: "0.5rem 0.75rem",
-  fontWeight: 600,
-  border: "1px solid #ddd",
-  borderRadius: "6px 6px 0 0",
-  backgroundColor: "#f5f7fb",
-  color: "#1a1a1a",
-  overflowWrap: "anywhere"
-};
+// Estilos simples y responsivos
+const container = { display: 'flex', flexDirection: 'column', gap: '1rem' };
+const fileInput = { border: '1px solid #ccc', padding: '0.5rem', borderRadius: 4 };
+const viewerArea = { display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1rem', height: 'calc(100vh - 220px)' };
+const leftPane = { display: 'flex', flexDirection: 'column', border: '1px solid #ddd', borderRadius: 6, background: '#fdfdfd' };
+const leftHeader = { padding: '0.5rem 0.75rem', fontWeight: 600, borderBottom: '1px solid #ececec', background: '#f5f7fb' };
+const leftScroll = { flex: 1, overflowY: 'auto', padding: '0.5rem' };
+const rightPane = { display: 'flex', flexDirection: 'column' };
+const placeholder = { margin: 'auto', color: '#555', border: '1px dashed #ddd', borderRadius: 6, padding: '1rem', width: '100%', textAlign: 'center' };
 
-const editorShellStyle = {
-  flex: 1,
-  border: "1px solid #ddd",
-  borderTop: "none",
-  borderRadius: "0 0 6px 6px",
-  backgroundColor: "#fafafa",
-  padding: "0.5rem",
-  display: "flex"
-};
-
-const placeholderStyle = {
-  margin: "auto",
-  color: "#555"
-};

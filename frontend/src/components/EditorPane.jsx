@@ -1,164 +1,272 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import CodeMirror from '@uiw/react-codemirror';
-import { EditorView, Decoration, ViewPlugin } from '@codemirror/view';
-import { StateField, Compartment } from '@codemirror/state';
-import { lineNumbers } from '@codemirror/view';
+import { EditorView, lineNumbers, Decoration } from '@codemirror/view';
+import { Compartment, StateField } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import LineMenu from './LineMenu.jsx';
 import { buildPermalink } from '../utils/permalink.js';
 
-// Editor de solo lectura con:
-// - números de línea
-// - scroll y resaltado de línea
-// - menú de línea y comentarios en memoria
+// Pequeño editor de solo lectura inspirado en GitHub.
+// Funciona así:
+// 1. Click en el número de línea -> resalta la línea y aparece el botón "...".
+// 2. Click en "..." -> abre un menú con Copy line / Copy permalink / Add comment.
+// 3. Los comentarios se guardan en memoria y se muestran debajo de la línea.
+
+// Tema básico del editor (fuente mono y cuidado con los números de línea).
+const baseTheme = EditorView.theme({
+  '.cm-scroller': {
+    fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace',
+    fontSize: '14px'
+  },
+  '.cm-lineNumbers': {
+    cursor: 'pointer',
+    userSelect: 'none',
+    minWidth: '48px',
+    paddingRight: '8px',
+    color: '#57606a'
+  },
+  '.cm-lineNumbers .cm-gutterElement': {
+    padding: '0 8px 0 4px',
+    textAlign: 'right'
+  },
+  '.cm-lineNumbers .cm-gutterElement:hover': {
+    backgroundColor: '#f6f8fa'
+  },
+  '.codex-highlight-line': {
+    backgroundColor: '#fff8c5'
+  }
+});
 
 export default function EditorPane({
   path,
   code,
-  height, // CSS height (e.g., '100%')
+  height,
   initialLine = 0,
-  commentsByLine = new Map(), // Map<number, string[]>
-  onAddComment // (line, text) => void
+  commentsByLine = new Map(),
+  onAddComment
 }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
 
-  // Estado para el botón "..." en el gutter y el menú.
-  const [hoverLine, setHoverLine] = useState(null);
+  // Compartimentos para intercambiar extensiones dinámicas (resaltado + comentarios).
+  const highlightCompartmentRef = useRef(new Compartment());
+  const commentsCompartmentRef = useRef(new Compartment());
+
+  const [editorReady, setEditorReady] = useState(false);
+  const [selectedLine, setSelectedLine] = useState(initialLine || 0);
   const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, line: 0 });
 
-  // Compartimentos para reconfigurar extensiones dinámicamente (persisten entre renders)
-  const commentsCompartmentRef = useRef(new Compartment());
-  const highlightCompartmentRef = useRef(new Compartment());
-
-  // Construye decoración de comentarios (widgets bajo líneas y marker en gutter)
-  const commentsExtension = useMemo(() => buildCommentsExtension(commentsByLine), [commentsByLine]);
-
-  // Resalte temporal de una línea (cuando venimos de permalink)
-  const highlightExtension = useMemo(() => buildHighlightExtension(initialLine), [initialLine]);
-
-  // Manejar hover sobre gutter para mostrar el botón "..."
+  // Siempre que cambiamos de archivo o llega un permalink nuevo, sincronizamos el estado.
   useEffect(() => {
-    const container = containerRef.current;
-    const view = viewRef.current;
-    if (!container || !view) return;
+    setSelectedLine(initialLine || 0);
+    setMenu({ visible: false, x: 0, y: 0, line: 0 });
+  }, [initialLine, code, path]);
 
-    const onMouseMove = (e) => {
-      const rect = view.dom.getBoundingClientRect();
-      const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
-      if (!pos) {
-        setHoverLine(null);
-        return;
-      }
-      const line = view.state.doc.lineAt(pos.pos).number;
-      // Solo mostrar si el cursor está sobre el gutter (aproximación: x < rect.left + 60)
-      const inGutter = e.clientX < rect.left + 60;
-      setHoverLine(inGutter ? line : null);
-    };
-    const onMouseLeave = () => setHoverLine(null);
-    view.dom.addEventListener('mousemove', onMouseMove);
-    view.dom.addEventListener('mouseleave', onMouseLeave);
-    return () => {
-      view.dom.removeEventListener('mousemove', onMouseMove);
-      view.dom.removeEventListener('mouseleave', onMouseLeave);
-    };
+  // Construimos extensiones dependientes del estado.
+  const highlightExtension = useMemo(
+    () => buildHighlightExtension(selectedLine),
+    [selectedLine]
+  );
+
+  const commentsExtension = useMemo(
+    () => buildCommentsExtension(commentsByLine),
+    [commentsByLine]
+  );
+
+  // Reconfiguramos el resaltado cuando cambia la línea seleccionada.
+  useEffect(() => {
+    if (!editorReady || !viewRef.current) return;
+    viewRef.current.dispatch({
+      effects: highlightCompartmentRef.current.reconfigure(highlightExtension)
+    });
+  }, [highlightExtension, editorReady]);
+
+  // Reconfiguramos los comentarios cuando cambian.
+  useEffect(() => {
+    if (!editorReady || !viewRef.current) return;
+    viewRef.current.dispatch({
+      effects: commentsCompartmentRef.current.reconfigure(commentsExtension)
+    });
+  }, [commentsExtension, editorReady]);
+
+  // Al seleccionar una línea la llevamos suavemente al centro.
+  useEffect(() => {
+    if (!editorReady || !viewRef.current || !selectedLine) return;
+    try {
+      const line = viewRef.current.state.doc.line(selectedLine);
+      viewRef.current.dispatch({
+        effects: EditorView.scrollIntoView(line.from, { y: 'center' })
+      });
+    } catch (error) {
+      console.warn('No se pudo desplazar a la línea seleccionada', error);
+    }
+  }, [selectedLine, editorReady]);
+
+  // Maneja el click en el número de línea.
+  const onGutterMouseDown = useCallback((event) => {
+    const target = event.target instanceof Element
+      ? event.target.closest('.cm-lineNumbers .cm-gutterElement')
+      : null;
+    if (!target) {
+      return;
+    }
+
+    event.preventDefault();
+    const lineNum = Number(target.textContent?.trim() || 0);
+    if (!lineNum) {
+      return;
+    }
+
+    setSelectedLine(lineNum);
+    setMenu({ visible: false, x: 0, y: 0, line: 0 });
   }, []);
 
-  // Al montar/actualizar CodeMirror, inyectamos compartimentos dinámicos.
-  const extensions = useMemo(() => [
-    lineNumbers(),
-    EditorView.editable.of(false),
-    javascript(),
-    commentsCompartmentRef.current.of(commentsExtension),
-    highlightCompartmentRef.current.of(highlightExtension),
-    EditorView.theme({
-      '.cm-scroller': { fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace' }
-    }),
-  ], [commentsExtension, highlightExtension]);
-
-  // Cada vez que commentsExtension o highlight cambia, reconfiguramos.
+  // Registramos el listener una vez que el editor está listo.
   useEffect(() => {
+    if (!editorReady || !viewRef.current) return;
     const view = viewRef.current;
-    if (!view) return;
-    view.dispatch({ effects: commentsCompartmentRef.current.reconfigure(commentsExtension) });
-  }, [commentsExtension]);
+    view.dom.addEventListener('mousedown', onGutterMouseDown);
+    return () => view.dom.removeEventListener('mousedown', onGutterMouseDown);
+  }, [editorReady, onGutterMouseDown]);
 
-  useEffect(() => {
+  // Abre el menú "..." para una línea concreta.
+  const openMenuForLine = (lineNum) => {
+    if (!viewRef.current || !containerRef.current) return;
     const view = viewRef.current;
-    if (!view) return;
-    view.dispatch({ effects: highlightCompartmentRef.current.reconfigure(highlightExtension) });
-    if (initialLine > 0) {
-      const line = view.state.doc.line(initialLine);
-      view.dispatch({ effects: EditorView.scrollIntoView(line.from, { y: 'center' }) });
+    const container = containerRef.current;
+
+    try {
+      const line = view.state.doc.line(lineNum);
+      const coords = view.coordsAtPos(line.from);
+      if (!coords) return;
+
+      const containerRect = container.getBoundingClientRect();
+      const gutterRect = view.dom.querySelector('.cm-gutters')?.getBoundingClientRect();
+      const x = gutterRect ? gutterRect.right - containerRect.left + 8 : 60;
+      const y = coords.top - containerRect.top;
+
+      setSelectedLine(lineNum);
+      setMenu({ visible: true, x, y, line: lineNum });
+    } catch (error) {
+      console.warn('No se pudo abrir el menú para la línea', lineNum, error);
     }
-  }, [highlightExtension, initialLine]);
-
-  // Posicionar el botón "..." al lado del número de línea (absoluto dentro del contenedor).
-  const moreBtn = useMemo(() => {
-    if (!hoverLine || !viewRef.current) return null;
-    const view = viewRef.current;
-    const block = view.lineBlockAt(view.state.doc.line(hoverLine).from);
-    const rect = view.coordsAtPos(block.from);
-    if (!rect) return null;
-    const containerRect = containerRef.current.getBoundingClientRect();
-    const x = 8; // margen desde el borde izquierdo del editor
-    const y = rect.top - containerRect.top;
-    return { x, y };
-  }, [hoverLine]);
-
-  // Acciones del menú
-  const openMenu = (line) => {
-    const pos = calcLineTop(viewRef.current, containerRef.current, line);
-    if (!pos) return;
-    setMenu({ visible: true, x: 24, y: pos.y, line });
   };
-  const closeMenu = () => setMenu((m) => ({ ...m, visible: false }));
+
+  // Acciones del menú principal.
+  const closeMenu = () => setMenu((prev) => ({ ...prev, visible: false }));
 
   const copyLine = async () => {
-    const view = viewRef.current;
-    if (!view || !menu.line) return;
-    const ln = view.state.doc.line(menu.line);
-    await navigator.clipboard.writeText(ln.text);
+    if (!viewRef.current || !menu.line) return;
+    const line = viewRef.current.state.doc.line(menu.line);
+    await navigator.clipboard.writeText(line.text);
     closeMenu();
   };
 
   const copyPermalink = async () => {
+    if (!menu.line) return;
     const url = buildPermalink({ path, line: menu.line });
     await navigator.clipboard.writeText(url);
     closeMenu();
   };
 
   const addComment = (text) => {
-    onAddComment && onAddComment(menu.line, text);
+    if (onAddComment && menu.line) {
+      onAddComment(menu.line, text);
+    }
   };
 
+  // Extensiones estáticas (se crean una vez).
+  const staticExtensions = useMemo(() => (
+    [
+      javascript(),
+      EditorView.editable.of(false),
+      lineNumbers(),
+      baseTheme,
+      highlightCompartmentRef.current.of([]),
+      commentsCompartmentRef.current.of([])
+    ]
+  ), []);
+
   return (
-    <div ref={containerRef} style={{ position: 'relative', height, display: 'flex', border: '1px solid #ddd', borderTop: 'none', borderRadius: '0 0 6px 6px', background: '#fafafa' }}>
-      {/* Botón de menú sobre el gutter, aparece al pasar el ratón */}
-      {moreBtn && (
-        <button
-          type="button"
-          onClick={() => openMenu(hoverLine)}
-          style={{ position: 'absolute', left: moreBtn.x, top: moreBtn.y, zIndex: 20, border: '1px solid #ddd', borderRadius: 4, background: '#f6f8fa', cursor: 'pointer', padding: '0 6px' }}
-          title="Más acciones de línea"
-        >
-          …
-        </button>
-      )}
+    <div
+      ref={containerRef}
+      style={{
+        position: 'relative',
+        height,
+        border: '1px solid #ddd',
+        borderTop: 'none',
+        borderRadius: '0 0 6px 6px',
+        overflow: 'hidden',
+        background: '#fafafa'
+      }}
+    >
+      <CodeMirror
+        value={code}
+        height={height}
+        extensions={staticExtensions}
+        editable={false}
+        basicSetup={{
+          lineNumbers: false,
+          highlightActiveLine: false,
+          highlightActiveLineGutter: false
+        }}
+        onCreateEditor={(view) => {
+          viewRef.current = view;
+          setEditorReady(true);
+          // Aplicamos la configuración inicial.
+          view.dispatch({
+            effects: [
+              highlightCompartmentRef.current.reconfigure(highlightExtension),
+              commentsCompartmentRef.current.reconfigure(commentsExtension)
+            ]
+          });
+        }}
+      />
 
-      {/* Editor CodeMirror */}
-      <div style={{ flex: 1 }}>
-        <CodeMirror
-          value={code}
-          height={height}
-          extensions={extensions}
-          editable={false}
-          basicSetup={{ highlightActiveLine: false, highlightActiveLineGutter: false }}
-          onCreateEditor={(view) => { viewRef.current = view; }}
-        />
-      </div>
+      {/* Botón "..." alineado con la línea activa */}
+      {editorReady && selectedLine > 0 && viewRef.current && containerRef.current && (() => {
+        try {
+          const view = viewRef.current;
+          const line = view.state.doc.line(selectedLine);
+          const coords = view.coordsAtPos(line.from);
+          if (!coords) return null;
 
-      {/* Menú contextual */}
+          const containerRect = containerRef.current.getBoundingClientRect();
+          const gutterRect = view.dom.querySelector('.cm-gutters')?.getBoundingClientRect();
+          if (!gutterRect) return null;
+
+          const left = gutterRect.right - containerRect.left + 4;
+          const top = coords.top - containerRect.top;
+
+          return (
+            <button
+              type="button"
+              onClick={() => openMenuForLine(selectedLine)}
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                zIndex: 20,
+                background: '#f6f8fa',
+                border: '1px solid #d0d7de',
+                borderRadius: '6px',
+                padding: '2px 6px',
+                cursor: 'pointer',
+                color: '#0969da',
+                fontSize: '16px',
+                lineHeight: 1.2
+              }}
+              title="Acciones de línea"
+            >
+              …
+            </button>
+          );
+        } catch (error) {
+          console.warn('No se pudo posicionar el botón de acciones', error);
+          return null;
+        }
+      })()}
+
       <LineMenu
         visible={menu.visible}
         x={menu.x}
@@ -173,74 +281,96 @@ export default function EditorPane({
   );
 }
 
-// Utilidad: coordenada Y superior de la línea en el contenedor
-function calcLineTop(view, container, line) {
-  if (!view || !container) return null;
-  const from = view.state.doc.line(line).from;
-  const rect = view.coordsAtPos(from);
-  if (!rect) return null;
-  const c = container.getBoundingClientRect();
-  return { y: rect.top - c.top };
-}
+// ----- Extensiones auxiliares -----
 
-// Construye una extensión para pintar widgets de comentarios bajo líneas
-function buildCommentsExtension(commentsByLine) {
-  // Construye un DecorationSet con widgets bajo las líneas comentadas.
+function buildHighlightExtension(lineNumber) {
+  if (!lineNumber || lineNumber <= 0) {
+    return [];
+  }
+
   const field = StateField.define({
     create(state) {
-      const widgets = [];
-      commentsByLine.forEach((list, line) => {
-        if (!Array.isArray(list) || list.length === 0) return;
-        const ln = state.doc.line(Number(line) || 0);
-        const deco = Decoration.widget({
-          side: 1,
-          block: true,
-          widget: {
-            toDOM() {
-              const wrap = document.createElement('div');
-              wrap.style.cssText = 'margin:2px 0 6px 0;padding:6px 8px;border:1px solid #e5e7eb;border-radius:6px;background:#fff6d8;color:#333;font-size:0.9rem;';
-              list.forEach((txt) => {
-                const p = document.createElement('div');
-                p.textContent = `💬 ${txt}`;
-                wrap.appendChild(p);
-              });
-              return wrap;
-            }
-          }
-        }).range(ln.to);
-        widgets.push(deco);
-      });
-      return Decoration.set(widgets, true);
+      try {
+        const line = state.doc.line(lineNumber);
+        const deco = Decoration.line({ attributes: { class: 'codex-highlight-line' } }).range(line.from);
+        return Decoration.set([deco]);
+      } catch (error) {
+        return Decoration.none;
+      }
     },
-    update(set, tr) {
-      // Documento no cambia (solo lectura). Mantener set.
-      return set;
+    update(value) {
+      return value;
     },
     provide: (f) => EditorView.decorations.from(f)
   });
+
   return [field];
 }
 
-// Extensión para resaltar una línea (temporal): añade una clase a la línea
-function buildHighlightExtension(lineNumber) {
-  if (!lineNumber || lineNumber <= 0) return [];
-  const decoField = StateField.define({
+function buildCommentsExtension(commentsByLine) {
+  if (!commentsByLine || commentsByLine.size === 0) {
+    return [];
+  }
+
+  const field = StateField.define({
     create(state) {
-      const line = state.doc.line(lineNumber);
-      const deco = Decoration.line({ attributes: { class: 'cm-highlight-line' } }).range(line.from);
-      return Decoration.set([deco]);
+      const widgets = [];
+
+      commentsByLine.forEach((comments, key) => {
+        const lineNum = Number(key);
+        if (!Array.isArray(comments) || comments.length === 0 || !lineNum) {
+          return;
+        }
+
+        try {
+          const line = state.doc.line(lineNum);
+          const widget = Decoration.widget({
+            block: true,
+            side: 1,
+            widget: new CommentWidget(comments)
+          }).range(line.to);
+          widgets.push(widget);
+        } catch (error) {
+          console.warn('Comentario inválido en la línea', key, error);
+        }
+      });
+
+      return Decoration.set(widgets, true);
     },
-    update(set, tr) {
-      return set;
+    update(value) {
+      return value;
     },
     provide: (f) => EditorView.decorations.from(f)
   });
 
-  const theme = EditorView.theme({
-    '.cm-highlight-line': { backgroundColor: 'rgba(255, 235, 59, 0.35)' }
-  });
-
-  // Quitar el resaltado tras 2.5s usando un plugin que lo limpia (visual)
-  // Resaltado simple; dejamos la marca y hacemos scroll al centro.
-  return [decoField, theme];
+  return [field];
 }
+
+class CommentWidget {
+  constructor(comments) {
+    this.comments = comments;
+  }
+
+  toDOM() {
+    const wrap = document.createElement('div');
+    wrap.style.cssText = `
+      margin: 6px 0 10px 0;
+      padding: 8px 12px;
+      background: #fff8dc;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      font-size: 13px;
+      color: #333;
+    `;
+
+    this.comments.forEach((text) => {
+      const comment = document.createElement('div');
+      comment.textContent = `💬 ${text}`;
+      comment.style.marginBottom = '4px';
+      wrap.appendChild(comment);
+    });
+
+    return wrap;
+  }
+}
+

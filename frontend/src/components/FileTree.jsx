@@ -1,22 +1,25 @@
 import React from 'react';
 
-// Árbol de archivos/carpetas muy simple.
-// Recibe nodos ya construidos (carpetas arriba, archivos abajo)
-// y permite seleccionar carpeta o archivo.
+// Árbol de archivos estilo GitHub con carpetas desplegables.
+// node: { name, path, isFile, children: node[] }
 
-/**
- * node shape: { name, path, isFile, children: node[] }
- */
-export default function FileTree({ nodes = [], selectedPath = '', onOpenDir, onOpenFile }) {
+export default function FileTree({
+  nodes = [],
+  selectedPath = '',
+  expandedPaths = new Set(),
+  onToggleDir,
+  onOpenFile
+}) {
   return (
     <ul style={ulStyle}>
-      {nodes.map((n) => (
+      {nodes.map((node) => (
         <TreeNode
-          key={n.path || n.name}
-          node={n}
+          key={node.path || node.name}
+          node={node}
           depth={0}
           selectedPath={selectedPath}
-          onOpenDir={onOpenDir}
+          expandedPaths={expandedPaths}
+          onToggleDir={onToggleDir}
           onOpenFile={onOpenFile}
         />
       ))}
@@ -24,52 +27,57 @@ export default function FileTree({ nodes = [], selectedPath = '', onOpenDir, onO
   );
 }
 
-function TreeNode({ node, depth, selectedPath, onOpenDir, onOpenFile }) {
-  const isSelected = selectedPath === node.path;
-  const pad = 8 + depth * 14;
+function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpenFile }) {
   const isDir = !node.isFile;
+  const isExpanded = isDir ? expandedPaths.has(node.path) : false;
+  const isSelected = selectedPath === node.path;
+  const paddingLeft = 12 + depth * 16;
 
   return (
     <li style={liStyle}>
       {isDir ? (
         <button
           type="button"
-          onClick={() => onOpenDir && onOpenDir(node.path)}
+          onClick={() => onToggleDir && onToggleDir(node.path)}
           style={{
-            ...btnBase,
-            paddingLeft: pad,
-            fontWeight: 600,
+            ...dirButtonStyle,
+            paddingLeft,
           }}
           title={node.path || node.name}
         >
-          📁 {node.name}
+          <span style={{ marginRight: 6 }}>{isExpanded ? '▾' : '▸'}</span>
+          <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📁</span>
+          {node.name}
         </button>
       ) : (
         <button
           type="button"
           onClick={() => onOpenFile && onOpenFile(node.path)}
           style={{
-            ...btnBase,
-            paddingLeft: pad,
+            ...fileButtonStyle,
+            paddingLeft,
             backgroundColor: isSelected ? '#d9ecff' : 'transparent',
-            borderColor: isSelected ? '#8cc4ff' : 'transparent',
-            fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace'
+            borderColor: isSelected ? '#8cc4ff' : 'transparent'
           }}
           title={node.path}
         >
-          📄 {node.name}
+          <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📄</span>
+          <span style={{ fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace', fontSize: '0.88rem' }}>
+            {node.name}
+          </span>
         </button>
       )}
 
-      {node.children && node.children.length > 0 && (
+      {isDir && isExpanded && node.children && node.children.length > 0 && (
         <ul style={ulStyle}>
-          {node.children.map((c) => (
+          {node.children.map((child) => (
             <TreeNode
-              key={c.path || c.name}
-              node={c}
+              key={child.path || child.name}
+              node={child}
               depth={depth + 1}
               selectedPath={selectedPath}
-              onOpenDir={onOpenDir}
+              expandedPaths={expandedPaths}
+              onToggleDir={onToggleDir}
               onOpenFile={onOpenFile}
             />
           ))}
@@ -82,23 +90,38 @@ function TreeNode({ node, depth, selectedPath, onOpenDir, onOpenFile }) {
 const ulStyle = {
   listStyle: 'none',
   margin: 0,
-  padding: 0,
+  padding: 0
 };
 
 const liStyle = {
   listStyle: 'none'
 };
 
-const btnBase = {
-  display: 'block',
+const dirButtonStyle = {
+  display: 'flex',
+  alignItems: 'center',
   width: '100%',
   textAlign: 'left',
-  padding: '0.35rem 0.45rem',
-  borderRadius: '4px',
+  padding: '0.35rem 0.4rem',
+  borderRadius: 4,
+  border: '1px solid transparent',
+  background: 'transparent',
+  cursor: 'pointer',
+  fontSize: '0.92rem',
+  fontWeight: 600,
+  color: '#1f2328'
+};
+
+const fileButtonStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  width: '100%',
+  textAlign: 'left',
+  padding: '0.35rem 0.4rem',
+  borderRadius: 4,
   border: '1px solid transparent',
   background: 'transparent',
   cursor: 'pointer',
   fontSize: '0.9rem',
-  color: '#222'
+  color: '#24292f'
 };
-

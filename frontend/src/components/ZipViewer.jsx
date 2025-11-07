@@ -6,103 +6,48 @@ import EditorPane from './EditorPane.jsx';
 import { isTextFile } from '../utils/textFileTypes.js';
 import { readFromURL, writeToURL } from '../utils/permalink.js';
 
-// Componente principal: orquesta carga del ZIP, árbol, breadcrumbs y editor.
-// Código comentado y simple para aprender la estructura.
+// Visor ZIP dividido en dos columnas tipo GitHub:
+// - Izquierda: árbol completo con carpetas desplegables.
+// - Derecha: breadcrumb + editor con resaltado y comentarios.
 
 export default function ZipViewer() {
-  // Entradas del ZIP (solo archivos, no carpetas)
   const [zipEntries, setZipEntries] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
 
-  // Navegación y selección
-  const [currentDir, setCurrentDir] = useState(''); // carpeta actual (filtra el árbol)
-  const [currentPath, setCurrentPath] = useState(''); // archivo seleccionado
-  const [initialLine, setInitialLine] = useState(0); // línea a resaltar/scroll si viene de permalink
+  // Archivo abierto actualmente y línea inicial (permalink)
+  const [currentPath, setCurrentPath] = useState('');
+  const [initialLine, setInitialLine] = useState(0);
 
-  // Contenido del archivo seleccionado
+  // Contenido del archivo + flag para archivos no texto
   const [fileContents, setFileContents] = useState('');
   const [notText, setNotText] = useState(false);
 
-  // Comentarios en memoria: Map("path:line" => string[])
+  // Comentarios en memoria (clave `${path}:${line}` => array de comentarios)
   const [comments, setComments] = useState(new Map());
 
-  // Al cargar, leemos ?path&line (permite recargar con permalink)
+  // Carpetas desplegadas (Set de rutas tipo "folder" o "folder/sub")
+  const [expandedPaths, setExpandedPaths] = useState(new Set());
+
+  // Leer ?path&line al cargar la página (permite recargar con enlaces directos)
   useEffect(() => {
     const { path, line } = readFromURL();
     if (path) setCurrentPath(path);
     if (line) setInitialLine(line);
   }, []);
 
-  // Cuando cambia el archivo abierto, escribimos ?path= en la URL (sin router)
+  // Sin router: mantener ?path actualizado cuando abrimos un archivo
   useEffect(() => {
-    if (currentPath) writeToURL({ path: currentPath, line: undefined });
+    if (currentPath) {
+      writeToURL({ path: currentPath, line: undefined });
+      expandToPath(currentPath);
+    }
   }, [currentPath]);
 
-  // Árbol de archivos filtrado por currentDir
-  const treeData = useMemo(() => buildTree(zipEntries, currentDir), [zipEntries, currentDir]);
+  // Construir árbol completo a partir de las entradas ZIP
+  const treeData = useMemo(() => buildTree(zipEntries), [zipEntries]);
 
-  // Subir ZIP y leer entradas
-  const handleZipUpload = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setIsBusy(true);
-    setErrorMessage('');
-    setZipEntries([]);
-    setCurrentDir('');
-    try {
-      const data = await file.arrayBuffer();
-      const zip = await JSZip.loadAsync(data);
-      const entries = Object.values(zip.files).filter((e) => !e.dir);
-      setZipEntries(entries);
-      // Si la URL ya traía path/line, intentamos abrir tras cargar
-      const { path, line } = readFromURL();
-      if (path && entries.some((e) => normalize(e.name) === normalize(path))) {
-        openByPath(path, line || 0, entries);
-      }
-    } catch (err) {
-      console.error('ZIP parsing failed', err);
-      setErrorMessage('No se pudo leer el archivo ZIP. Comprueba que sea válido.');
-    } finally {
-      setIsBusy(false);
-    }
-  };
-
-  // Abrir archivo por ruta (desde árbol o permalink)
-  const openByPath = async (path, line = 0, entries = zipEntries) => {
-    const entry = entries.find((e) => normalize(e.name) === normalize(path));
-    setCurrentPath(path);
-    setInitialLine(line || 0);
-    if (!entry) return;
-    if (!isTextFile(path)) {
-      setNotText(true);
-      setFileContents('');
-      return;
-    }
-    setNotText(false);
-    try {
-      const bytes = await entry.async('uint8array');
-      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
-      setFileContents(decoded);
-    } catch (err) {
-      console.error('File decoding failed', err);
-      setErrorMessage('No se pudo leer el contenido del fichero seleccionado.');
-    }
-  };
-
-  // Añadir comentario a una línea del archivo abierto
-  const handleAddComment = (line, text) => {
-    if (!currentPath) return;
-    const key = `${currentPath}:${line}`;
-    setComments((prev) => {
-      const next = new Map(prev);
-      const arr = next.get(key) || [];
-      next.set(key, [...arr, text]);
-      return next;
-    });
-  };
-
-  // Comentarios del archivo actual como Map<number, string[]>
+  // Comentarios del archivo abierto listos para el editor (Map<number, string[]>)
   const commentsForFile = useMemo(() => {
     const map = new Map();
     comments.forEach((list, key) => {
@@ -115,8 +60,104 @@ export default function ZipViewer() {
     return map;
   }, [comments, currentPath]);
 
-  // Breadcrumbs: navegar a directorios
-  const handleBreadcrumbNav = (segPath) => setCurrentDir(segPath);
+  // Subir ZIP: se lee en memoria y se construyen las entradas
+  const handleZipUpload = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setIsBusy(true);
+    setErrorMessage('');
+    setZipEntries([]);
+    setExpandedPaths(new Set());
+    try {
+      const data = await file.arrayBuffer();
+      const zip = await JSZip.loadAsync(data);
+      const entries = Object.values(zip.files).filter((entry) => !entry.dir);
+      setZipEntries(entries);
+      setExpandedPaths(new Set(collectAllDirs(entries)));
+
+      // Si la URL traía ?path=&line= intentar abrir automáticamente
+      const { path, line } = readFromURL();
+      if (path && entries.some((e) => normalize(e.name) === normalize(path))) {
+        openByPath(path, line || 0, entries);
+      }
+    } catch (error) {
+      console.error('ZIP parsing failed', error);
+      setErrorMessage('No se pudo leer el archivo ZIP. Comprueba que sea válido.');
+    } finally {
+      setIsBusy(false);
+    }
+  };
+
+  // Abre un archivo por su ruta dentro del ZIP
+  const openByPath = async (path, line = 0, entries = zipEntries) => {
+    const normalizedPath = normalize(path);
+    const entry = entries.find((e) => normalize(e.name) === normalizedPath);
+    setCurrentPath(normalizedPath);
+    setInitialLine(line || 0);
+    if (!entry) return;
+
+    if (!isTextFile(normalizedPath)) {
+      setNotText(true);
+      setFileContents('');
+      return;
+    }
+
+    setNotText(false);
+    try {
+      const bytes = await entry.async('uint8array');
+      const decoded = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      setFileContents(decoded);
+    } catch (error) {
+      console.error('File decoding failed', error);
+      setErrorMessage('No se pudo leer el contenido del fichero seleccionado.');
+    }
+  };
+
+  // Añadir comentario en memoria
+  const handleAddComment = (line, text) => {
+    if (!currentPath || !line) return;
+    const key = `${currentPath}:${line}`;
+    setComments((prev) => {
+      const next = new Map(prev);
+      const current = next.get(key) || [];
+      next.set(key, [...current, text]);
+      return next;
+    });
+  };
+
+  // Toggles de carpetas
+  const toggleDir = (dirPath) => {
+    if (!dirPath) return;
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(dirPath)) {
+        next.delete(dirPath);
+      } else {
+        next.add(dirPath);
+      }
+      return next;
+    });
+  };
+
+  // Expandir todos los ancestros de una ruta (para que el archivo sea visible)
+  const expandToPath = (path) => {
+    const dirs = ancestors(path);
+    if (!dirs.length) return;
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      dirs.forEach((dir) => next.add(dir));
+      return next;
+    });
+  };
+
+  // Breadcrumbs: al hacer clic en un segmento expandimos la carpeta correspondiente
+  const handleBreadcrumbNav = (segPath) => {
+    if (!segPath) {
+      setExpandedPaths(new Set(collectAllDirs(zipEntries)));
+      return;
+    }
+    expandToPath(segPath);
+  };
 
   return (
     <div style={container}>
@@ -132,22 +173,21 @@ export default function ZipViewer() {
 
       {!!zipEntries.length && (
         <div style={viewerArea}>
-          {/* Panel izquierdo: árbol filtrado por currentDir */}
-          <div style={leftPane}>
+          <aside style={leftPane}>
             <div style={leftHeader}>Estructura</div>
             <div style={leftScroll}>
               <FileTree
                 nodes={treeData}
                 selectedPath={currentPath}
-                onOpenDir={setCurrentDir}
+                expandedPaths={expandedPaths}
+                onToggleDir={toggleDir}
                 onOpenFile={(p) => openByPath(p)}
               />
             </div>
-          </div>
+          </aside>
 
-          {/* Panel derecho: breadcrumbs + editor */}
           <div style={rightPane}>
-            <Breadcrumbs path={currentPath || currentDir} onNavigate={handleBreadcrumbNav} />
+            <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumbNav} />
             <div style={{ flex: 1, display: 'flex' }}>
               {currentPath ? (
                 notText ? (
@@ -173,31 +213,31 @@ export default function ZipViewer() {
   );
 }
 
-// Construye árbol simple desde las entradas del ZIP, filtrando por currentDir
-function buildTree(entries, currentDir) {
-  const normDir = normalize(currentDir);
+// ===== Helpers =====
+
+function buildTree(entries) {
   const root = new Map();
   const ensure = (level, name, path) => {
-    if (!level.has(name)) level.set(name, { name, path, isFile: false, children: new Map() });
+    if (!level.has(name)) {
+      level.set(name, { name, path, isFile: false, children: new Map() });
+    }
     return level.get(name);
   };
 
-  entries.forEach((e) => {
-    const full = normalize(e.name);
-    const segs = full.split('/').filter(Boolean);
-    if (!segs.length) return;
-
-    if (normDir && !full.startsWith(normDir + '/')) return;
-    const relevant = normDir ? full.slice(normDir.length + 1) : full;
-    const parts = relevant.split('/').filter(Boolean);
+  entries.forEach((entry) => {
+    const full = normalize(entry.name);
+    const parts = full.split('/').filter(Boolean);
+    if (!parts.length) return;
 
     let level = root;
-    let acc = normDir || '';
+    let acc = '';
     parts.forEach((part, idx) => {
       const isLast = idx === parts.length - 1;
       acc = acc ? `${acc}/${part}` : part;
       const node = ensure(level, part, acc);
-      if (isLast) node.isFile = true;
+      if (isLast) {
+        node.isFile = true;
+      }
       level = node.children;
     });
   });
@@ -205,20 +245,83 @@ function buildTree(entries, currentDir) {
   const toArray = (level) =>
     Array.from(level.values())
       .sort((a, b) => (a.isFile === b.isFile ? a.name.localeCompare(b.name) : a.isFile ? 1 : -1))
-      .map((n) => ({ ...n, children: toArray(n.children) }));
+      .map((node) => ({ ...node, children: toArray(node.children) }));
 
   return toArray(root);
 }
 
-function normalize(p = '') { return p.replace(/\\/g, '/').replace(/^\/+|\/+$/g, ''); }
+function normalize(path = '') {
+  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+}
 
-// Estilos simples y responsivos
+function ancestors(path = '') {
+  const clean = normalize(path);
+  const parts = clean.split('/').filter(Boolean);
+  const acc = [];
+  let current = '';
+  parts.slice(0, -1).forEach((part) => {
+    current = current ? `${current}/${part}` : part;
+    acc.push(current);
+  });
+  return acc;
+}
+
+function collectAllDirs(entries) {
+  const dirs = new Set();
+  entries.forEach((entry) => {
+    ancestors(entry.name).forEach((dir) => dirs.add(normalize(dir)));
+  });
+  return dirs;
+}
+
+// Estilos: layout fijo a dos columnas con scroll independiente a la izquierda
 const container = { display: 'flex', flexDirection: 'column', gap: '1rem' };
 const fileInput = { border: '1px solid #ccc', padding: '0.5rem', borderRadius: 4 };
-const viewerArea = { display: 'grid', gridTemplateColumns: '320px 1fr', gap: '1rem', height: 'calc(100vh - 220px)' };
-const leftPane = { display: 'flex', flexDirection: 'column', border: '1px solid #ddd', borderRadius: 6, background: '#fdfdfd' };
-const leftHeader = { padding: '0.5rem 0.75rem', fontWeight: 600, borderBottom: '1px solid #ececec', background: '#f5f7fb' };
-const leftScroll = { flex: 1, overflowY: 'auto', padding: '0.5rem' };
-const rightPane = { display: 'flex', flexDirection: 'column' };
-const placeholder = { margin: 'auto', color: '#555', border: '1px dashed #ddd', borderRadius: 6, padding: '1rem', width: '100%', textAlign: 'center' };
+
+const viewerArea = {
+  display: 'grid',
+  gridTemplateColumns: '340px 1fr',
+  gap: '1rem',
+  minHeight: 'calc(100vh - 200px)'
+};
+
+const leftPane = {
+  display: 'flex',
+  flexDirection: 'column',
+  border: '1px solid #ddd',
+  borderRadius: 6,
+  background: '#fdfdfd',
+  height: 'calc(100vh - 200px)',
+  position: 'sticky',
+  top: 96
+};
+
+const leftHeader = {
+  padding: '0.5rem 0.75rem',
+  fontWeight: 600,
+  borderBottom: '1px solid #ececec',
+  background: '#f5f7fb'
+};
+
+const leftScroll = {
+  flex: 1,
+  overflowY: 'auto',
+  padding: '0.5rem'
+};
+
+const rightPane = {
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 'calc(100vh - 200px)'
+};
+
+const placeholder = {
+  margin: 'auto',
+  color: '#555',
+  border: '1px dashed #ddd',
+  borderRadius: 6,
+  padding: '1rem',
+  width: '100%',
+  textAlign: 'center'
+};
 

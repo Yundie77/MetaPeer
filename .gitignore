@@ -5,6 +5,8 @@ yarn-error.log
 
 # SQLite 
 backend/data.sqlite
+backend/data.sqlite-wal
+backend/data.sqlite-shm
 
 # Python 
 .venv/

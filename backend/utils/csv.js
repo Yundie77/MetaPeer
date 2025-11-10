@@ -15,6 +15,26 @@ function normalizeHeader(header) {
 }
 
 /**
+ * Normaliza valores de texto para comparaciones sencillas:
+ * - recorta espacios
+ * - pasa a minúsculas
+ * - quita acentos
+ * - reemplaza grupos de espacios por guiones bajos
+ */
+function normalizeValue(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  return String(value)
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '_');
+}
+
+/**
  * Separa una línea CSV respetando comas dentro de comillas.
  * La función es pequeña pero suficiente para el MVP.
  */
@@ -80,6 +100,7 @@ function parseCsvToObjects(csvText) {
 
 module.exports = {
   normalizeHeader,
+  normalizeValue,
   splitCsvLine,
   parseCsvToObjects
 };

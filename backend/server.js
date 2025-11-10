@@ -9,7 +9,7 @@ const bcrypt = require('bcryptjs');
 const { db } = require('./db');
 const { seedDatabase } = require('./seed');
 const { generateToken, verifyCredentials, requireAuth } = require('./auth');
-const { parseCsvToObjects } = require('./utils/csv');
+const { parseCsvToObjects, normalizeValue } = require('./utils/csv');
 
 const GRADE_WEIGHT_DELIVERY = 0.8;
 const GRADE_WEIGHT_REVIEW = 0.2;
@@ -519,6 +519,18 @@ app.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) 
     const selectTeam = db.prepare('SELECT id FROM equipo WHERE id_tarea = ? AND nombre = ?');
     const insertTeam = db.prepare('INSERT INTO equipo (id_tarea, nombre) VALUES (?, ?)');
     const insertMember = db.prepare('INSERT OR IGNORE INTO miembro_equipo (id_equipo, id_usuario) VALUES (?, ?)');
+    const removeUserFromRosterTeam = db.prepare(`
+      DELETE FROM miembro_equipo
+      WHERE id_usuario = @userId
+        AND id_equipo IN (
+          SELECT id FROM equipo WHERE id_tarea = @assignmentId
+        )
+    `);
+    const deleteEmptyRosterTeams = db.prepare(`
+      DELETE FROM equipo
+      WHERE id_tarea = ?
+        AND id NOT IN (SELECT DISTINCT id_equipo FROM miembro_equipo)
+    `);
 
     const summary = {
       alumnosCreados: 0,
@@ -529,15 +541,23 @@ app.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) 
 
     const tx = db.transaction(() => {
       rows.forEach((row) => {
-        const agrupamiento = (row.agrupamiento || '').toLowerCase();
-        if (agrupamiento === 'individual' || agrupamiento === 'no_esta_en_un_agrupamiento') {
-          summary.ignoradas += 1;
-          return;
-        }
+        const normalizedGrouping = normalizeValue(row.agrupamiento);
+        const isIndividual = normalizedGrouping === 'individual';
+        const isNoGroup =
+          normalizedGrouping === 'no_esta_en_un_agrupamiento' || normalizedGrouping === 'no_esta_en_un_grupo';
 
         const email = (row.direccion_de_correo || row.email || '').toLowerCase();
         if (!email) {
           summary.ignoradas += 1;
+          return;
+        }
+
+        if (isIndividual || isNoGroup) {
+          summary.ignoradas += 1;
+          const existing = selectUser.get(email);
+          if (existing) {
+            removeUserFromRosterTeam.run({ userId: existing.id, assignmentId: rosterAssignmentId });
+          }
           return;
         }
 
@@ -562,7 +582,19 @@ app.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) 
 
         insertUserSubject.run(userId, asignaturaId);
 
-        const teamName = row.agrupamiento || row.grupo || `Grupo ${email}`;
+        const groupingLabel = (row.agrupamiento || '').trim() || `Grupo`;
+        const groupCodeRaw = (row.grupo || '').trim();
+        let teamName;
+
+        if (groupCodeRaw) {
+          // Normalizamos el código para evitar caracteres raros y mantenemos un formato consistente.
+          const normalizedCode = normalizeValue(groupCodeRaw).replace(/_/g, '').toUpperCase() || groupCodeRaw;
+          teamName = `${groupingLabel}-${normalizedCode}`;
+        } else {
+          // Si no hay código de grupo, conservamos el comportamiento anterior.
+          teamName = groupingLabel || `Grupo ${email}`;
+        }
+
         let team = selectTeam.get(rosterAssignmentId, teamName);
         let teamId;
 
@@ -579,6 +611,7 @@ app.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) 
           summary.membresiasInsertadas += 1;
         }
       });
+      deleteEmptyRosterTeams.run(rosterAssignmentId);
     });
 
     tx();

@@ -7,6 +7,7 @@ import Submissions from './pages/Submissions.jsx';
 import Reviews from './pages/Reviews.jsx';
 import AdminDB from './pages/AdminDB.jsx';
 import Subjects from './pages/Subjects.jsx';
+import Professors from './pages/Professors.jsx';
 import Feedback from './pages/Feedback.jsx';
 import Export from './pages/Export.jsx';
 import Login from './pages/Login.jsx';
@@ -67,6 +68,9 @@ function renderContent(pathname, role) {
   }
   if (pathname === '/admin-db') {
     return <AdminDB />;
+  }
+  if (pathname === '/professors') {
+    return <Professors />;
   }
   if (pathname === '/feedback') {
     return <Feedback />;

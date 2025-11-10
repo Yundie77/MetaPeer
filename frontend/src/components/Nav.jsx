@@ -8,6 +8,7 @@ export default function Nav({ onNavigate, currentPath }) {
     if (role === 'ADMIN') {
       return [
         { label: 'Asignaturas', path: '/subjects' },
+        { label: 'Profesores', path: '/professors' },
         { label: 'Tareas', path: '/assignments' },
         { label: 'BD (CSV)', path: '/admin-db' },
         { label: 'Exportar', path: '/export' }

@@ -1,21 +1,34 @@
 
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
+const multer = require('multer');
 
 const { db } = require('./db');
 const { seedDatabase } = require('./seed');
 const { generateToken, verifyCredentials, requireAuth } = require('./auth');
 const { parseCsvToObjects, normalizeValue } = require('./utils/csv');
+const {
+  persistUploadedZip,
+  extractSubmission,
+  listAllFiles,
+  ensureInside,
+  contentFolder
+} = require('./utils/deliveries');
+const { fileHash } = require('./utils/fileHash');
+const fsp = fs.promises;
 
 const GRADE_WEIGHT_DELIVERY = 0.8;
 const GRADE_WEIGHT_REVIEW = 0.2;
 const MAX_ASSIGNMENT_SHUFFLE = 50;
 const ROSTER_PREFIX = '[ROSTER]';
 const DEFAULT_PROFESSOR_PASSWORD = 'prof123';
+const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+const WORKSPACE_ROOT = path.join(__dirname, '..');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 seedDatabase();
@@ -23,6 +36,13 @@ seedDatabase();
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
+
+const UPLOAD_DIR = path.join(__dirname, 'tmp', 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+const uploadZip = multer({
+  dest: UPLOAD_DIR,
+  limits: { fileSize: MAX_UPLOAD_SIZE_BYTES }
+});
 
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
@@ -184,6 +204,128 @@ function getTeamMembers(teamId) {
     `
     )
     .all(teamId);
+}
+
+function fetchSubmission(submissionId) {
+  return db
+    .prepare(
+      `
+      SELECT ent.id,
+             ent.id_tarea       AS assignment_id,
+             ent.id_equipo      AS team_id,
+             ent.id_subidor     AS uploader_id,
+             ent.nombre_zip     AS zip_name,
+             ent.ruta_archivo   AS zip_path,
+             ent.tamano_bytes   AS size_bytes,
+             ent.fecha_subida   AS uploaded_at
+      FROM entregas ent
+      WHERE ent.id = ?
+    `
+    )
+    .get(submissionId);
+}
+
+function userBelongsToTeam(teamId, userId) {
+  return !!db
+    .prepare(
+      `
+      SELECT 1
+      FROM miembro_equipo
+      WHERE id_equipo = ?
+        AND id_usuario = ?
+      LIMIT 1
+    `
+    )
+    .get(teamId, userId);
+}
+
+function isReviewerOfSubmission(submissionId, userId) {
+  return !!db
+    .prepare(
+      `
+      SELECT 1
+      FROM revision rev
+      JOIN equipo eq ON eq.id = rev.id_revisores
+      JOIN miembro_equipo me ON me.id_equipo = eq.id
+      WHERE rev.id_entrega = ?
+        AND me.id_usuario = ?
+      LIMIT 1
+    `
+    )
+    .get(submissionId, userId);
+}
+
+function ensureSubmissionAccess(submissionId, user, { allowReviewers = true } = {}) {
+  const submission = fetchSubmission(submissionId);
+  if (!submission) {
+    return null;
+  }
+
+  if (user.rol === 'ADMIN' || user.rol === 'PROF') {
+    return submission;
+  }
+
+  if (user.rol === 'ALUM') {
+    if (userBelongsToTeam(submission.team_id, user.id)) {
+      return submission;
+    }
+    if (allowReviewers && isReviewerOfSubmission(submissionId, user.id)) {
+      return submission;
+    }
+  }
+
+  return null;
+}
+
+function fetchRevisionContext(revisionId) {
+  return db
+    .prepare(
+      `
+      SELECT rev.id,
+             rev.id_entrega     AS submission_id,
+             rev.id_revisores   AS reviewer_team_id,
+             ent.id_tarea       AS assignment_id,
+             ent.id_equipo      AS author_team_id,
+             ent.ruta_archivo   AS zip_path,
+             ent.nombre_zip     AS zip_name
+      FROM revision rev
+      JOIN entregas ent ON ent.id = rev.id_entrega
+      WHERE rev.id = ?
+    `
+    )
+    .get(revisionId);
+}
+
+function ensureRevisionPermission(revisionId, user, { allowOwners = false } = {}) {
+  const revision = fetchRevisionContext(revisionId);
+  if (!revision) {
+    return null;
+  }
+
+  if (user.rol === 'ADMIN' || user.rol === 'PROF') {
+    return revision;
+  }
+
+  if (user.rol === 'ALUM') {
+    if (userBelongsToTeam(revision.reviewer_team_id, user.id)) {
+      return revision;
+    }
+    if (allowOwners && userBelongsToTeam(revision.author_team_id, user.id)) {
+      return revision;
+    }
+  }
+
+  return null;
+}
+
+function isLikelyBinary(buffer) {
+  const sampleLength = Math.min(buffer.length, 8192);
+  for (let i = 0; i < sampleLength; i += 1) {
+    if (buffer[i] === 0) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function shuffleArray(items) {
@@ -907,88 +1049,98 @@ app.get('/api/assignments/:assignmentId/rubrica', requireAuth(), (req, res) => {
   }
 });
 
-app.post('/api/submissions', requireAuth(['ALUM']), (req, res) => {
-  try {
-    const assignmentId = safeNumber(req.body?.assignmentId);
-    const authorUserId = safeNumber(req.body?.authorUserId) || req.user.id;
-    const zipName = (req.body?.zipName || '').trim();
+app.post(
+  '/api/submissions',
+  requireAuth(['ALUM']),
+  uploadZip.single('zipFile'),
+  async (req, res) => {
+    let tempPathToClean = '';
+    try {
+      const assignmentId = safeNumber(req.body?.assignmentId);
+      const authorUserId = safeNumber(req.body?.authorUserId) || req.user.id;
 
-    if (!assignmentId) {
-      return sendError(res, 400, 'Debes indicar la tarea.');
-    }
+      if (!assignmentId) {
+        return sendError(res, 400, 'Debes indicar la tarea.');
+      }
 
-    if (!zipName) {
-      return sendError(res, 400, 'El nombre del ZIP es obligatorio.');
-    }
+      if (authorUserId !== req.user.id) {
+        return sendError(res, 403, 'Solo puedes registrar tus propias entregas.');
+      }
 
-    if (authorUserId !== req.user.id) {
-      return sendError(res, 403, 'Solo puedes registrar tus propias entregas.');
-    }
+      const assignment = ensureAssignmentExists(assignmentId);
+      if (!assignment) {
+        return sendError(res, 404, 'La tarea no existe.');
+      }
 
-    const assignment = ensureAssignmentExists(assignmentId);
-    if (!assignment) {
-      return sendError(res, 404, 'La tarea no existe.');
-    }
+      const teamId = ensureUserTeam(assignmentId, req.user.id);
 
-    const teamId = ensureUserTeam(assignmentId, req.user.id);
-
-    const existing = db
-      .prepare(
-        `
-        SELECT id, id_tarea, id_equipo, id_subidor, nombre_zip, fecha_subida
-        FROM entregas
-        WHERE id_tarea = ? AND id_equipo = ?
-      `
-      )
-      .get(assignmentId, teamId);
-
-    if (existing) {
-      db.prepare(
-        `
-        UPDATE entregas
-        SET nombre_zip = ?, id_subidor = ?, fecha_subida = datetime('now')
-        WHERE id = ?
-      `
-      ).run(zipName, req.user.id, existing.id);
-
-      const updated = db
+      const existing = db
         .prepare(
           `
-          SELECT id, id_tarea, id_equipo, id_subidor, nombre_zip, fecha_subida
+          SELECT id
+          FROM entregas
+          WHERE id_tarea = ? AND id_equipo = ?
+        `
+        )
+        .get(assignmentId, teamId);
+
+      if (existing) {
+        return sendError(res, 409, 'Tu equipo ya registró esta entrega.');
+      }
+
+      if (!req.file) {
+        return sendError(res, 400, 'Selecciona un archivo ZIP antes de subir.');
+      }
+
+      const originalName = req.file.originalname || 'entrega.zip';
+      tempPathToClean = req.file.path;
+
+      if (!originalName.toLowerCase().endsWith('.zip')) {
+        return sendError(res, 400, 'El archivo debe tener extensión .zip.');
+      }
+
+      const stored = await persistUploadedZip(req.file.path, assignmentId, teamId, originalName);
+      await extractSubmission(assignmentId, teamId, stored.absolutePath);
+
+      const insert = db
+        .prepare(
+          `
+          INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `
+        )
+        .run(assignmentId, teamId, req.user.id, originalName, stored.relativePath, req.file.size || null);
+
+      const created = db
+        .prepare(
+          `
+          SELECT id,
+                 id_tarea,
+                 id_equipo,
+                 id_subidor,
+                 nombre_zip,
+                 ruta_archivo,
+                 tamano_bytes,
+                 fecha_subida
           FROM entregas
           WHERE id = ?
         `
         )
-        .get(existing.id);
+        .get(insert.lastInsertRowid);
 
-      return res.json(updated);
+      return res.status(201).json(created);
+    } catch (error) {
+      console.error('Error al registrar entrega:', error);
+      return sendError(res, 500, 'No pudimos registrar la entrega.');
+    } finally {
+      if (tempPathToClean) {
+        fs.promises
+          .unlink(tempPathToClean)
+          .catch(() => {});
+      }
     }
-
-    const insert = db
-      .prepare(
-        `
-        INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo)
-        VALUES (?, ?, ?, ?, ?)
-      `
-      )
-      .run(assignmentId, teamId, req.user.id, zipName, zipName);
-
-    const created = db
-      .prepare(
-        `
-        SELECT id, id_tarea, id_equipo, id_subidor, nombre_zip, fecha_subida
-        FROM entregas
-        WHERE id = ?
-      `
-      )
-      .get(insert.lastInsertRowid);
-
-    res.status(201).json(created);
-  } catch (error) {
-    console.error('Error al registrar entrega:', error);
-    return sendError(res, 500, 'No pudimos registrar la entrega.');
   }
-});
+);
 
 app.get('/api/submissions', requireAuth(), (req, res) => {
   try {
@@ -1008,7 +1160,13 @@ app.get('/api/submissions', requireAuth(), (req, res) => {
       rows = db
         .prepare(
           `
-          SELECT e.id, e.nombre_zip, e.fecha_subida, e.id_equipo, e.id_subidor
+          SELECT e.id,
+                 e.nombre_zip,
+                 e.fecha_subida,
+                 e.id_equipo,
+                 e.id_subidor,
+                 e.ruta_archivo,
+                 e.tamano_bytes
           FROM entregas e
           JOIN equipo eq ON eq.id = e.id_equipo
           JOIN miembro_equipo me ON me.id_equipo = eq.id
@@ -1021,7 +1179,15 @@ app.get('/api/submissions', requireAuth(), (req, res) => {
       rows = db
         .prepare(
           `
-          SELECT e.id, e.nombre_zip, e.fecha_subida, e.id_equipo, e.id_subidor, u.nombre_completo AS autor_nombre, u.correo AS autor_correo
+          SELECT e.id,
+                 e.nombre_zip,
+                 e.fecha_subida,
+                 e.id_equipo,
+                 e.id_subidor,
+                 e.ruta_archivo,
+                 e.tamano_bytes,
+                 u.nombre_completo AS autor_nombre,
+                 u.correo AS autor_correo
           FROM entregas e
           LEFT JOIN usuario u ON u.id = e.id_subidor
           WHERE e.id_tarea = ?
@@ -1035,6 +1201,212 @@ app.get('/api/submissions', requireAuth(), (req, res) => {
   } catch (error) {
     console.error('Error al listar entregas:', error);
     return sendError(res, 500, 'No pudimos listar las entregas.');
+  }
+});
+
+app.get('/api/submissions/:submissionId/download', requireAuth(), (req, res) => {
+  try {
+    const submissionId = safeNumber(req.params.submissionId);
+    if (!submissionId) {
+      return sendError(res, 400, 'Identificador inválido.');
+    }
+
+    const submission = ensureSubmissionAccess(submissionId, req.user);
+    if (!submission) {
+      return sendError(res, 403, 'No puedes descargar esta entrega.');
+    }
+
+    if (!submission.zip_path) {
+      return sendError(res, 404, 'Esta entrega no tiene archivo asociado.');
+    }
+
+    const pathCandidates = path.isAbsolute(submission.zip_path)
+      ? [submission.zip_path]
+      : [
+          path.join(__dirname, submission.zip_path),
+          path.join(WORKSPACE_ROOT, submission.zip_path)
+        ];
+    const absolutePath = pathCandidates.find((candidate) => fs.existsSync(candidate));
+    if (!absolutePath) {
+      return sendError(res, 404, 'No encontramos el ZIP en el servidor.');
+    }
+
+    res.download(absolutePath, submission.zip_name || path.basename(absolutePath));
+  } catch (error) {
+    console.error('Error al descargar entrega:', error);
+    return sendError(res, 500, 'No pudimos descargar la entrega.');
+  }
+});
+
+app.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    if (!revisionId) {
+      return sendError(res, 400, 'Identificador de revisión inválido.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
+    if (!revision) {
+      return sendError(res, 403, 'No puedes ver los archivos de esta revisión.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'Todavía no hay archivos descomprimidos para esta entrega.');
+    }
+
+    const files = await listAllFiles(baseDir);
+    return res.json({
+      revisionId,
+      submissionId: revision.submission_id,
+      zipName: revision.zip_name,
+      files
+    });
+  } catch (error) {
+    console.error('Error al listar archivos de revisión:', error);
+    return sendError(res, 500, 'No pudimos cargar el árbol de archivos.');
+  }
+});
+
+app.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    const relativePath = (req.query.path || '').toString().replace(/^[\\/]+/, '').trim();
+
+    if (!revisionId || !relativePath) {
+      return sendError(res, 400, 'Debes indicar la revisión y el archivo.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
+    if (!revision) {
+      return sendError(res, 403, 'No puedes abrir este archivo.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'No encontramos los archivos descomprimidos.');
+    }
+
+    const absolutePath = ensureInside(baseDir, relativePath);
+    const stats = await fsp.stat(absolutePath);
+    if (!stats.isFile()) {
+      return sendError(res, 400, 'La ruta indicada no es un fichero.');
+    }
+
+    const buffer = await fsp.readFile(absolutePath);
+    const isBinary = isLikelyBinary(buffer);
+    const sha1 = await fileHash(absolutePath, 'sha1');
+
+    const comments = db
+      .prepare(
+        `
+        SELECT cc.id,
+               cc.linea,
+               cc.contenido,
+               cc.creado_en,
+               usr.nombre_completo AS autor_nombre,
+               usr.correo          AS autor_correo
+        FROM code_comment cc
+        LEFT JOIN usuario usr ON usr.id = cc.autor_id
+        WHERE cc.revision_id = ?
+          AND cc.sha1 = ?
+        ORDER BY cc.linea, cc.id
+      `
+      )
+      .all(revisionId, sha1)
+      .map((row) => ({
+        id: row.id,
+        linea: row.linea,
+        contenido: row.contenido,
+        creado_en: row.creado_en,
+        autor: row.autor_nombre ? { nombre: row.autor_nombre, correo: row.autor_correo } : null
+      }));
+
+    return res.json({
+      path: relativePath.replace(/\\/g, '/'),
+      size: stats.size,
+      isBinary,
+      sha1,
+      content: isBinary ? null : buffer.toString('utf8'),
+      comments
+    });
+  } catch (error) {
+    console.error('Error al leer archivo de revisión:', error);
+    return sendError(res, 500, 'No pudimos abrir el archivo solicitado.');
+  }
+});
+
+app.post('/api/reviews/:revisionId/comments', requireAuth(), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    const relativePath = (req.body?.path || req.body?.ruta || '').toString().replace(/^[\\/]+/, '').trim();
+    const linea = safeNumber(req.body?.line || req.body?.linea);
+    const contenido = (req.body?.contenido || req.body?.text || '').toString().trim();
+
+    if (!revisionId || !relativePath) {
+      return sendError(res, 400, 'Falta indicar el archivo.');
+    }
+    if (!linea || linea <= 0) {
+      return sendError(res, 400, 'La línea indicada no es válida.');
+    }
+    if (!contenido) {
+      return sendError(res, 400, 'El comentario no puede estar vacío.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user);
+    if (!revision) {
+      return sendError(res, 403, 'No puedes comentar este archivo.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'No encontramos los archivos de la entrega.');
+    }
+
+    const absolutePath = ensureInside(baseDir, relativePath);
+    const stats = await fsp.stat(absolutePath);
+    if (!stats.isFile()) {
+      return sendError(res, 400, 'Solo puedes comentar archivos.');
+    }
+
+    const sha1 = await fileHash(absolutePath, 'sha1');
+
+    const insert = db
+      .prepare(
+        `
+        INSERT INTO code_comment (revision_id, sha1, ruta_archivo, linea, contenido, autor_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `
+      )
+      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, contenido, req.user.id);
+
+    const created = db
+      .prepare(
+        `
+        SELECT cc.id,
+               cc.linea,
+               cc.contenido,
+               cc.creado_en,
+               usr.nombre_completo AS autor_nombre,
+               usr.correo          AS autor_correo
+        FROM code_comment cc
+        LEFT JOIN usuario usr ON usr.id = cc.autor_id
+        WHERE cc.id = ?
+      `
+      )
+      .get(insert.lastInsertRowid);
+
+    return res.status(201).json({
+      id: created.id,
+      linea: created.linea,
+      contenido: created.contenido,
+      creado_en: created.creado_en,
+      autor: created.autor_nombre ? { nombre: created.autor_nombre, correo: created.autor_correo } : null,
+      sha1
+    });
+  } catch (error) {
+    console.error('Error al guardar comentario de código:', error);
+    return sendError(res, 500, 'No pudimos guardar el comentario.');
   }
 });
 app.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF']), (req, res) => {

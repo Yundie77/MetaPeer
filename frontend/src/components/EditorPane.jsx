@@ -43,7 +43,8 @@ export default function EditorPane({
   height,
   initialLine = 0,
   commentsByLine = new Map(),
-  onAddComment
+  onAddComment,
+  revisionId
 }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
@@ -164,7 +165,7 @@ export default function EditorPane({
 
   const copyPermalink = async () => {
     if (!menu.line) return;
-    const url = buildPermalink({ path, line: menu.line });
+    const url = buildPermalink({ path, line: menu.line, revisionId });
     await navigator.clipboard.writeText(url);
     closeMenu();
   };
@@ -373,4 +374,3 @@ class CommentWidget {
     return wrap;
   }
 }
-

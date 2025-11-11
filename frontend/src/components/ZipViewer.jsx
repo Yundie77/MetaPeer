@@ -5,6 +5,7 @@ import Breadcrumbs from './Breadcrumbs.jsx';
 import EditorPane from './EditorPane.jsx';
 import { isTextFile } from '../utils/textFileTypes.js';
 import { readFromURL, writeToURL } from '../utils/permalink.js';
+import { ancestors, buildTreeFromPaths, collectDirPaths, normalizePath } from '../utils/fileTreeHelpers.js';
 
 // Visor ZIP dividido en dos columnas tipo GitHub:
 // - Izquierda: árbol completo con carpetas desplegables.
@@ -45,7 +46,8 @@ export default function ZipViewer() {
   }, [currentPath]);
 
   // Construir árbol completo a partir de las entradas ZIP
-  const treeData = useMemo(() => buildTree(zipEntries), [zipEntries]);
+  const entryNames = useMemo(() => zipEntries.map((entry) => normalizePath(entry.name)), [zipEntries]);
+  const treeData = useMemo(() => buildTreeFromPaths(entryNames), [entryNames]);
 
   // Comentarios del archivo abierto listos para el editor (Map<number, string[]>)
   const commentsForFile = useMemo(() => {
@@ -73,11 +75,12 @@ export default function ZipViewer() {
       const zip = await JSZip.loadAsync(data);
       const entries = Object.values(zip.files).filter((entry) => !entry.dir);
       setZipEntries(entries);
-      setExpandedPaths(new Set(collectAllDirs(entries)));
+      const names = entries.map((entry) => normalizePath(entry.name));
+      setExpandedPaths(new Set(collectDirPaths(names)));
 
       // Si la URL traía ?path=&line= intentar abrir automáticamente
       const { path, line } = readFromURL();
-      if (path && entries.some((e) => normalize(e.name) === normalize(path))) {
+      if (path && entries.some((e) => normalizePath(e.name) === normalizePath(path))) {
         openByPath(path, line || 0, entries);
       }
     } catch (error) {
@@ -90,8 +93,8 @@ export default function ZipViewer() {
 
   // Abre un archivo por su ruta dentro del ZIP
   const openByPath = async (path, line = 0, entries = zipEntries) => {
-    const normalizedPath = normalize(path);
-    const entry = entries.find((e) => normalize(e.name) === normalizedPath);
+    const normalizedPath = normalizePath(path);
+    const entry = entries.find((e) => normalizePath(e.name) === normalizedPath);
     setCurrentPath(normalizedPath);
     setInitialLine(line || 0);
     if (!entry) return;
@@ -153,7 +156,7 @@ export default function ZipViewer() {
   // Breadcrumbs: al hacer clic en un segmento expandimos la carpeta correspondiente
   const handleBreadcrumbNav = (segPath) => {
     if (!segPath) {
-      setExpandedPaths(new Set(collectAllDirs(zipEntries)));
+      setExpandedPaths(new Set(collectDirPaths(entryNames)));
       return;
     }
     expandToPath(segPath);
@@ -213,67 +216,6 @@ export default function ZipViewer() {
   );
 }
 
-// ===== Helpers =====
-
-function buildTree(entries) {
-  const root = new Map();
-  const ensure = (level, name, path) => {
-    if (!level.has(name)) {
-      level.set(name, { name, path, isFile: false, children: new Map() });
-    }
-    return level.get(name);
-  };
-
-  entries.forEach((entry) => {
-    const full = normalize(entry.name);
-    const parts = full.split('/').filter(Boolean);
-    if (!parts.length) return;
-
-    let level = root;
-    let acc = '';
-    parts.forEach((part, idx) => {
-      const isLast = idx === parts.length - 1;
-      acc = acc ? `${acc}/${part}` : part;
-      const node = ensure(level, part, acc);
-      if (isLast) {
-        node.isFile = true;
-      }
-      level = node.children;
-    });
-  });
-
-  const toArray = (level) =>
-    Array.from(level.values())
-      .sort((a, b) => (a.isFile === b.isFile ? a.name.localeCompare(b.name) : a.isFile ? 1 : -1))
-      .map((node) => ({ ...node, children: toArray(node.children) }));
-
-  return toArray(root);
-}
-
-function normalize(path = '') {
-  return path.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-}
-
-function ancestors(path = '') {
-  const clean = normalize(path);
-  const parts = clean.split('/').filter(Boolean);
-  const acc = [];
-  let current = '';
-  parts.slice(0, -1).forEach((part) => {
-    current = current ? `${current}/${part}` : part;
-    acc.push(current);
-  });
-  return acc;
-}
-
-function collectAllDirs(entries) {
-  const dirs = new Set();
-  entries.forEach((entry) => {
-    ancestors(entry.name).forEach((dir) => dirs.add(normalize(dir)));
-  });
-  return dirs;
-}
-
 // Estilos: layout fijo a dos columnas con scroll independiente a la izquierda
 const container = { display: 'flex', flexDirection: 'column', gap: '1rem' };
 const fileInput = { border: '1px solid #ccc', padding: '0.5rem', borderRadius: 4 };
@@ -324,4 +266,3 @@ const placeholder = {
   width: '100%',
   textAlign: 'center'
 };
-

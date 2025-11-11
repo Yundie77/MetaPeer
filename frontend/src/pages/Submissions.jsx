@@ -1,17 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { getJson, postJson } from '../api.js';
+import { API_BASE, fetchJson, getJson } from '../api.js';
 
 export default function Submissions() {
-  const { user, role } = useAuth();
+  const { user, role, token } = useAuth();
   const [assignments, setAssignments] = useState([]);
   const [assignmentId, setAssignmentId] = useState('');
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState('');
-  const [zipName, setZipName] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   const isStudent = useMemo(() => role === 'ALUM', [role]);
 
@@ -57,6 +58,27 @@ export default function Submissions() {
     loadSubmissions();
   }, [assignmentId]);
 
+  const fileInputRef = useRef(null);
+
+  const existingSubmission = useMemo(
+    () => (isStudent ? submissions[0] || null : null),
+    [isStudent, submissions]
+  );
+
+  const canUpload = isStudent && !existingSubmission;
+
+  useEffect(() => {
+    if (!canUpload && fileInputRef.current) {
+      fileInputRef.current.value = '';
+      setSelectedFile(null);
+    }
+  }, [canUpload]);
+
+  const handleFileChange = (event) => {
+    const file = event.target.files?.[0];
+    setSelectedFile(file || null);
+  };
+
   const handleSubmit = async (event) => {
     event.preventDefault();
     if (!isStudent) {
@@ -67,18 +89,26 @@ export default function Submissions() {
       setError('Selecciona una tarea primero.');
       return;
     }
-    if (!zipName.trim()) {
-      setError('El nombre del ZIP es obligatorio.');
+    if (!selectedFile) {
+      setError('Selecciona un archivo ZIP.');
+      return;
+    }
+    if (!selectedFile.name.toLowerCase().endsWith('.zip')) {
+      setError('El archivo debe tener extensión .zip.');
       return;
     }
 
     try {
       setSaving(true);
       setError('');
-      const created = await postJson('/submissions', {
-        assignmentId: Number(assignmentId),
-        authorUserId: user.id,
-        zipName: zipName.trim()
+      const formData = new FormData();
+      formData.append('assignmentId', Number(assignmentId));
+      formData.append('authorUserId', user.id);
+      formData.append('zipFile', selectedFile);
+
+      const created = await fetchJson('/submissions', {
+        method: 'POST',
+        body: formData
       });
       setSubmissions((prev) => {
         const idx = prev.findIndex((item) => item.id === created.id);
@@ -89,11 +119,56 @@ export default function Submissions() {
         }
         return [created, ...prev];
       });
-      setZipName('');
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     } catch (err) {
       setError(err.message);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleDownload = async (submission) => {
+    if (!submission?.id) return;
+    if (!token) {
+      setError('Tu sesión expiró, inicia sesión nuevamente.');
+      return;
+    }
+    try {
+      setDownloadingId(submission.id);
+      setError('');
+      const response = await fetch(`${API_BASE}/submissions/${submission.id}/download`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        let message = 'No pudimos descargar el archivo.';
+        try {
+          const data = await response.json();
+          if (data?.error) {
+            message = data.error;
+          }
+        } catch (_err) {
+          message = response.statusText || message;
+        }
+        throw new Error(message);
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = submission.nombre_zip || `entrega-${submission.id}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setDownloadingId(null);
     }
   };
 
@@ -123,19 +198,43 @@ export default function Submissions() {
       {isStudent && (
         <form onSubmit={handleSubmit} style={formStyle}>
           <label style={labelStyle}>
-            Nombre del ZIP
+            Archivo ZIP
             <input
+              ref={fileInputRef}
               style={inputStyle}
-              value={zipName}
-              onChange={(event) => setZipName(event.target.value)}
-              placeholder="miproyecto.zip"
-              disabled={saving}
+              type="file"
+              accept=".zip"
+              onChange={handleFileChange}
+              disabled={saving || !canUpload}
             />
+            {selectedFile && <span style={helperText}>{selectedFile.name}</span>}
           </label>
-          <button type="submit" style={buttonStyle} disabled={saving}>
-            {saving ? 'Guardando...' : 'Registrar entrega'}
+          <button type="submit" style={buttonStyle} disabled={saving || !canUpload}>
+            {saving ? 'Subiendo...' : 'Subir entrega'}
           </button>
         </form>
+      )}
+
+      {isStudent && existingSubmission && (
+        <div style={infoBox}>
+          <p>
+            ✅ Tu equipo subió <strong>{existingSubmission.nombre_zip}</strong> el{' '}
+            {formatDate(existingSubmission.fecha_subida)}.
+          </p>
+          <p>No es posible subir una nueva entrega.</p>
+          <button
+            type="button"
+            style={{
+              ...linkButton,
+              opacity: downloadingId === existingSubmission.id ? 0.6 : 1,
+              cursor: downloadingId === existingSubmission.id ? 'wait' : 'pointer'
+            }}
+            onClick={() => handleDownload(existingSubmission)}
+            disabled={downloadingId === existingSubmission.id}
+          >
+            {downloadingId === existingSubmission.id ? 'Descargando...' : 'Descargar ZIP'}
+          </button>
+        </div>
       )}
 
       {error && <p style={errorStyle}>{error}</p>}
@@ -150,13 +249,30 @@ export default function Submissions() {
             <li key={submission.id} style={cardStyle}>
               <div>
                 <strong>{submission.nombre_zip}</strong>
-                <div style={metaStyle}>Subida: {submission.fecha_subida || 'sin fecha'}</div>
+                <div style={metaStyle}>Subida: {formatDate(submission.fecha_subida)}</div>
+                {submission.tamano_bytes ? (
+                  <div style={metaStyle}>Tamaño: {formatBytes(submission.tamano_bytes)}</div>
+                ) : null}
                 {submission.autor_nombre && (
                   <div style={metaStyle}>
                     Autor: {submission.autor_nombre} ({submission.autor_correo})
                   </div>
                 )}
               </div>
+              {submission.id && (
+                <button
+                  type="button"
+                  style={{
+                    ...linkButton,
+                    opacity: downloadingId === submission.id ? 0.6 : 1,
+                    cursor: downloadingId === submission.id ? 'wait' : 'pointer'
+                  }}
+                  onClick={() => handleDownload(submission)}
+                  disabled={downloadingId === submission.id}
+                >
+                  {downloadingId === submission.id ? 'Descargando...' : 'Descargar'}
+                </button>
+              )}
             </li>
           ))}
         </ul>
@@ -220,3 +336,57 @@ const metaStyle = {
   fontSize: '0.85rem',
   color: '#666'
 };
+
+const helperText = {
+  marginTop: '0.2rem',
+  fontSize: '0.85rem',
+  color: '#555'
+};
+
+const infoBox = {
+  marginTop: '1rem',
+  padding: '0.75rem 1rem',
+  borderRadius: '8px',
+  background: '#f0f9ff',
+  border: '1px solid #c8e1ff',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.4rem',
+  maxWidth: '420px'
+};
+
+const linkButton = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '0.45rem 0.8rem',
+  borderRadius: '4px',
+  border: '1px solid #0b74de',
+  background: '#fff',
+  color: '#0b74de',
+  textDecoration: 'none',
+  fontWeight: 600,
+  marginTop: '0.35rem',
+  cursor: 'pointer'
+};
+
+function formatDate(value) {
+  if (!value) return 'sin fecha';
+  try {
+    return new Date(value).toLocaleString('es-ES');
+  } catch (_error) {
+    return value;
+  }
+}
+
+function formatBytes(bytes) {
+  if (!bytes || Number(bytes) <= 0) return '—';
+  const units = ['B', 'KB', 'MB', 'GB'];
+  let idx = 0;
+  let value = Number(bytes);
+  while (value >= 1024 && idx < units.length - 1) {
+    value /= 1024;
+    idx += 1;
+  }
+  return `${value.toFixed(value >= 10 || idx === 0 ? 0 : 1)} ${units[idx]}`;
+}

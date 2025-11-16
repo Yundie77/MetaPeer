@@ -1,0 +1,24 @@
+const path = require('path');
+
+const BACKEND_ROOT = path.join(__dirname, '..');
+const WORKSPACE_ROOT = path.join(BACKEND_ROOT, '..');
+const UPLOAD_DIR = path.join(BACKEND_ROOT, 'tmp', 'uploads');
+
+const GRADE_WEIGHT_DELIVERY = 0.8;
+const GRADE_WEIGHT_REVIEW = 0.2;
+const MAX_ASSIGNMENT_SHUFFLE = 50;
+const ROSTER_PREFIX = '[ROSTER]';
+const DEFAULT_PROFESSOR_PASSWORD = 'prof123';
+const MAX_UPLOAD_SIZE_BYTES = 50 * 1024 * 1024; // 50 MB
+
+module.exports = {
+  BACKEND_ROOT,
+  WORKSPACE_ROOT,
+  UPLOAD_DIR,
+  GRADE_WEIGHT_DELIVERY,
+  GRADE_WEIGHT_REVIEW,
+  MAX_ASSIGNMENT_SHUFFLE,
+  ROSTER_PREFIX,
+  DEFAULT_PROFESSOR_PASSWORD,
+  MAX_UPLOAD_SIZE_BYTES
+};

@@ -17,7 +17,10 @@ export default function Professors() {
   const [profName, setProfName] = useState('');
   const [profEmail, setProfEmail] = useState('');
   const [profPassword, setProfPassword] = useState('');
+  const [profPasswordConfirm, setProfPasswordConfirm] = useState('');
   const [creatingProfessor, setCreatingProfessor] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createModalError, setCreateModalError] = useState('');
 
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
   const [selectedSubjects, setSelectedSubjects] = useState([]);
@@ -71,27 +74,40 @@ export default function Professors() {
 
   const handleCreateProfessor = async (event) => {
     event.preventDefault();
-    if (!profName.trim() || !profEmail.trim()) {
-      setProfessorsError('Nombre y correo son obligatorios.');
+    setCreateModalError('');
+    const name = profName.trim();
+    const email = profEmail.trim();
+    const password = profPassword.trim();
+    const passwordConfirm = profPasswordConfirm.trim();
+
+    if (!name || !email) {
+      setCreateModalError('Nombre y correo son obligatorios.');
       return;
     }
+    if (password !== passwordConfirm) {
+      setCreateModalError('Las contraseñas no coinciden.');
+      return;
+    }
+
     try {
       setCreatingProfessor(true);
       setProfessorsError('');
       const created = await postJson('/admin/professors', {
-        nombre: profName.trim(),
-        correo: profEmail.trim(),
-        password: profPassword.trim() || undefined
+        nombre: name,
+        correo: email,
+        password: password || undefined
       });
       setProfessors((prev) => [created, ...prev]);
       setProfName('');
       setProfEmail('');
       setProfPassword('');
+      setProfPasswordConfirm('');
       setSelectedProfessorId(String(created.id));
       setSelectedSubjects([]);
       setAssignSuccess('');
+      setShowCreateModal(false);
     } catch (err) {
-      setProfessorsError(err.message);
+      setCreateModalError(err.message);
     } finally {
       setCreatingProfessor(false);
     }
@@ -150,41 +166,20 @@ export default function Professors() {
         Crea profesores y asígnalos a las asignaturas donde impartirán clase.
       </p>
 
-      <form onSubmit={handleCreateProfessor} style={profFormStyle}>
-        <label style={labelStyle}>
-          Nombre
-          <input
-            style={inputStyle}
-            value={profName}
-            onChange={(event) => setProfName(event.target.value)}
-            disabled={creatingProfessor}
-          />
-        </label>
-        <label style={labelStyle}>
-          Correo
-          <input
-            style={inputStyle}
-            type="email"
-            value={profEmail}
-            onChange={(event) => setProfEmail(event.target.value)}
-            disabled={creatingProfessor}
-          />
-        </label>
-        <label style={labelStyle}>
-          Contraseña inicial
-          <input
-            style={inputStyle}
-            type="text"
-            value={profPassword}
-            onChange={(event) => setProfPassword(event.target.value)}
-            placeholder="prof123 (por defecto)"
-            disabled={creatingProfessor}
-          />
-        </label>
-        <button type="submit" style={buttonStyle} disabled={creatingProfessor}>
-          {creatingProfessor ? 'Creando...' : 'Crear profesor'}
-        </button>
-      </form>
+      <button
+        type="button"
+        style={{ ...buttonStyle, marginTop: '0.5rem', marginBottom: '1rem' }}
+        onClick={() => {
+          setProfName('');
+          setProfEmail('');
+          setProfPassword('');
+          setProfPasswordConfirm('');
+          setCreateModalError('');
+          setShowCreateModal(true);
+        }}
+      >
+        Crear profesor
+      </button>
 
       {professorsError && <p style={errorStyle}>{professorsError}</p>}
 
@@ -225,9 +220,7 @@ export default function Professors() {
                       checked={selectedSubjects.includes(subject.id)}
                       onChange={() => toggleSubjectSelection(subject.id)}
                     />
-                    <span>
-                      {subject.nombre} <span style={{ color: '#888' }}>({subject.codigo})</span>
-                    </span>
+                    <span>{subject.nombre}</span>
                   </label>
                 </li>
               ))}
@@ -239,6 +232,77 @@ export default function Professors() {
           {assignSuccess && <p style={successStyle}>{assignSuccess}</p>}
         </div>
       </div>
+
+      {showCreateModal && (
+        <div style={modalOverlayStyle}>
+          <div style={modalStyle}>
+            <h3>Crear profesor</h3>
+            <p style={{ color: '#555', marginTop: 0 }}>Completa los datos y confirma la contraseña.</p>
+            <form onSubmit={handleCreateProfessor} style={modalFormStyle}>
+              <label style={labelStyle}>
+                Nombre
+                <input
+                  style={inputStyle}
+                  value={profName}
+                  onChange={(event) => setProfName(event.target.value)}
+                  disabled={creatingProfessor}
+                />
+              </label>
+              <label style={labelStyle}>
+                Correo
+                <input
+                  style={inputStyle}
+                  type="email"
+                  value={profEmail}
+                  onChange={(event) => setProfEmail(event.target.value)}
+                  disabled={creatingProfessor}
+                />
+              </label>
+              <label style={labelStyle}>
+                Contraseña
+                <input
+                  style={inputStyle}
+                  type="password"
+                  value={profPassword}
+                  onChange={(event) => setProfPassword(event.target.value)}
+                  placeholder="prof123 si la dejas vacía"
+                  disabled={creatingProfessor}
+                />
+              </label>
+              <label style={labelStyle}>
+                Confirmar contraseña
+                <input
+                  style={inputStyle}
+                  type="password"
+                  value={profPasswordConfirm}
+                  onChange={(event) => setProfPasswordConfirm(event.target.value)}
+                  placeholder="Repite la contraseña"
+                  disabled={creatingProfessor}
+                />
+              </label>
+
+              {createModalError && <p style={errorStyle}>{createModalError}</p>}
+
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+                <button
+                  type="button"
+                  style={{ ...buttonStyle, background: '#777' }}
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setCreateModalError('');
+                  }}
+                  disabled={creatingProfessor}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" style={buttonStyle} disabled={creatingProfessor}>
+                  {creatingProfessor ? 'Creando...' : 'Guardar'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -327,4 +391,32 @@ const checkboxLabelStyle = {
   display: 'flex',
   gap: '0.5rem',
   alignItems: 'center'
+};
+
+const modalOverlayStyle = {
+  position: 'fixed',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  background: 'rgba(0,0,0,0.45)',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  padding: '1.5rem',
+  zIndex: 1000
+};
+
+const modalStyle = {
+  background: '#fff',
+  borderRadius: '10px',
+  padding: '1.5rem',
+  width: 'min(520px, 100%)',
+  boxShadow: '0 12px 30px rgba(0,0,0,0.2)'
+};
+
+const modalFormStyle = {
+  display: 'grid',
+  gap: '0.85rem',
+  marginTop: '1rem'
 };

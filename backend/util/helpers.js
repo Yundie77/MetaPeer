@@ -471,9 +471,9 @@ function formatGradesAsCsv(rows) {
 
 function getProfessorSubjects(professorId) {
   return db
-    .prepare(
-      `
-      SELECT a.id, a.nombre, a.codigo
+      .prepare(
+        `
+      SELECT a.id, a.nombre
       FROM usuario_asignatura ua
       JOIN asignatura a ON a.id = ua.id_asignatura
       WHERE ua.id_usuario = ?

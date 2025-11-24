@@ -13,8 +13,7 @@ CREATE TABLE IF NOT EXISTS usuario (
 
 CREATE TABLE IF NOT EXISTS asignatura (
   id         INTEGER PRIMARY KEY AUTOINCREMENT,
-  codigo     TEXT NOT NULL UNIQUE,         
-  nombre     TEXT NOT NULL
+  nombre     TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE IF NOT EXISTS usuario_asignatura (

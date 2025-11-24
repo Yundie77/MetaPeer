@@ -8,7 +8,6 @@ export default function Subjects() {
 
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [code, setCode] = useState('');
   const [name, setName] = useState('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -34,19 +33,17 @@ export default function Subjects() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    if (!code.trim() || !name.trim()) {
-      setError('Código y nombre son obligatorios.');
+    if (!name.trim()) {
+      setError('El nombre es obligatorio.');
       return;
     }
     try {
       setSaving(true);
       setError('');
       const created = await postJson('/asignaturas', {
-        codigo: code.trim(),
         nombre: name.trim()
       });
       setSubjects((prev) => [created, ...prev]);
-      setCode('');
       setName('');
     } catch (err) {
       setError(err.message);
@@ -67,16 +64,6 @@ export default function Subjects() {
       </p>
 
       <form onSubmit={handleSubmit} style={formStyle}>
-        <label style={labelStyle}>
-          Código
-          <input
-            style={inputStyle}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            disabled={saving}
-            placeholder="INF101"
-          />
-        </label>
         <label style={labelStyle}>
           Nombre
           <input
@@ -102,7 +89,6 @@ export default function Subjects() {
           {subjects.map((subject) => (
             <li key={subject.id} style={cardStyle}>
               <strong>{subject.nombre}</strong>
-              <span style={codeStyle}>{subject.codigo}</span>
             </li>
           ))}
         </ul>
@@ -129,7 +115,8 @@ const labelStyle = {
 const inputStyle = {
   padding: '0.5rem 0.7rem',
   borderRadius: '4px',
-  border: '1px solid #ccc'
+  border: '1px solid #ccc',
+  minWidth: '360px'
 };
 
 const buttonStyle = {

@@ -210,11 +210,11 @@ export default function Assignments() {
             onChange={(event) => setSubjectId(event.target.value)}
             disabled={loadingList || saving || subjects.length === 0}
           >
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.nombre} ({subject.codigo})
-              </option>
-            ))}
+              {subjects.map((subject) => (
+                <option key={subject.id} value={subject.id}>
+                  {subject.nombre}
+                </option>
+              ))}
           </select>
         </label>
         <label style={labelStyle}>

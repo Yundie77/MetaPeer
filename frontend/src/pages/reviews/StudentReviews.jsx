@@ -18,6 +18,14 @@ import {
   successStyle
 } from './styles.js';
 
+const splitLabelDetail = (texto = '') => {
+  const parts = texto.split('||DETAIL||');
+  return {
+    label: parts[0] || '',
+    detail: parts.slice(1).join('||DETAIL||') || ''
+  };
+};
+
 export default function StudentReviews({ user }) {
   const [tasks, setTasks] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -172,7 +180,12 @@ export default function StudentReviews({ user }) {
                   rubric.map((item) => (
                     <div key={item.id} style={rubricFieldStyle}>
                       <label style={labelStyle}>
-                        {item.texto}
+                        {splitLabelDetail(item.texto).label || item.texto}
+                        {splitLabelDetail(item.texto).detail && (
+                          <small style={{ color: '#555', whiteSpace: 'pre-wrap' }}>
+                            {splitLabelDetail(item.texto).detail}
+                          </small>
+                        )}
                         <input
                           style={inputStyle}
                           type="number"

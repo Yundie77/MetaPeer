@@ -84,6 +84,20 @@ export default function Assignments() {
     }
   };
 
+  const splitLabelDetail = (texto = '') => {
+    const parts = texto.split('||DETAIL||');
+    return {
+      label: parts[0] || '',
+      detail: parts.slice(1).join('||DETAIL||') || ''
+    };
+  };
+
+  const combineLabelDetail = (label, detail) => {
+    const safeLabel = label || '';
+    const safeDetail = detail || '';
+    return safeDetail ? `${safeLabel}||DETAIL||${safeDetail}` : safeLabel;
+  };
+
   const handleOpenRubric = async (assignment) => {
     try {
       setRubricTarget(assignment);
@@ -92,14 +106,15 @@ export default function Assignments() {
       const rows = await getJson(`/assignments/${assignment.id}/rubrica`);
       if (!rows || rows.length === 0) {
         setRubricItems([
-          { clave: 'item_1', texto: 'Calidad general', peso: 1, tipo: 'numero' }
+          { clave: 'item_1', texto: 'Calidad general', detalle: '', peso: 100, tipo: 'numero' }
         ]);
       } else {
         setRubricItems(
           rows.map((row) => ({
             clave: row.clave_item,
-            texto: row.texto,
-            peso: row.peso,
+            texto: splitLabelDetail(row.texto).label || row.texto,
+            detalle: splitLabelDetail(row.texto).detail || '',
+            peso: Number(row.peso) || 0,
             tipo: row.tipo
           }))
         );
@@ -115,7 +130,8 @@ export default function Assignments() {
       {
         clave: `item_${prev.length + 1}`,
         texto: `Criterio ${prev.length + 1}`,
-        peso: 1,
+        detalle: '',
+        peso: 0,
         tipo: 'numero'
       }
     ]);
@@ -131,14 +147,19 @@ export default function Assignments() {
     if (!rubricTarget) {
       return;
     }
+    const total = rubricItems.reduce((acc, item) => acc + (Number(item.peso) || 0), 0);
+    if (Math.abs(total - 100) > 0.001) {
+      setRubricError('La suma de los pesos debe ser exactamente 100.');
+      return;
+    }
     try {
       setRubricSaving(true);
       setRubricError('');
       await postJson(`/assignments/${rubricTarget.id}/rubrica`, {
         items: rubricItems.map((item, index) => ({
           clave: item.clave || `item_${index + 1}`,
-          texto: item.texto,
-          peso: Number(item.peso) || 1,
+          texto: combineLabelDetail(item.texto, item.detalle),
+          peso: Number(item.peso) || 0,
           tipo: item.tipo || 'numero'
         }))
       });
@@ -325,14 +346,30 @@ export default function Assignments() {
                 value={item.texto}
                 onChange={(event) => handleRubricChange(index, 'texto', event.target.value)}
               />
+              <textarea
+                style={{ ...inputStyle, flex: 1, minHeight: '60px' }}
+                placeholder="Notas en markdown (opcional)"
+                value={item.detalle || ''}
+                onChange={(event) => handleRubricChange(index, 'detalle', event.target.value)}
+              />
               <input
                 style={rubricNumberStyle}
                 type="number"
                 min="0"
-                step="0.1"
+                max="100"
+                step="0.5"
                 value={item.peso}
                 onChange={(event) => handleRubricChange(index, 'peso', event.target.value)}
               />
+              <button
+                type="button"
+                style={{ ...smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
+                onClick={() => setRubricItems((prev) => prev.filter((_, i) => i !== index))}
+                disabled={rubricSaving || index === 0}
+                title={index === 0 ? 'El primer criterio no se puede eliminar' : 'Eliminar criterio'}
+              >
+                X
+              </button>
             </div>
           ))}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -342,7 +379,12 @@ export default function Assignments() {
             <button type="button" style={smallButton} onClick={handleSaveRubric} disabled={rubricSaving}>
               {rubricSaving ? 'Guardando...' : 'Guardar rúbrica'}
             </button>
-            <button type="button" style={smallButton} onClick={() => setRubricTarget(null)} disabled={rubricSaving}>
+            <button
+              type="button"
+              style={{ ...smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
+              onClick={() => setRubricTarget(null)}
+              disabled={rubricSaving}
+            >
               Cerrar
             </button>
           </div>

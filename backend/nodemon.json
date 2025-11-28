@@ -1,0 +1,10 @@
+{
+  "watch": [
+    "."
+  ],
+  "ignore": [
+    "deliveries/**",
+    "tmp/**"
+  ],
+  "ext": "js,json"
+}

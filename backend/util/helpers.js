@@ -15,7 +15,7 @@ function ensureAssignmentExists(assignmentId) {
   return db
     .prepare(
       `
-      SELECT id, id_asignatura, titulo
+      SELECT id, id_asignatura, titulo, revisores_por_entrega
       FROM tarea
       WHERE id = ?
     `
@@ -340,7 +340,7 @@ function buildTeamAssignments(assignmentId) {
     return { assignmentId, pairs: [] };
   }
 
-  const reviewerOrder = buildDerangement(teamOrder);
+  const shuffledTeams = shuffleArray(teamOrder);
   const assignmentRecordId = ensureAssignmentRecord(assignmentId);
 
   const teamNameMap = new Map();
@@ -367,28 +367,30 @@ function buildTeamAssignments(assignmentId) {
   );
 
   const tx = db.transaction(() => {
-    teamOrder.forEach((authorTeamId, index) => {
-      const reviewerTeamId = reviewerOrder[index];
+    shuffledTeams.forEach((authorTeamId, index) => {
       const entregaId = submissionByTeam.get(authorTeamId);
+      const reviewerTeamId = shuffledTeams[(index + 1) % shuffledTeams.length];
       insertRevision.run(assignmentRecordId, entregaId, reviewerTeamId);
     });
   });
 
   tx();
 
-  const pairs = teamOrder.map((authorTeamId, index) => {
-    const reviewerTeamId = reviewerOrder[index];
+  const pairs = shuffledTeams.map((authorTeamId, index) => {
+    const reviewerTeamId = shuffledTeams[(index + 1) % shuffledTeams.length];
     return {
       equipoAutor: {
         id: authorTeamId,
         nombre: teamNameMap.get(authorTeamId)
       },
-      equipoRevisor: {
-        id: reviewerTeamId,
-        nombre: teamNameMap.get(reviewerTeamId)
-      },
       entregas: [submissionByTeam.get(authorTeamId)],
-      revisores: getTeamMembers(reviewerTeamId)
+      revisores: [
+        {
+          id: reviewerTeamId,
+          nombre: teamNameMap.get(reviewerTeamId),
+          revisores: getTeamMembers(reviewerTeamId)
+        }
+      ]
     };
   });
 
@@ -441,19 +443,36 @@ function fetchAssignmentMap(assignmentId) {
     )
     .all(assignmentRecord.id);
 
-  const pairs = rows.map((row) => ({
-    revisionId: row.id,
-    equipoAutor: {
-      id: row.equipo_autor_id,
-      nombre: row.equipo_autor_nombre
-    },
-    equipoRevisor: {
+  const reviewerMembers = new Map();
+  function cachedMembers(teamId) {
+    if (!reviewerMembers.has(teamId)) {
+      reviewerMembers.set(teamId, getTeamMembers(teamId));
+    }
+    return reviewerMembers.get(teamId);
+  }
+
+  const pairsMap = new Map();
+  rows.forEach((row) => {
+    if (!pairsMap.has(row.equipo_autor_id)) {
+      pairsMap.set(row.equipo_autor_id, {
+        equipoAutor: {
+          id: row.equipo_autor_id,
+          nombre: row.equipo_autor_nombre
+        },
+        entregas: [row.id_entrega],
+        revisores: []
+      });
+    }
+
+    pairsMap.get(row.equipo_autor_id).revisores.push({
       id: row.id_revisores,
-      nombre: row.equipo_revisor_nombre
-    },
-    entregas: [row.id_entrega],
-    revisores: getTeamMembers(row.id_revisores)
-  }));
+      nombre: row.equipo_revisor_nombre,
+      revisionId: row.id,
+      revisores: cachedMembers(row.id_revisores)
+    });
+  });
+
+  const pairs = Array.from(pairsMap.values());
 
   return {
     assignmentId,

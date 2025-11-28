@@ -20,7 +20,7 @@ router.get('/api/assignments', requireAuth(), (_req, res) => {
     const rows = db
       .prepare(
         `
-        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado
+        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado, revisores_por_entrega
         FROM tarea
         WHERE titulo NOT LIKE ?
         ORDER BY fecha_entrega IS NULL, fecha_entrega DESC, id DESC
@@ -71,7 +71,7 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
     const created = db
       .prepare(
         `
-        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado
+        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado, revisores_por_entrega
         FROM tarea
         WHERE id = ?
       `
@@ -183,7 +183,32 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
       return sendError(res, 400, 'Identificador inválido.');
     }
 
+    const assignment = ensureAssignmentExists(assignmentId);
+    if (!assignment) {
+      return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    const existingRecord = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
+    if (existingRecord) {
+      const revisionsCount = db
+        .prepare(
+          `
+          SELECT COUNT(*) AS total
+          FROM revision
+          WHERE id_asignacion = ?
+        `
+        )
+        .get(existingRecord.id)?.total;
+
+      if (Number(revisionsCount) > 0) {
+        return sendError(res, 409, 'Esta tarea ya tiene revisiones asignadas. No se puede relanzar.');
+      }
+    }
+
     const result = buildTeamAssignments(assignmentId);
+    if (result.pairs.length === 0) {
+      return sendError(res, 400, 'Se necesitan al menos dos equipos con entrega para asignar revisiones.');
+    }
     res.json(result);
   } catch (error) {
     console.error('Error al generar asignación:', error);

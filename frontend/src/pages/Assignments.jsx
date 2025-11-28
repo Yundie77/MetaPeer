@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { fetchJson, getJson, postJson } from '../api.js';
 
@@ -22,8 +22,11 @@ export default function Assignments() {
 
   const [assigning, setAssigning] = useState(false);
   const [assignSummary, setAssignSummary] = useState(null);
+  const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
+  const [uploadMessage, setUploadMessage] = useState('');
 
   const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
+  const fileInputsRef = useRef({});
 
   useEffect(() => {
     if (!isTeacher) {
@@ -172,10 +175,51 @@ export default function Assignments() {
     }
   };
 
+  const triggerUploadPicker = (assignmentId) => {
+    setUploadMessage('');
+    const input = fileInputsRef.current[assignmentId];
+    if (input) {
+      input.value = '';
+      input.click();
+    }
+  };
+
+  const handleUploadZip = async (assignmentId, file) => {
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.zip')) {
+      setError('El archivo debe ser .zip.');
+      return;
+    }
+    try {
+      setUploadingAssignmentId(assignmentId);
+      setError('');
+      const formData = new FormData();
+      formData.append('assignmentId', assignmentId);
+      formData.append('zipFile', file);
+      const result = await fetchJson('/submissions/upload-zip', {
+        method: 'POST',
+        body: formData
+      });
+      const target = assignments.find((item) => item.id === assignmentId);
+      setUploadMessage(
+        `Carga registrada para "${target?.titulo || 'la tarea'}": ${result.totalEquipos || 0} entregas encontradas.`
+      );
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setUploadingAssignmentId(null);
+      const input = fileInputsRef.current[assignmentId];
+      if (input) {
+        input.value = '';
+      }
+    }
+  };
+
   const handleAssignReviews = async (assignmentId) => {
     try {
       setAssigning(true);
       setAssignSummary(null);
+      setError('');
       const result = await postJson(`/assignments/${assignmentId}/assign`, {});
       setAssignSummary(result);
     } catch (err) {
@@ -274,6 +318,7 @@ export default function Assignments() {
       </form>
 
       {error && <p style={errorStyle}>{error}</p>}
+      {uploadMessage && <p style={successStyle}>{uploadMessage}</p>}
       {loadingList ? (
         <p>Cargando tareas...</p>
       ) : assignments.length === 0 ? (
@@ -287,14 +332,31 @@ export default function Assignments() {
                 <div style={metaStyle}>
                   {assignment.fecha_entrega ? `Entrega: ${assignment.fecha_entrega}` : 'Sin fecha definida'}
                 </div>
-                {assignment.descripcion && <div style={descStyle}>{assignment.descripcion}</div>}
-              </div>
-              <div style={actionsStyle}>
-                <button type="button" style={smallButton} onClick={() => handleOpenRubric(assignment)}>
-                  Rúbrica
-                </button>
-                <button
-                  type="button"
+              {assignment.descripcion && <div style={descStyle}>{assignment.descripcion}</div>}
+            </div>
+            <div style={actionsStyle}>
+              <input
+                type="file"
+                accept=".zip"
+                style={{ display: 'none' }}
+                ref={(el) => {
+                  fileInputsRef.current[assignment.id] = el;
+                }}
+                onChange={(event) => handleUploadZip(assignment.id, event.target.files?.[0] || null)}
+              />
+              <button
+                type="button"
+                style={smallButton}
+                onClick={() => triggerUploadPicker(assignment.id)}
+                disabled={uploadingAssignmentId === assignment.id}
+              >
+                {uploadingAssignmentId === assignment.id ? 'Cargando...' : 'Subir entregas (ZIP)'}
+              </button>
+              <button type="button" style={smallButton} onClick={() => handleOpenRubric(assignment)}>
+                Rúbrica
+              </button>
+              <button
+                type="button"
                   style={smallButton}
                   onClick={() => handleAssignReviews(assignment.id)}
                   disabled={assigning}
@@ -314,18 +376,27 @@ export default function Assignments() {
         <div style={panelStyle}>
           <h3>Resultado de asignación</h3>
           {assignSummary.pairs.length === 0 ? (
-            <p>No hay equipos suficientes para asignar revisiones.</p>
+            <p>Necesitas al menos dos equipos con entrega para repartir revisiones.</p>
           ) : (
             <ul style={listStyle}>
               {assignSummary.pairs.map((pair) => (
-                <li key={`${pair.equipoAutor.id}-${pair.equipoRevisor.id}`} style={miniCard}>
+                <li key={pair.equipoAutor.id} style={miniCard}>
                   <p>
                     <strong>{pair.equipoAutor.nombre || `Equipo ${pair.equipoAutor.id}`}</strong> será revisado por{' '}
-                    <strong>{pair.equipoRevisor.nombre || `Equipo ${pair.equipoRevisor.id}`}</strong>.
+                    <strong>
+                      {pair.revisores.length === 0
+                        ? 'sin asignar'
+                        : pair.revisores.map((rev) => rev.nombre || `Equipo ${rev.id}`).join(', ')}
+                    </strong>.
                   </p>
-                  <p style={miniMeta}>
-                    Revisores: {pair.revisores.length === 0 ? 'Sin miembros cargados' : pair.revisores.map((user) => user.nombre_completo).join(', ')}
-                  </p>
+                  {pair.revisores.map((rev) => (
+                    <p key={rev.id} style={miniMeta}>
+                      {rev.nombre || `Equipo ${rev.id}`} · Miembros:{' '}
+                      {rev.revisores?.length
+                        ? rev.revisores.map((user) => user.nombre_completo).join(', ')
+                        : 'sin miembros cargados'}
+                    </p>
+                  ))}
                 </li>
               ))}
             </ul>
@@ -430,6 +501,11 @@ const errorStyle = {
   marginBottom: '1rem'
 };
 
+const successStyle = {
+  color: '#0f7b0f',
+  marginBottom: '1rem'
+};
+
 const listStyle = {
   listStyle: 'none',
   padding: 0,
@@ -452,7 +528,9 @@ const cardStyle = {
 
 const actionsStyle = {
   display: 'flex',
-  gap: '0.5rem'
+  gap: '0.5rem',
+  alignItems: 'flex-end',
+  flexWrap: 'wrap'
 };
 
 const smallButton = {

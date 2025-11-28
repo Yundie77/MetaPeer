@@ -1,20 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
-import { API_BASE, fetchJson, getJson } from '../api.js';
+import { API_BASE, getJson } from '../api.js';
 
 export default function Submissions() {
-  const { user, role, token } = useAuth();
+  const { role, token } = useAuth();
   const [assignments, setAssignments] = useState([]);
   const [assignmentId, setAssignmentId] = useState('');
   const [submissions, setSubmissions] = useState([]);
+  const [batchMeta, setBatchMeta] = useState(null);
+  const [totalSubmissions, setTotalSubmissions] = useState(0);
   const [loading, setLoading] = useState(false);
   const [listLoading, setListLoading] = useState(true);
   const [error, setError] = useState('');
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [saving, setSaving] = useState(false);
   const [downloadingId, setDownloadingId] = useState(null);
 
   const isStudent = useMemo(() => role === 'ALUM', [role]);
+  const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
 
   useEffect(() => {
     const loadAssignments = async () => {
@@ -36,99 +37,35 @@ export default function Submissions() {
     loadAssignments();
   }, []);
 
-  useEffect(() => {
-    if (!assignmentId) {
+  const loadSubmissions = async (targetAssignmentId) => {
+    if (!targetAssignmentId) {
       setSubmissions([]);
-      return;
-    }
-
-    const loadSubmissions = async () => {
-      try {
-        setLoading(true);
-        setError('');
-        const data = await getJson(`/submissions?assignmentId=${assignmentId}`);
-        setSubmissions(data);
-      } catch (err) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadSubmissions();
-  }, [assignmentId]);
-
-  const fileInputRef = useRef(null);
-
-  const existingSubmission = useMemo(
-    () => (isStudent ? submissions[0] || null : null),
-    [isStudent, submissions]
-  );
-
-  const canUpload = isStudent && !existingSubmission;
-
-  useEffect(() => {
-    if (!canUpload && fileInputRef.current) {
-      fileInputRef.current.value = '';
-      setSelectedFile(null);
-    }
-  }, [canUpload]);
-
-  const handleFileChange = (event) => {
-    const file = event.target.files?.[0];
-    setSelectedFile(file || null);
-  };
-
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    if (!isStudent) {
-      setError('Solo los alumnos pueden registrar entregas.');
-      return;
-    }
-    if (!assignmentId) {
-      setError('Selecciona una tarea primero.');
-      return;
-    }
-    if (!selectedFile) {
-      setError('Selecciona un archivo ZIP.');
-      return;
-    }
-    if (!selectedFile.name.toLowerCase().endsWith('.zip')) {
-      setError('El archivo debe tener extensión .zip.');
+      setBatchMeta(null);
+      setTotalSubmissions(0);
       return;
     }
 
     try {
-      setSaving(true);
+      setLoading(true);
       setError('');
-      const formData = new FormData();
-      formData.append('assignmentId', Number(assignmentId));
-      formData.append('authorUserId', user.id);
-      formData.append('zipFile', selectedFile);
-
-      const created = await fetchJson('/submissions', {
-        method: 'POST',
-        body: formData
-      });
-      setSubmissions((prev) => {
-        const idx = prev.findIndex((item) => item.id === created.id);
-        if (idx >= 0) {
-          const clone = [...prev];
-          clone[idx] = created;
-          return clone;
-        }
-        return [created, ...prev];
-      });
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+      const data = await getJson(`/submissions?assignmentId=${targetAssignmentId}`);
+      const list = Array.isArray(data) ? data : data.submissions || [];
+      setSubmissions(list);
+      setBatchMeta(data.meta?.ultimaCarga || null);
+      setTotalSubmissions(data.meta?.totalEntregas ?? list.length);
     } catch (err) {
       setError(err.message);
+      setSubmissions([]);
+      setBatchMeta(null);
+      setTotalSubmissions(0);
     } finally {
-      setSaving(false);
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadSubmissions(assignmentId);
+  }, [assignmentId]);
 
   const handleDownload = async (submission) => {
     if (!submission?.id) return;
@@ -174,9 +111,9 @@ export default function Submissions() {
 
   return (
     <section>
-      <h2>Mis entregas</h2>
+      <h2>Entregas</h2>
       <p style={{ color: '#555', fontSize: '0.9rem' }}>
-        Selecciona una tarea para ver tus envíos registrados y registrar uno nuevo.
+        El profesorado sube un ZIP con todas las entregas. El alumnado solo consulta y descarga.
       </p>
 
       <label style={labelStyle}>
@@ -195,45 +132,21 @@ export default function Submissions() {
         </select>
       </label>
 
-      {isStudent && (
-        <form onSubmit={handleSubmit} style={formStyle}>
-          <label style={labelStyle}>
-            Archivo ZIP
-            <input
-              ref={fileInputRef}
-              style={inputStyle}
-              type="file"
-              accept=".zip"
-              onChange={handleFileChange}
-              disabled={saving || !canUpload}
-            />
-            {selectedFile && <span style={helperText}>{selectedFile.name}</span>}
-          </label>
-          <button type="submit" style={buttonStyle} disabled={saving || !canUpload}>
-            {saving ? 'Subiendo...' : 'Subir entrega'}
-          </button>
-        </form>
-      )}
-
-      {isStudent && existingSubmission && (
+      {isTeacher && batchMeta && (
         <div style={infoBox}>
           <p>
-            ✅ Tu equipo subió <strong>{existingSubmission.nombre_zip}</strong> el{' '}
-            {formatDate(existingSubmission.fecha_subida)}.
+            Última carga: <strong>{formatDate(batchMeta.fecha_subida || batchMeta.fecha)}</strong> · ZIP:{' '}
+            <strong>{batchMeta.nombre_zip}</strong>
           </p>
-          <p>No es posible subir una nueva entrega.</p>
-          <button
-            type="button"
-            style={{
-              ...linkButton,
-              opacity: downloadingId === existingSubmission.id ? 0.6 : 1,
-              cursor: downloadingId === existingSubmission.id ? 'wait' : 'pointer'
-            }}
-            onClick={() => handleDownload(existingSubmission)}
-            disabled={downloadingId === existingSubmission.id}
-          >
-            {downloadingId === existingSubmission.id ? 'Descargando...' : 'Descargar ZIP'}
-          </button>
+          <p>
+            Entregas detectadas en la carga: {batchMeta.total_equipos ?? '—'}. Guardadas en el sistema: {totalSubmissions}.
+          </p>
+        </div>
+      )}
+
+      {isStudent && (
+        <div style={infoBox}>
+          <p>Las entregas ya no se suben aquí. El profesor cargará el ZIP general de la tarea.</p>
         </div>
       )}
 
@@ -249,6 +162,7 @@ export default function Submissions() {
             <li key={submission.id} style={cardStyle}>
               <div>
                 <strong>{submission.nombre_zip}</strong>
+                {submission.equipo_nombre && <div style={metaStyle}>Equipo: {submission.equipo_nombre}</div>}
                 <div style={metaStyle}>Subida: {formatDate(submission.fecha_subida)}</div>
                 {submission.tamano_bytes ? (
                   <div style={metaStyle}>Tamaño: {formatBytes(submission.tamano_bytes)}</div>
@@ -281,13 +195,6 @@ export default function Submissions() {
   );
 }
 
-const formStyle = {
-  marginTop: '1.5rem',
-  display: 'flex',
-  gap: '1rem',
-  alignItems: 'flex-end'
-};
-
 const labelStyle = {
   display: 'flex',
   flexDirection: 'column',
@@ -300,15 +207,6 @@ const inputStyle = {
   padding: '0.5rem 0.65rem',
   borderRadius: '4px',
   border: '1px solid #ccc'
-};
-
-const buttonStyle = {
-  padding: '0.6rem 0.9rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
 };
 
 const errorStyle = {
@@ -329,18 +227,16 @@ const cardStyle = {
   padding: '1rem',
   border: '1px solid #e0e0e0',
   borderRadius: '8px',
-  background: '#fff'
+  background: '#fff',
+  display: 'flex',
+  justifyContent: 'space-between',
+  gap: '1rem',
+  alignItems: 'center'
 };
 
 const metaStyle = {
   fontSize: '0.85rem',
   color: '#666'
-};
-
-const helperText = {
-  marginTop: '0.2rem',
-  fontSize: '0.85rem',
-  color: '#555'
 };
 
 const infoBox = {

@@ -3,31 +3,169 @@ const fs = require('fs');
 const path = require('path');
 const { requireAuth } = require('../../auth');
 const { db } = require('../../db');
-const { persistUploadedZip, extractSubmission } = require('../../utils/deliveries');
 const {
-  sendError,
-  safeNumber,
-  ensureAssignmentExists,
-  ensureUserTeam,
-  ensureSubmissionAccess
-} = require('../helpers');
+  persistUploadedZip,
+  extractSubmission,
+  persistAssignmentZip,
+  assignmentFolder,
+  unzipFile,
+  clearDirectory,
+  TEMP_DIRNAME
+} = require('../../utils/deliveries');
+const { sendError, safeNumber, ensureAssignmentExists, ensureSubmissionAccess } = require('../helpers');
 const { WORKSPACE_ROOT, BACKEND_ROOT } = require('../constants');
 const { uploadZip } = require('../upload');
 
+const fsp = fs.promises;
+
 const router = express.Router();
 
-router.post('/api/submissions', requireAuth(['ALUM']), uploadZip.single('zipFile'), async (req, res) => {
-  let tempPathToClean = '';
-  try {
-    const assignmentId = safeNumber(req.body?.assignmentId);
-    const authorUserId = safeNumber(req.body?.authorUserId) || req.user.id;
+function normalizeLabel(text = '') {
+  return text.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
 
-    if (!assignmentId) {
-      return sendError(res, 400, 'Debes indicar la tarea.');
+function canonicalCode(text = '') {
+  const match = text.match(/([a-zA-Z]+)(\d+)/);
+  if (!match) return null;
+  const letters = match[1].toLowerCase();
+  const digits = Number(match[2]);
+  if (!Number.isFinite(digits)) return null;
+  return `${letters}${digits}`;
+}
+
+function buildTeamResolver(assignmentId) {
+  const knownTeams = db
+    .prepare(
+      `
+      SELECT id, nombre
+      FROM equipo
+      WHERE id_tarea = ?
+    `
+    )
+    .all(assignmentId);
+
+  const codeMap = new Map();
+  const normalizedMap = new Map();
+
+  knownTeams.forEach((team) => {
+    const teamName = team.nombre || '';
+    const normalized = normalizeLabel(teamName);
+    if (normalized && !normalizedMap.has(normalized)) {
+      normalizedMap.set(normalized, team.id);
     }
 
-    if (authorUserId !== req.user.id) {
-      return sendError(res, 403, 'Solo puedes registrar tus propias entregas.');
+    const regex = /[a-zA-Z]+0*\d+/g;
+    let match;
+    while ((match = regex.exec(teamName)) !== null) {
+      const code = canonicalCode(match[0]);
+      if (code && !codeMap.has(code)) {
+        codeMap.set(code, team.id);
+      }
+    }
+
+    const firstToken = (teamName.split(/[^a-z0-9]+/i).find(Boolean) || '').trim();
+    const tokenCode = canonicalCode(firstToken);
+    if (tokenCode && !codeMap.has(tokenCode)) {
+      codeMap.set(tokenCode, team.id);
+    }
+  });
+
+  return (folderName) => {
+    const primaryToken = (folderName.split('_')[0] || folderName).trim();
+    const codeCandidate = canonicalCode(primaryToken) || canonicalCode(folderName);
+    if (codeCandidate && codeMap.has(codeCandidate)) {
+      return codeMap.get(codeCandidate);
+    }
+
+    const normalized = normalizeLabel(primaryToken);
+    if (normalized && normalizedMap.has(normalized)) {
+      return normalizedMap.get(normalized);
+    }
+
+    const normalizedFull = normalizeLabel(folderName);
+    if (normalizedFull && normalizedMap.has(normalizedFull)) {
+      return normalizedMap.get(normalizedFull);
+    }
+
+    return null;
+  };
+}
+
+async function findTeamArchives(rootDir) {
+  const queue = [rootDir];
+  const results = [];
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    const entries = await fsp.readdir(current, { withFileTypes: true });
+    const zipEntries = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.zip'));
+
+    if (zipEntries.length > 0) {
+      results.push({
+        folderName: path.basename(current),
+        zipPaths: zipEntries.map((entry) => path.join(current, entry.name))
+      });
+      continue;
+    }
+
+    entries
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('__MACOSX'))
+      .forEach((dir) => queue.push(path.join(current, dir.name)));
+  }
+
+  return results;
+}
+
+async function processTeamArchives({ assignmentId, uploaderId, archives }) {
+  const resolveTeam = buildTeamResolver(assignmentId);
+  const processed = [];
+
+  for (const archive of archives) {
+    if (!archive.zipPaths || archive.zipPaths.length === 0) {
+      continue;
+    }
+
+    const teamId = resolveTeam(archive.folderName);
+    if (!teamId) {
+      console.warn(`No se encontró equipo para carpeta ${archive.folderName}`);
+      continue;
+    }
+    const mainZipPath = archive.zipPaths[0];
+    const originalName = path.basename(mainZipPath) || 'entrega.zip';
+    const stored = await persistUploadedZip(mainZipPath, assignmentId, teamId, originalName);
+    const stats = await fsp.stat(stored.absolutePath).catch(() => null);
+    await extractSubmission(assignmentId, teamId, stored.absolutePath);
+
+    db.prepare(
+      `
+      INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(id_tarea, id_equipo) DO UPDATE SET
+        id_subidor = excluded.id_subidor,
+        nombre_zip = excluded.nombre_zip,
+        ruta_archivo = excluded.ruta_archivo,
+        tamano_bytes = excluded.tamano_bytes,
+        fecha_subida = datetime('now')
+    `
+    ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null);
+
+    processed.push({
+      teamId,
+      zipName: originalName
+    });
+  }
+
+  return processed;
+}
+
+router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploadZip.single('zipFile'), async (req, res) => {
+  let tempPathToClean = '';
+  let extractionDir = '';
+
+  try {
+    const assignmentId = safeNumber(req.body?.assignmentId);
+    if (!assignmentId) {
+      return sendError(res, 400, 'Debes indicar la tarea.');
     }
 
     const assignment = ensureAssignmentExists(assignmentId);
@@ -35,71 +173,65 @@ router.post('/api/submissions', requireAuth(['ALUM']), uploadZip.single('zipFile
       return sendError(res, 404, 'La tarea no existe.');
     }
 
-    const teamId = ensureUserTeam(assignmentId, req.user.id);
-
-    const existing = db
-      .prepare(
-        `
-        SELECT id
-        FROM entregas
-        WHERE id_tarea = ? AND id_equipo = ?
-      `
-      )
-      .get(assignmentId, teamId);
-
-    if (existing) {
-      return sendError(res, 409, 'Tu equipo ya registró esta entrega.');
-    }
-
     if (!req.file) {
-      return sendError(res, 400, 'Selecciona un archivo ZIP antes de subir.');
+      return sendError(res, 400, 'Selecciona un ZIP con las entregas.');
     }
 
-    const originalName = req.file.originalname || 'entrega.zip';
+    const originalName = req.file.originalname || 'entregas.zip';
     tempPathToClean = req.file.path;
 
     if (!originalName.toLowerCase().endsWith('.zip')) {
       return sendError(res, 400, 'El archivo debe tener extensión .zip.');
     }
 
-    const stored = await persistUploadedZip(req.file.path, assignmentId, teamId, originalName);
-    await extractSubmission(assignmentId, teamId, stored.absolutePath);
+    const storedBatch = await persistAssignmentZip(req.file.path, assignmentId, originalName);
+    tempPathToClean = '';
 
-    const insert = db
-      .prepare(
-        `
-        INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes)
-        VALUES (?, ?, ?, ?, ?, ?)
+    extractionDir = path.join(assignmentFolder(assignmentId), TEMP_DIRNAME, storedBatch.storedName.replace(/\.zip$/i, ''));
+    await clearDirectory(extractionDir);
+    await unzipFile(storedBatch.absolutePath, extractionDir);
+
+    const archives = await findTeamArchives(extractionDir);
+    if (archives.length === 0) {
+      return sendError(res, 400, 'No encontramos archivos ZIP de equipos dentro del paquete.');
+    }
+
+    const processed = await processTeamArchives({
+      assignmentId,
+      uploaderId: req.user.id,
+      archives
+    });
+
+    if (processed.length === 0) {
+      return sendError(res, 400, 'No se procesaron entregas del ZIP.');
+    }
+
+    db.prepare(
       `
-      )
-      .run(assignmentId, teamId, req.user.id, originalName, stored.relativePath, req.file.size || null);
+      INSERT INTO carga_entregas (id_tarea, id_profesor, nombre_zip, ruta_zip, total_equipos)
+      VALUES (?, ?, ?, ?, ?)
+    `
+    ).run(assignmentId, req.user.id, originalName, storedBatch.relativePath, processed.length);
 
-    const created = db
-      .prepare(
-        `
-        SELECT id,
-               id_tarea,
-               id_equipo,
-               id_subidor,
-               nombre_zip,
-               ruta_archivo,
-               tamano_bytes,
-               fecha_subida
-        FROM entregas
-        WHERE id = ?
-      `
-      )
-      .get(insert.lastInsertRowid);
-
-    return res.status(201).json(created);
+    return res.status(201).json({
+      ok: true,
+      assignmentId,
+      totalEquipos: processed.length,
+      equipos: processed,
+      carga: {
+        fecha: new Date().toISOString(),
+        nombre_zip: originalName
+      }
+    });
   } catch (error) {
-    console.error('Error al registrar entrega:', error);
-    return sendError(res, 500, 'No pudimos registrar la entrega.');
+    console.error('Error al cargar ZIP de entregas:', error);
+    return sendError(res, 500, 'No pudimos registrar las entregas del ZIP.');
   } finally {
     if (tempPathToClean) {
-      fs.promises
-        .unlink(tempPathToClean)
-        .catch(() => {});
+      fsp.unlink(tempPathToClean).catch(() => {});
+    }
+    if (extractionDir) {
+      fsp.rm(extractionDir, { recursive: true, force: true }).catch(() => {});
     }
   }
 });
@@ -127,6 +259,7 @@ router.get('/api/submissions', requireAuth(), (req, res) => {
                  e.fecha_subida,
                  e.id_equipo,
                  e.id_subidor,
+                 eq.nombre AS equipo_nombre,
                  e.ruta_archivo,
                  e.tamano_bytes
           FROM entregas e
@@ -148,9 +281,11 @@ router.get('/api/submissions', requireAuth(), (req, res) => {
                  e.id_subidor,
                  e.ruta_archivo,
                  e.tamano_bytes,
+                 eq.nombre AS equipo_nombre,
                  u.nombre_completo AS autor_nombre,
                  u.correo AS autor_correo
           FROM entregas e
+          JOIN equipo eq ON eq.id = e.id_equipo
           LEFT JOIN usuario u ON u.id = e.id_subidor
           WHERE e.id_tarea = ?
           ORDER BY e.fecha_subida DESC
@@ -159,7 +294,38 @@ router.get('/api/submissions', requireAuth(), (req, res) => {
         .all(assignmentId);
     }
 
-    res.json(rows);
+    const lastBatch = db
+      .prepare(
+        `
+        SELECT nombre_zip,
+               ruta_zip,
+               total_equipos,
+               fecha_subida
+        FROM carga_entregas
+        WHERE id_tarea = ?
+        ORDER BY fecha_subida DESC
+        LIMIT 1
+      `
+      )
+      .get(assignmentId);
+
+    const totalEntregas = db
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM entregas
+        WHERE id_tarea = ?
+      `
+      )
+      .get(assignmentId)?.total;
+
+    res.json({
+      submissions: rows,
+      meta: {
+        ultimaCarga: lastBatch || null,
+        totalEntregas: totalEntregas || 0
+      }
+    });
   } catch (error) {
     console.error('Error al listar entregas:', error);
     return sendError(res, 500, 'No pudimos listar las entregas.');

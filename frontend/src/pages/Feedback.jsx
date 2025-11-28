@@ -3,7 +3,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson } from '../api.js';
 
 export default function Feedback() {
-  const { user, role } = useAuth();
+  const { role } = useAuth();
   const isStudent = useMemo(() => role === 'ALUM', [role]);
   const [assignments, setAssignments] = useState([]);
   const [assignmentId, setAssignmentId] = useState('');
@@ -41,11 +41,11 @@ export default function Feedback() {
       try {
         setLoading(true);
         setError('');
-        const subs = await getJson(`/submissions?assignmentId=${assignmentId}`);
-        const mine = isStudent ? subs.filter((item) => item.id_subidor === user.id) : subs;
-        setSubmissions(mine);
+        const subsResponse = await getJson(`/submissions?assignmentId=${assignmentId}`);
+        const subs = Array.isArray(subsResponse) ? subsResponse : subsResponse.submissions || [];
+        setSubmissions(subs);
         const reviewMap = {};
-        for (const submission of mine) {
+        for (const submission of subs) {
           reviewMap[submission.id] = await getJson(`/reviews?submissionId=${submission.id}`);
         }
         setReviews(reviewMap);
@@ -56,7 +56,7 @@ export default function Feedback() {
       }
     };
     load();
-  }, [assignmentId, isStudent, user.id]);
+  }, [assignmentId, isStudent]);
 
   return (
     <section>

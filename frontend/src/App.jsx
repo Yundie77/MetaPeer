@@ -61,6 +61,9 @@ function renderContent(pathname, role) {
     return <Subjects />;
   }
   if (pathname === '/submissions') {
+    if (role === 'ALUM') {
+      return <p>Las entregas ahora las sube el profesorado. Consulta la sección de Tareas.</p>;
+    }
     return <Submissions />;
   }
   if (pathname === '/reviews') {

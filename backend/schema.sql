@@ -96,6 +96,18 @@ CREATE TABLE IF NOT EXISTS entregas (
   FOREIGN KEY (id_subidor) REFERENCES usuario(id) ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS carga_entregas (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_tarea      INTEGER NOT NULL,
+  id_profesor   INTEGER NOT NULL,
+  nombre_zip    TEXT NOT NULL,
+  ruta_zip      TEXT NOT NULL,
+  total_equipos INTEGER,
+  fecha_subida  TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (id_tarea)    REFERENCES tarea(id)    ON DELETE CASCADE,
+  FOREIGN KEY (id_profesor) REFERENCES usuario(id)  ON DELETE SET NULL
+);
+
 
 CREATE TABLE IF NOT EXISTS revision (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +171,8 @@ CREATE INDEX IF NOT EXISTS idx_rubrica_asignacion  ON rubrica_items(id_asignacio
 
 CREATE INDEX IF NOT EXISTS idx_entregas_tarea      ON entregas(id_tarea);
 CREATE INDEX IF NOT EXISTS idx_entregas_equipo     ON entregas(id_equipo);
+CREATE INDEX IF NOT EXISTS idx_carga_entregas_tarea ON carga_entregas(id_tarea);
+CREATE INDEX IF NOT EXISTS idx_carga_entregas_prof  ON carga_entregas(id_profesor);
 
 CREATE INDEX IF NOT EXISTS idx_revision_entrega    ON revision(id_entrega);
 CREATE INDEX IF NOT EXISTS idx_revision_revisores  ON revision(id_revisores);

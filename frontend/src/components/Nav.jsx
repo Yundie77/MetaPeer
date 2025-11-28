@@ -24,7 +24,6 @@ export default function Nav({ onNavigate, currentPath }) {
     }
     if (role === 'ALUM') {
       return [
-        { label: 'Entregas', path: '/submissions' },
         { label: 'Mis revisiones', path: '/reviews' },
         { label: 'Feedback', path: '/feedback' }
       ];

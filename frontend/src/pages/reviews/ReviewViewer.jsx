@@ -5,7 +5,7 @@ import FileTree from '../../components/FileTree.jsx';
 import Breadcrumbs from '../../components/Breadcrumbs.jsx';
 import EditorPane from '../../components/EditorPane.jsx';
 import { ancestors, buildTreeFromPaths, collectDirPaths, normalizePath } from '../../utils/fileTreeHelpers.js';
-import { writeToURL } from '../../utils/permalink.js';
+import { readFromURL, writeToURL } from '../../utils/permalink.js';
 import {
   viewerCard,
   viewerHeader,
@@ -45,8 +45,17 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       pendingFileRef.current = null;
       return;
     }
+
     if (initialPath) {
       pendingFileRef.current = { path: normalizePath(initialPath), line: presetLine || 0 };
+      return;
+    }
+
+    // Fallback: leer ?path&line de la URL si no vino por props
+    const { path: urlPath, line: urlLine, revisionId: urlRevision } = readFromURL();
+    const safeLine = Number.isInteger(urlLine) && urlLine > 0 ? urlLine : 0;
+    if (urlPath && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
+      pendingFileRef.current = { path: normalizePath(urlPath), line: safeLine };
     } else {
       pendingFileRef.current = null;
     }
@@ -102,11 +111,13 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     const map = new Map();
     (fileData.comments || []).forEach((comment) => {
       const lineNum = Number(comment.linea);
-      if (!lineNum) return;
+      if (!Number.isInteger(lineNum) || lineNum <= 0) return;
+      const content = (comment.contenido ?? '').trim();
+      if (!content) return;
       const list = map.get(lineNum) || [];
       const author = comment.autor?.nombre || 'Revisor';
       const stamp = comment.creado_en ? ` · ${comment.creado_en}` : '';
-      list.push(`${author}${stamp}: ${comment.contenido}`);
+      list.push(`${author}${stamp}: ${content}`);
       map.set(lineNum, list);
     });
     return map;
@@ -114,11 +125,17 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
 
   const commentAnchors = useMemo(
     () =>
-      (fileData.comments || []).map((comment) => ({
-        id: comment.id,
-        line: comment.linea,
-        text: comment.contenido
-      })),
+      (fileData.comments || [])
+        .map((comment) => {
+          const lineNum = Number(comment.linea);
+          if (!Number.isInteger(lineNum) || lineNum <= 0) return null;
+          return {
+            id: comment.id,
+            line: lineNum,
+            text: comment.contenido
+          };
+        })
+        .filter(Boolean),
     [fileData.comments]
   );
 
@@ -126,20 +143,24 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     async (pathValue, line = 0) => {
       if (!revisionId || !pathValue) return;
       const normalizedPath = normalizePath(pathValue);
-      const safeLine = Number(line) || 0;
+      const parsedLine = Number(line);
+      const safeLine = Number.isInteger(parsedLine) && parsedLine > 0 ? parsedLine : 0;
       try {
         setFileLoading(true);
-        const data = await getJson(`/reviews/${revisionId}/file?path=${encodeURIComponent(normalizedPath)}`);
         setError('');
-        setCurrentPath(data.path);
-        setInitialLine(safeLine);
+        const data = await getJson(`/reviews/${revisionId}/file?path=${encodeURIComponent(normalizedPath)}`);
+        if (!data?.path) {
+          throw new Error('Archivo inválido');
+        }
         setFileData({
           content: data.content || '',
-          comments: data.comments || [],
+          comments: Array.isArray(data.comments) ? data.comments : [],
           isBinary: data.isBinary,
           path: data.path,
           size: data.size || 0
         });
+        setCurrentPath(data.path);
+        setInitialLine(safeLine);
         setExpandedPaths((prev) => {
           const next = new Set(prev);
           ancestors(data.path).forEach((dir) => next.add(dir));
@@ -218,16 +239,23 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
   };
 
   const handleAddComment = async (line, text) => {
-    if (!revisionId || !currentPath) return;
+    if (!revisionId || !currentPath) {
+      setError('Selecciona un archivo antes de comentar.');
+      return;
+    }
     const safeLine = Number(line) || 0;
-    if (!safeLine) return;
+    if (!safeLine) {
+      setError('La línea indicada no es válida.');
+      return;
+    }
+    const lastPath = currentPath;
     try {
       await postJson(`/reviews/${revisionId}/comments`, {
         path: currentPath,
         linea: safeLine,
         contenido: text
       });
-      await openFile(currentPath, safeLine);
+      await openFile(lastPath, safeLine);
     } catch (err) {
       setError(err.message);
     }
@@ -319,13 +347,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
                     type="button"
                     style={anchorButton}
                     onClick={() => {
-                      const targetLine = Number(comment.line) || 0;
-                      setInitialLine(targetLine);
-                      writeToURL({
-                        revisionId,
-                        path: currentPath,
-                        line: targetLine
-                      });
+                      const parsed = Number(comment.line);
+                      const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+                      openFile(currentPath, targetLine);
                     }}
                   >
                     L{comment.line}

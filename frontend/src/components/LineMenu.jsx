@@ -15,6 +15,12 @@ export default function LineMenu({
 }) {
   const [comment, setComment] = useState('');
 
+  React.useEffect(() => {
+    if (visible) {
+      setComment('');
+    }
+  }, [visible, line]);
+
   if (!visible) return null;
 
   const add = () => {

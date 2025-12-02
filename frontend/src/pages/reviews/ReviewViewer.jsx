@@ -16,7 +16,8 @@ import {
   anchorButton,
   binaryWarning,
   linkButton,
-  errorStyle
+  errorStyle,
+  splitHandle
 } from './styles.js';
 import { findBestPath } from './helpers.js';
 
@@ -39,6 +40,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
   const [error, setError] = useState('');
   const pendingFileRef = useRef(null);
   const [downloading, setDownloading] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(180);
+  const splitRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     if (!revisionId) {
@@ -301,6 +305,35 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     }
   };
 
+  // Control del separador vertical
+  useEffect(() => {
+    if (!dragging) return;
+    const MIN_LEFT = 240;
+    const MIN_RIGHT = 420;
+
+    const handleMove = (event) => {
+      if (!splitRef.current) return;
+      const rect = splitRef.current.getBoundingClientRect();
+      const totalWidth = rect.width;
+      const raw = event.clientX - rect.left;
+      const maxLeft = Math.max(MIN_LEFT, totalWidth - MIN_RIGHT);
+      const clamped = Math.min(Math.max(raw, MIN_LEFT), maxLeft);
+      setSidebarWidth(clamped);
+    };
+
+    const stop = () => setDragging(false);
+
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', stop);
+    window.addEventListener('mouseleave', stop);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMove);
+      window.removeEventListener('mouseup', stop);
+      window.removeEventListener('mouseleave', stop);
+    };
+  }, [dragging]);
+
   return (
     <div style={viewerCard}>
       <div style={viewerHeader}>
@@ -326,8 +359,16 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       ) : files.length === 0 ? (
         <p>No hay archivos para esta entrega.</p>
       ) : (
-        <div style={viewerGrid}>
-          <aside style={viewerSidebar}>
+        <div ref={splitRef} style={viewerGrid}>
+          <aside
+            style={{
+              ...viewerSidebar,
+              width: `${sidebarWidth}px`,
+              minWidth: '240px',
+              maxWidth: '780px',
+              flex: '0 0 auto'
+            }}
+          >
             <FileTree
               nodes={treeData}
               selectedPath={currentPath}
@@ -336,6 +377,16 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
               onOpenFile={(filePath) => openFile(filePath, 0)}
             />
           </aside>
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            tabIndex={-1}
+            style={splitHandle}
+            onMouseDown={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+          />
           <div style={viewerContent}>
             <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumb} />
             {commentAnchors.length > 0 && (
@@ -367,7 +418,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
               <EditorPane
                 path={currentPath}
                 code={fileData.content}
-                height="520px"
+                height="560px"
                 initialLine={initialLine}
                 commentsByLine={commentsByLine}
                 onAddComment={handleAddComment}

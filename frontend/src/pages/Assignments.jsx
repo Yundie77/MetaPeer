@@ -24,6 +24,43 @@ export default function Assignments() {
   const [assignSummary, setAssignSummary] = useState(null);
   const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
   const [uploadMessage, setUploadMessage] = useState('');
+  const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
+
+  const updateSubmissionsMeta = (assignmentId, meta) => {
+    if (!assignmentId) return;
+    setSubmissionsMeta((prev) => {
+      const next = new Map(prev);
+      next.set(assignmentId, {
+        hasZip: Boolean(meta?.hasZip),
+        total: Number(meta?.total) || 0,
+        uploadedAt: meta?.uploadedAt || null,
+        zipName: meta?.zipName || ''
+      });
+      return next;
+    });
+  };
+
+  const preloadSubmissionsMeta = async (list = []) => {
+    const entries = Array.isArray(list) ? list : [];
+    for (const item of entries) {
+      const assignmentId = item?.id;
+      if (!assignmentId) continue;
+      try {
+        const data = await getJson(`/submissions?assignmentId=${assignmentId}`);
+        const submissionsList = Array.isArray(data) ? data : data.submissions || [];
+        const meta = data.meta?.ultimaCarga || data.meta?.ultima || null;
+        const total = data.meta?.totalEntregas ?? submissionsList.length;
+        updateSubmissionsMeta(assignmentId, {
+          hasZip: Boolean(meta) || submissionsList.length > 0,
+          total,
+          uploadedAt: meta?.fecha_subida || meta?.fecha || null,
+          zipName: meta?.nombre_zip || meta?.nombreZip || meta?.zipName || ''
+        });
+      } catch (_err) {
+        // Si falla la carga de meta, dejamos el estado por defecto (sin ZIP)
+      }
+    }
+  };
 
   const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
   const fileInputsRef = useRef({});
@@ -43,6 +80,7 @@ export default function Assignments() {
         ]);
         setAssignments(assignmentsData);
         setSubjects(subjectsData);
+        preloadSubmissionsMeta(assignmentsData);
         if (subjectsData.length > 0) {
           setSubjectId(String(subjectsData[0].id));
         }
@@ -201,9 +239,15 @@ export default function Assignments() {
         body: formData
       });
       const target = assignments.find((item) => item.id === assignmentId);
-      setUploadMessage(
-        `Carga registrada para "${target?.titulo || 'la tarea'}": ${result.totalEquipos || 0} entregas encontradas.`
-      );
+    setUploadMessage(
+      `Carga registrada para "${target?.titulo || 'la tarea'}": ${result.totalEquipos || 0} entregas encontradas.`
+    );
+      updateSubmissionsMeta(assignmentId, {
+        hasZip: true,
+        uploadedAt: result.fechaSubida || result.fecha || new Date().toISOString(),
+        zipName: result.nombreZip || result.nombre_zip || file.name,
+        total: Number(result.totalEquipos) || 0
+      });
     } catch (err) {
       setError(err.message);
     } finally {
@@ -216,6 +260,11 @@ export default function Assignments() {
   };
 
   const handleAssignReviews = async (assignmentId) => {
+    const meta = submissionsMeta.get(assignmentId);
+    if (!meta?.hasZip) {
+      setError('Sube un ZIP de entregas antes de asignar revisiones.');
+      return;
+    }
     try {
       setAssigning(true);
       setAssignSummary(null);
@@ -332,9 +381,10 @@ export default function Assignments() {
                 <div style={metaStyle}>
                   {assignment.fecha_entrega ? `Entrega: ${assignment.fecha_entrega}` : 'Sin fecha definida'}
                 </div>
-              {assignment.descripcion && <div style={descStyle}>{assignment.descripcion}</div>}
-            </div>
-            <div style={actionsStyle}>
+                {assignment.descripcion && <div style={descStyle}>{assignment.descripcion}</div>}
+                <AssignmentUploadsInfo meta={submissionsMeta.get(assignment.id)} />
+              </div>
+              <div style={actionsStyle}>
               <input
                 type="file"
                 accept=".zip"
@@ -357,9 +407,13 @@ export default function Assignments() {
               </button>
               <button
                 type="button"
-                  style={smallButton}
+                  style={{
+                    ...smallButton,
+                    opacity: submissionsMeta.get(assignment.id)?.hasZip ? 1 : 0.6,
+                    cursor: submissionsMeta.get(assignment.id)?.hasZip ? 'pointer' : 'not-allowed'
+                  }}
                   onClick={() => handleAssignReviews(assignment.id)}
-                  disabled={assigning}
+                  disabled={assigning || !submissionsMeta.get(assignment.id)?.hasZip}
                 >
                   {assigning ? 'Asignando...' : 'Asignación'}
                 </button>
@@ -466,6 +520,30 @@ export default function Assignments() {
   );
 }
 
+function AssignmentUploadsInfo({ meta }) {
+  if (!meta?.hasZip) {
+    return <div style={metaStyle}>No hay entregas subidas aún.</div>;
+  }
+  return (
+    <div style={{ ...metaStyle, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+      <span>
+        Última carga: {meta.uploadedAt ? formatDateTime(meta.uploadedAt) : 'sin fecha'}{' '}
+        {meta.zipName ? `· ZIP: ${meta.zipName}` : ''}
+      </span>
+      <span>Entregas detectadas: {meta.total || '—'}</span>
+    </div>
+  );
+}
+
+function formatDateTime(value) {
+  if (!value) return '';
+  try {
+    return new Date(value).toLocaleString('es-ES');
+  } catch (_error) {
+    return value;
+  }
+}
+
 const formStyle = {
   display: 'grid',
   gap: '1rem',
@@ -487,7 +565,7 @@ const inputStyle = {
 };
 
 const buttonStyle = {
-  padding: '0.6rem 0.9rem',
+  padding: '0.6rem 0.3rem',
   background: '#0b74de',
   color: '#fff',
   border: 'none',

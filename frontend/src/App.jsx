@@ -90,7 +90,7 @@ function renderContent(pathname, role) {
 const containerStyle = {
   margin: '0 auto',
   padding: '1.5rem',
-  maxWidth: '960px',
+  maxWidth: '2000px',
   fontFamily: 'Segoe UI, system-ui, sans-serif',
   color: '#1f1f1f'
 };

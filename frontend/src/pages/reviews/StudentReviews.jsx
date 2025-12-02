@@ -171,9 +171,6 @@ export default function StudentReviews({ user }) {
                 onFileOpened={handleViewerOpened}
               />
               <form onSubmit={handleSubmit} style={reviewFormStyle}>
-                <h4>
-                  Revisando: <span style={{ color: '#0b74de' }}>{selected.submissionZip}</span>
-                </h4>
                 {loadingRubric ? (
                   <p>Cargando rúbrica...</p>
                 ) : (

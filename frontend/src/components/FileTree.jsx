@@ -1,4 +1,5 @@
 import React from 'react';
+import { useEffect, useRef } from 'react';
 
 // Árbol de archivos estilo GitHub con carpetas desplegables.
 // node: { name, path, isFile, children: node[] }
@@ -32,6 +33,13 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
   const isExpanded = isDir ? expandedPaths.has(node.path) : false;
   const isSelected = selectedPath === node.path;
   const paddingLeft = 12 + depth * 16;
+  const nodeRef = useRef(null);
+
+  useEffect(() => {
+    if (isSelected && nodeRef.current) {
+      nodeRef.current.scrollIntoView({ block: 'nearest', inline: 'start' });
+    }
+  }, [isSelected]);
 
   return (
     <li style={liStyle}>
@@ -52,6 +60,7 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
       ) : (
         <button
           type="button"
+          ref={nodeRef}
           onClick={() => onOpenFile && onOpenFile(node.path)}
           style={{
             ...fileButtonStyle,
@@ -90,7 +99,10 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
 const ulStyle = {
   listStyle: 'none',
   margin: 0,
-  padding: 0
+  padding: 0,
+  whiteSpace: 'nowrap',
+  minWidth: '100%',
+  width: 'max-content'
 };
 
 const liStyle = {
@@ -100,7 +112,7 @@ const liStyle = {
 const dirButtonStyle = {
   display: 'flex',
   alignItems: 'center',
-  width: '100%',
+  width: 'max-content',
   textAlign: 'left',
   padding: '0.35rem 0.4rem',
   borderRadius: 4,
@@ -115,7 +127,7 @@ const dirButtonStyle = {
 const fileButtonStyle = {
   display: 'flex',
   alignItems: 'center',
-  width: '100%',
+  width: 'max-content',
   textAlign: 'left',
   padding: '0.35rem 0.4rem',
   borderRadius: 4,

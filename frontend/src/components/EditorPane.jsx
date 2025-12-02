@@ -16,7 +16,8 @@ import { buildPermalink } from '../utils/permalink.js';
 const baseTheme = EditorView.theme({
   '.cm-scroller': {
     fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace',
-    fontSize: '14px'
+    fontSize: '14px',
+    overflow: 'auto'
   },
   '.cm-lineNumbers': {
     cursor: 'pointer',
@@ -224,6 +225,9 @@ export default function EditorPane({
         style={{
           position: 'relative',
           height,
+          width: '100%',
+          boxSizing: 'border-box',
+          minWidth: 0,
           border: '1px solid #ddd',
           borderTop: 'none',
           borderRadius: '0 0 6px 6px',

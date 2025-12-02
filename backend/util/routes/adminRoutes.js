@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { requireAuth } = require('../../auth');
 const { db } = require('../../db');
-const { parseCsvToObjects, normalizeValue } = require('../../utils/csv');
+const { parseCsvToObjects, toLowercaseIdentifier } = require('../../utils/csv');
 const {
   sendError,
   safeNumber,
@@ -77,7 +77,7 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
 
     const tx = db.transaction(() => {
       rows.forEach((row) => {
-        const normalizedGrouping = normalizeValue(row.agrupamiento);
+        const normalizedGrouping = toLowercaseIdentifier(row.agrupamiento);
         const isIndividual = normalizedGrouping === 'individual';
         const isNoGroup =
           normalizedGrouping === 'no_esta_en_un_agrupamiento' || normalizedGrouping === 'no_esta_en_un_grupo';
@@ -123,7 +123,7 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         let teamName;
 
         if (groupCodeRaw) {
-          const normalizedCode = normalizeValue(groupCodeRaw).replace(/_/g, '').toUpperCase() || groupCodeRaw;
+          const normalizedCode = toLowercaseIdentifier(groupCodeRaw).replace(/_/g, '').toUpperCase() || groupCodeRaw;
           teamName = `${groupingLabel}-${normalizedCode}`;
         } else {
           teamName = groupingLabel || `Grupo ${email}`;

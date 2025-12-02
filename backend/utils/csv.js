@@ -21,7 +21,7 @@ function normalizeHeader(header) {
  * - quita acentos
  * - reemplaza grupos de espacios por guiones bajos
  */
-function normalizeValue(value) {
+function toLowercaseIdentifier(value) {
   if (value === null || value === undefined) {
     return '';
   }
@@ -100,7 +100,7 @@ function parseCsvToObjects(csvText) {
 
 module.exports = {
   normalizeHeader,
-  normalizeValue,
+  toLowercaseIdentifier,
   splitCsvLine,
   parseCsvToObjects
 };

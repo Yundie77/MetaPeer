@@ -4,14 +4,14 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 
 const { seedDatabase } = require('./seed');
-const baseRoutes = require('./util/routes/baseRoutes');
-const authRoutes = require('./util/routes/authRoutes');
-const subjectsRoutes = require('./util/routes/subjectsRoutes');
-const adminRoutes = require('./util/routes/adminRoutes');
-const assignmentsRoutes = require('./util/routes/assignmentsRoutes');
-const submissionsRoutes = require('./util/routes/submissionsRoutes');
-const reviewsRoutes = require('./util/routes/reviewsRoutes');
-const exportRoutes = require('./util/routes/exportRoutes');
+const baseRoutes = require('./app/routes/baseRoutes');
+const authRoutes = require('./app/routes/authRoutes');
+const subjectsRoutes = require('./app/routes/subjectsRoutes');
+const adminRoutes = require('./app/routes/adminRoutes');
+const assignmentsRoutes = require('./app/routes/assignmentsRoutes');
+const submissionsRoutes = require('./app/routes/submissionsRoutes');
+const reviewsRoutes = require('./app/routes/reviewsRoutes');
+const exportRoutes = require('./app/routes/exportRoutes');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 seedDatabase();

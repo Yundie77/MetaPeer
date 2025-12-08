@@ -1,13 +1,13 @@
-const fs = require('fs');
-const path = require('path');
-const AdmZip = require('adm-zip');
+const fs = require("fs");
+const path = require("path");
+const AdmZip = require("adm-zip");
 
 const fsp = fs.promises;
 
-const DELIVERIES_ROOT = path.join(__dirname, '..', 'deliveries');
-const CONTENT_DIRNAME = 'contenido';
-const BATCHES_DIRNAME = 'lotes';
-const TEMP_DIRNAME = 'tmp';
+const DELIVERIES_ROOT = path.join(__dirname, "..", "deliveries");
+const CONTENT_DIRNAME = "contenido";
+const BATCHES_DIRNAME = "lotes";
+const TEMP_DIRNAME = "tmp";
 
 ensureDir(DELIVERIES_ROOT);
 
@@ -15,12 +15,15 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-function sanitizeName(name = '') {
-  return name
-    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
-    .replace(/\s+/g, '-')
-    .toLowerCase()
-    .trim() || 'entrega.zip';
+// Caracteres prohibidos, espacios por guiones...
+function sanitizeName(name = "") {
+  return (
+    name
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, "")
+      .replace(/\s+/g, "-")
+      .toLowerCase()
+      .trim() || "entrega.zip"
+  );
 }
 
 function assignmentFolder(assignmentId) {
@@ -50,7 +53,7 @@ async function clearDirectory(dirPath) {
       await fsp.rm(dirPath, { recursive: true, force: true });
       break;
     } catch (error) {
-      if (error.code === 'ENOTEMPTY' && attempt < 2) {
+      if (error.code === "ENOTEMPTY" && attempt < 2) {
         await new Promise((resolve) => setTimeout(resolve, 100));
         continue;
       }
@@ -60,11 +63,19 @@ async function clearDirectory(dirPath) {
   await fsp.mkdir(dirPath, { recursive: true });
 }
 
-async function persistUploadedZip(tempPath, assignmentId, teamId, originalName) {
+async function persistUploadedZip(
+  tempPath,
+  assignmentId,
+  teamId,
+  originalName
+) {
   const baseFolder = teamFolder(assignmentId, teamId);
   await fsp.mkdir(baseFolder, { recursive: true });
 
-  const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:.TZ]/g, "")
+    .slice(0, 14);
   const safeName = sanitizeName(originalName);
   const storedName = `${timestamp}-${safeName}`;
   const destination = path.join(baseFolder, storedName);
@@ -74,7 +85,9 @@ async function persistUploadedZip(tempPath, assignmentId, teamId, originalName) 
   return {
     storedName,
     absolutePath: destination,
-    relativePath: path.relative(path.join(__dirname, '..'), destination).replace(/\\/g, '/')
+    relativePath: path
+      .relative(path.join(__dirname, ".."), destination)
+      .replace(/\\/g, "/"),
   };
 }
 
@@ -82,7 +95,10 @@ async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   const baseFolder = path.join(assignmentFolder(assignmentId), BATCHES_DIRNAME);
   await fsp.mkdir(baseFolder, { recursive: true });
 
-  const timestamp = new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14);
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:.TZ]/g, "")
+    .slice(0, 14);
   const safeName = sanitizeName(originalName);
   const storedName = `${timestamp}-${safeName}`;
   const destination = path.join(baseFolder, storedName);
@@ -92,7 +108,9 @@ async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   return {
     storedName,
     absolutePath: destination,
-    relativePath: path.relative(path.join(__dirname, '..'), destination).replace(/\\/g, '/')
+    relativePath: path
+      .relative(path.join(__dirname, ".."), destination)
+      .replace(/\\/g, "/"),
   };
 }
 
@@ -110,11 +128,11 @@ async function expandNestedZips(dirPath) {
       continue;
     }
 
-    if (!entry.isFile() || !entry.name.toLowerCase().endsWith('.zip')) {
+    if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".zip")) {
       continue;
     }
 
-    const targetDir = fullPath.replace(/\.zip$/i, '');
+    const targetDir = fullPath.replace(/\.zip$/i, "");
     await fsp.mkdir(targetDir, { recursive: true });
     await unzipFile(fullPath, targetDir);
     await fsp.unlink(fullPath);
@@ -142,10 +160,10 @@ async function listAllFiles(baseDir) {
       }
       if (!entry.isFile()) continue;
       const stats = await fsp.stat(fullPath);
-      const relative = path.relative(baseDir, fullPath).replace(/\\/g, '/');
+      const relative = path.relative(baseDir, fullPath).replace(/\\/g, "/");
       results.push({
         path: relative,
-        size: stats.size
+        size: stats.size,
       });
     }
   }
@@ -157,7 +175,7 @@ async function listAllFiles(baseDir) {
 function ensureInside(baseDir, requestedPath) {
   const resolved = path.resolve(baseDir, requestedPath);
   if (!resolved.startsWith(path.resolve(baseDir))) {
-    throw new Error('Ruta fuera de la entrega.');
+    throw new Error("Ruta fuera de la entrega.");
   }
   return resolved;
 }
@@ -175,5 +193,5 @@ module.exports = {
   ensureInside,
   unzipFile,
   clearDirectory,
-  TEMP_DIRNAME
+  TEMP_DIRNAME,
 };

@@ -59,8 +59,12 @@ CREATE TABLE IF NOT EXISTS miembro_equipo (
 
 
 CREATE TABLE IF NOT EXISTS asignacion (
-  id        INTEGER PRIMARY KEY AUTOINCREMENT,
-  id_tarea  INTEGER NOT NULL UNIQUE,                        -- 1:1 con tarea
+  id                     INTEGER PRIMARY KEY AUTOINCREMENT,
+  id_tarea               INTEGER NOT NULL UNIQUE,           -- 1:1 con tarea
+  modo                   TEXT NOT NULL DEFAULT 'equipo' CHECK (modo IN ('equipo','individual')),
+  revisores_por_entrega  INTEGER DEFAULT 1,
+  bloqueada              INTEGER NOT NULL DEFAULT 0,
+  fecha_asignacion       TEXT,
   FOREIGN KEY (id_tarea) REFERENCES tarea(id) ON DELETE CASCADE
 );
 

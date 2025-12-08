@@ -1,6 +1,7 @@
-const crypto = require('crypto');
 const { db } = require('../db');
-const { MAX_ASSIGNMENT_SHUFFLE, ROSTER_PREFIX } = require('./constants');
+const { ROSTER_PREFIX } = require('./constants');
+const { buildSeededRandom, shuffleArray, buildDerangement } = require('../utils/random');
+const assignmentHelpers = require('./assignmentHelpers');
 
 function sendError(res, status, message) {
   return res.status(status).json({ error: message });
@@ -282,124 +283,6 @@ function isLikelyBinary(buffer) {
   return false;
 }
 
-function shuffleArray(items) {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i -= 1) {
-    const j = crypto.randomInt(0, i + 1);
-    const temp = copy[i];
-    copy[i] = copy[j];
-    copy[j] = temp;
-  }
-  return copy;
-}
-
-function buildDerangement(ids) {
-  if (ids.length < 2) {
-    return ids.slice();
-  }
-
-  for (let attempt = 0; attempt < MAX_ASSIGNMENT_SHUFFLE; attempt += 1) {
-    const shuffled = shuffleArray(ids);
-    const valid = ids.every((value, index) => value !== shuffled[index]);
-    if (valid) {
-      return shuffled;
-    }
-  }
-
-  const rotated = ids.slice(1);
-  rotated.push(ids[0]);
-  return rotated;
-}
-
-function buildTeamAssignments(assignmentId) {
-  const assignment = ensureAssignmentExists(assignmentId);
-  if (!assignment) {
-    throw new Error('La tarea no existe.');
-  }
-
-  const submissions = db
-    .prepare(
-      `
-      SELECT e.id AS entrega_id,
-             e.id_equipo AS equipo_autor_id,
-             eq.nombre AS equipo_autor_nombre
-      FROM entregas e
-      JOIN equipo eq ON eq.id = e.id_equipo
-      WHERE e.id_tarea = ?
-      ORDER BY e.id
-    `
-    )
-    .all(assignmentId);
-
-  if (submissions.length < 2) {
-    return { assignmentId, pairs: [] };
-  }
-
-  const teamOrder = Array.from(new Set(submissions.map((row) => row.equipo_autor_id)));
-  if (teamOrder.length < 2) {
-    return { assignmentId, pairs: [] };
-  }
-
-  const shuffledTeams = shuffleArray(teamOrder);
-  const assignmentRecordId = ensureAssignmentRecord(assignmentId);
-
-  const teamNameMap = new Map();
-  submissions.forEach((row) => {
-    teamNameMap.set(row.equipo_autor_id, row.equipo_autor_nombre);
-  });
-
-  const submissionByTeam = new Map();
-  submissions.forEach((row) => {
-    submissionByTeam.set(row.equipo_autor_id, row.entrega_id);
-  });
-
-  const insertRevision = db.prepare(
-    `
-    INSERT INTO revision (id_asignacion, id_entrega, id_revisores)
-    VALUES (?, ?, ?)
-    ON CONFLICT(id_entrega, id_revisores) DO UPDATE SET
-      fecha_asignacion = datetime('now'),
-      fecha_envio = NULL,
-      respuestas_json = NULL,
-      nota_numerica = NULL,
-      comentario_extra = NULL
-  `
-  );
-
-  const tx = db.transaction(() => {
-    shuffledTeams.forEach((authorTeamId, index) => {
-      const entregaId = submissionByTeam.get(authorTeamId);
-      const reviewerTeamId = shuffledTeams[(index + 1) % shuffledTeams.length];
-      insertRevision.run(assignmentRecordId, entregaId, reviewerTeamId);
-    });
-  });
-
-  tx();
-
-  const pairs = shuffledTeams.map((authorTeamId, index) => {
-    const reviewerTeamId = shuffledTeams[(index + 1) % shuffledTeams.length];
-    return {
-      equipoAutor: {
-        id: authorTeamId,
-        nombre: teamNameMap.get(authorTeamId)
-      },
-      entregas: [submissionByTeam.get(authorTeamId)],
-      revisores: [
-        {
-          id: reviewerTeamId,
-          nombre: teamNameMap.get(reviewerTeamId),
-          revisores: getTeamMembers(reviewerTeamId)
-        }
-      ]
-    };
-  });
-
-  return {
-    assignmentId,
-    pairs
-  };
-}
-
 function fetchAssignmentRubric(assignmentId) {
   const assignmentRecord = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
   if (!assignmentRecord) {
@@ -519,8 +402,9 @@ module.exports = {
   ensureRevisionPermission,
   isLikelyBinary,
   shuffleArray,
+  buildSeededRandom,
   buildDerangement,
-  buildTeamAssignments,
+  ...assignmentHelpers,
   fetchAssignmentRubric,
   fetchAssignmentMap,
   formatGradesAsCsv,

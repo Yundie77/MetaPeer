@@ -8,7 +8,8 @@ const {
   ensureAssignmentRecord,
   cloneRosterTeamsToAssignment,
   fetchAssignmentRubric,
-  buildTeamAssignments,
+  buildAssignmentPlan,
+  persistAssignmentPlan,
   fetchAssignmentMap
 } = require('../helpers');
 const { ROSTER_PREFIX } = require('../constants');
@@ -20,10 +21,25 @@ router.get('/api/assignments', requireAuth(), (_req, res) => {
     const rows = db
       .prepare(
         `
-        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado, revisores_por_entrega
-        FROM tarea
-        WHERE titulo NOT LIKE ?
-        ORDER BY fecha_entrega IS NULL, fecha_entrega DESC, id DESC
+        SELECT t.id,
+               t.id_asignatura,
+               t.titulo,
+               t.descripcion,
+               t.fecha_entrega,
+               t.estado,
+               t.revisores_por_entrega,
+               COALESCE(a.modo, 'equipo') AS asignacion_modo,
+               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                 ELSE COALESCE(a.bloqueada, 0)
+               END AS asignacion_bloqueada,
+               a.fecha_asignacion AS asignacion_fecha_asignacion,
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+        FROM tarea t
+        LEFT JOIN asignacion a ON a.id_tarea = t.id
+        WHERE t.titulo NOT LIKE ?
+        ORDER BY t.fecha_entrega IS NULL, t.fecha_entrega DESC, t.id DESC
       `
       )
       .all(`${ROSTER_PREFIX}%`);
@@ -71,9 +87,24 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
     const created = db
       .prepare(
         `
-        SELECT id, id_asignatura, titulo, descripcion, fecha_entrega, estado, revisores_por_entrega
-        FROM tarea
-        WHERE id = ?
+        SELECT t.id,
+               t.id_asignatura,
+               t.titulo,
+               t.descripcion,
+               t.fecha_entrega,
+               t.estado,
+               t.revisores_por_entrega,
+               COALESCE(a.modo, 'equipo') AS asignacion_modo,
+               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                 ELSE COALESCE(a.bloqueada, 0)
+               END AS asignacion_bloqueada,
+               a.fecha_asignacion AS asignacion_fecha_asignacion,
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+        FROM tarea t
+        LEFT JOIN asignacion a ON a.id_tarea = t.id
+        WHERE t.id = ?
       `
       )
       .get(assignmentId);
@@ -92,10 +123,35 @@ router.get('/api/assignments/:assignmentId', requireAuth(), (req, res) => {
       return sendError(res, 400, 'Identificador inválido.');
     }
 
-    const assignment = ensureAssignmentExists(assignmentId);
-    if (!assignment) {
+    const existing = ensureAssignmentExists(assignmentId);
+    if (!existing) {
       return sendError(res, 404, 'La tarea no existe.');
     }
+
+    const assignment = db
+      .prepare(
+        `
+        SELECT t.id,
+               t.id_asignatura,
+               t.titulo,
+               t.descripcion,
+               t.fecha_entrega,
+               t.estado,
+               t.revisores_por_entrega,
+               COALESCE(a.modo, 'equipo') AS asignacion_modo,
+               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                 ELSE COALESCE(a.bloqueada, 0)
+               END AS asignacion_bloqueada,
+               a.fecha_asignacion AS asignacion_fecha_asignacion,
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+        FROM tarea t
+        LEFT JOIN asignacion a ON a.id_tarea = t.id
+        WHERE t.id = ?
+      `
+      )
+      .get(assignmentId);
 
     res.json(assignment);
   } catch (error) {
@@ -188,28 +244,70 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
       return sendError(res, 404, 'La tarea no existe.');
     }
 
-    const existingRecord = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
-    if (existingRecord) {
-      const revisionsCount = db
-        .prepare(
-          `
-          SELECT COUNT(*) AS total
-          FROM revision
-          WHERE id_asignacion = ?
+    const modeRaw = String(req.body?.modo || req.body?.mode || 'equipo').toLowerCase();
+    const mode = modeRaw === 'individual' ? 'individual' : 'equipo';
+    const requestedReviews = Math.floor(
+      Number(
+        req.body?.revisionesPorRevisor ??
+          req.body?.revisores_por_entrega ??
+          req.body?.revisoresPorEntrega ??
+          req.body?.n ??
+          req.body?.N
+      ) || 0
+    );
+    if (!Number.isFinite(requestedReviews) || requestedReviews < 1) {
+      return sendError(res, 400, 'Indica un número de revisiones por revisor mayor o igual a 1.');
+    }
+
+    const confirmFlag = Boolean(req.body?.confirmar || req.body?.confirm || req.body?.confirmado);
+    const seed = req.body?.seed || req.body?.semilla || null;
+
+    const assignmentRecord = db.prepare('SELECT id, bloqueada FROM asignacion WHERE id_tarea = ?').get(assignmentId);
+    const assignmentRecordId = assignmentRecord ? assignmentRecord.id : ensureAssignmentRecord(assignmentId);
+    const revisionsCount = db
+      .prepare(
         `
-        )
-        .get(existingRecord.id)?.total;
+        SELECT COUNT(*) AS total
+        FROM revision
+        WHERE id_asignacion = ?
+      `
+      )
+      .get(assignmentRecordId)?.total;
 
-      if (Number(revisionsCount) > 0) {
-        return sendError(res, 409, 'Esta tarea ya tiene revisiones asignadas. No se puede relanzar.');
-      }
+    const isLocked = Number(assignmentRecord?.bloqueada) === 1 || Number(revisionsCount) > 0;
+    if (isLocked) {
+      return sendError(res, 409, 'Esta tarea ya tiene revisiones asignadas. No se puede relanzar.');
     }
 
-    const result = buildTeamAssignments(assignmentId);
-    if (result.pairs.length === 0) {
-      return sendError(res, 400, 'Se necesitan al menos dos equipos con entrega para asignar revisiones.');
+    const plan = buildAssignmentPlan({
+      assignmentId,
+      mode,
+      reviewsPerReviewer: requestedReviews,
+      seed
+    });
+
+    if (!plan.pairs || plan.pairs.length === 0 || plan.appliedReviewsPerReviewer < 1) {
+      const fallbackMessage =
+        plan.warnings?.[0] || 'No pudimos generar la asignación. Verifica que haya entregas de al menos dos equipos.';
+      return sendError(res, 400, fallbackMessage);
     }
-    res.json(result);
+
+    let assignmentState = null;
+    if (confirmFlag) {
+      const persisted = persistAssignmentPlan(plan);
+      assignmentState = {
+        id_asignacion: persisted.assignmentRecordId,
+        ...persisted.assignmentMeta
+      };
+    }
+
+    const { pairs, ...preview } = plan;
+    res.json({
+      ...preview,
+      warnings: plan.warnings || [],
+      persisted: confirmFlag,
+      assignmentState
+    });
   } catch (error) {
     console.error('Error al generar asignación:', error);
     return sendError(res, 500, 'No pudimos generar la asignación.');

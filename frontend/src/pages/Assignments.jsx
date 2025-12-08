@@ -1,6 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { fetchJson, getJson, postJson } from '../api.js';
+import AssignModal from './assignments/AssignModal.jsx';
+import AssignmentCard from './assignments/AssignmentCard.jsx';
+import {formStyle, labelStyle, inputStyle, buttonStyle, errorStyle, successStyle, listStyle, cardStyle, actionsStyle, smallButton, metaStyle,
+  descStyle, panelStyle, miniCard, miniMeta, rubricRowStyle, rubricNumberStyle, modalOverlay, modalContent, modalHeader,
+  modalFormRow, plainLinkButton, warningListStyle, warningItemStyle, previewGrid, previewColumn, tagsRow, tag} from './assignments/styles.js';
 
 export default function Assignments() {
   const { role } = useAuth();
@@ -20,8 +25,17 @@ export default function Assignments() {
   const [rubricSaving, setRubricSaving] = useState(false);
   const [rubricError, setRubricError] = useState('');
 
-  const [assigning, setAssigning] = useState(false);
-  const [assignSummary, setAssignSummary] = useState(null);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [assignMode, setAssignMode] = useState('equipo');
+  const [assignReviews, setAssignReviews] = useState(1);
+  const [assignPreview, setAssignPreview] = useState(null);
+  const [assignWarnings, setAssignWarnings] = useState([]);
+  const [assignModalError, setAssignModalError] = useState('');
+  const [assignModalLoading, setAssignModalLoading] = useState(false);
+  const [assignConfirming, setAssignConfirming] = useState(false);
+  const [assignSeed, setAssignSeed] = useState('');
+  const [assignInfo, setAssignInfo] = useState('');
   const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
   const [uploadMessage, setUploadMessage] = useState('');
   const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
@@ -259,22 +273,125 @@ export default function Assignments() {
     }
   };
 
-  const handleAssignReviews = async (assignmentId) => {
-    const meta = submissionsMeta.get(assignmentId);
+  const openAssignModal = (assignment) => {
+    const meta = submissionsMeta.get(assignment.id);
     if (!meta?.hasZip) {
       setError('Sube un ZIP de entregas antes de asignar revisiones.');
       return;
     }
+    const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
+    if (blocked) {
+      setError('Esta tarea ya tiene una asignación confirmada. Consulta el mapa existente.');
+      return;
+    }
+    setAssignTarget(assignment);
+    setAssignMode(assignment.asignacion_modo || 'equipo');
+    const defaultReviews =
+      Number(assignment.asignacion_revisores_por_entrega || assignment.revisores_por_entrega || 1) || 1;
+    setAssignReviews(defaultReviews);
+    setAssignPreview(null);
+    setAssignWarnings([]);
+    setAssignModalError('');
+    setAssignSeed('');
+    setAssignInfo('');
+    setAssignModalOpen(true);
+  };
+
+  const closeAssignModal = () => {
+    setAssignModalOpen(false);
+    setAssignTarget(null);
+    setAssignPreview(null);
+    setAssignWarnings([]);
+    setAssignModalError('');
+    setAssignModalLoading(false);
+    setAssignConfirming(false);
+    setAssignInfo('');
+  };
+
+  const handlePreviewAssignment = async ({ freshSeed = false } = {}) => {
+    if (!assignTarget) return;
+    const requested = Math.floor(Number(assignReviews) || 0);
+    if (!requested || requested < 1) {
+      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
+      return;
+    }
     try {
-      setAssigning(true);
-      setAssignSummary(null);
-      setError('');
-      const result = await postJson(`/assignments/${assignmentId}/assign`, {});
-      setAssignSummary(result);
+      setAssignModalLoading(true);
+      setAssignModalError('');
+      setAssignInfo('');
+      const preview = await postJson(`/assignments/${assignTarget.id}/assign`, {
+        modo: assignMode,
+        revisionesPorRevisor: requested,
+        seed: freshSeed ? null : assignSeed || null
+      });
+      setAssignPreview(preview);
+      setAssignSeed(preview.seed || '');
+      setAssignWarnings(preview.warnings || []);
     } catch (err) {
-      setError(err.message);
+      setAssignModalError(err.message);
+      setAssignPreview(null);
+      setAssignWarnings([]);
     } finally {
-      setAssigning(false);
+      setAssignModalLoading(false);
+    }
+  };
+
+  const handleConfirmAssignment = async () => {
+    if (!assignTarget) return;
+    const requested = Math.floor(Number(assignReviews) || 0);
+    if (!requested || requested < 1) {
+      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
+      return;
+    }
+    if (!assignPreview) {
+      setAssignModalError('Primero genera una previsualización.');
+      return;
+    }
+    try {
+      setAssignConfirming(true);
+      setAssignModalError('');
+      const confirmed = await postJson(`/assignments/${assignTarget.id}/assign`, {
+        modo: assignMode,
+        revisionesPorRevisor: requested,
+        seed: assignPreview.seed || assignSeed || null,
+        confirmar: true
+      });
+      setAssignPreview(confirmed);
+      setAssignSeed(confirmed.seed || assignPreview.seed || '');
+      setAssignWarnings(confirmed.warnings || []);
+      setAssignInfo('Asignación guardada y bloqueada.');
+      if (confirmed.assignmentState) {
+        setAssignments((prev) =>
+          prev.map((item) =>
+            item.id === assignTarget.id
+              ? {
+                  ...item,
+                  asignacion_bloqueada: confirmed.assignmentState.bloqueada ?? 1,
+                  asignacion_modo: confirmed.assignmentState.modo || assignMode,
+                  asignacion_revisores_por_entrega:
+                    confirmed.assignmentState.revisores_por_entrega ?? requested,
+                  asignacion_fecha_asignacion: confirmed.assignmentState.fecha_asignacion
+                }
+              : item
+          )
+        );
+        setAssignTarget((prev) =>
+          prev
+            ? {
+                ...prev,
+                asignacion_bloqueada: confirmed.assignmentState.bloqueada ?? 1,
+                asignacion_modo: confirmed.assignmentState.modo || assignMode,
+                asignacion_revisores_por_entrega:
+                  confirmed.assignmentState.revisores_por_entrega ?? requested,
+                asignacion_fecha_asignacion: confirmed.assignmentState.fecha_asignacion
+              }
+            : prev
+        );
+      }
+    } catch (err) {
+      setAssignModalError(err.message);
+    } finally {
+      setAssignConfirming(false);
     }
   };
 
@@ -375,88 +492,59 @@ export default function Assignments() {
       ) : (
         <ul style={listStyle}>
           {assignments.map((assignment) => (
-            <li key={assignment.id} style={cardStyle}>
-              <div>
-                <strong>{assignment.titulo}</strong>
-                <div style={metaStyle}>
-                  {assignment.fecha_entrega ? `Entrega: ${assignment.fecha_entrega}` : 'Sin fecha definida'}
-                </div>
-                {assignment.descripcion && <div style={descStyle}>{assignment.descripcion}</div>}
-                <AssignmentUploadsInfo meta={submissionsMeta.get(assignment.id)} />
-              </div>
-              <div style={actionsStyle}>
-              <input
-                type="file"
-                accept=".zip"
-                style={{ display: 'none' }}
-                ref={(el) => {
-                  fileInputsRef.current[assignment.id] = el;
-                }}
-                onChange={(event) => handleUploadZip(assignment.id, event.target.files?.[0] || null)}
-              />
-              <button
-                type="button"
-                style={smallButton}
-                onClick={() => triggerUploadPicker(assignment.id)}
-                disabled={uploadingAssignmentId === assignment.id}
-              >
-                {uploadingAssignmentId === assignment.id ? 'Cargando...' : 'Subir entregas (ZIP)'}
-              </button>
-              <button type="button" style={smallButton} onClick={() => handleOpenRubric(assignment)}>
-                Rúbrica
-              </button>
-              <button
-                type="button"
-                  style={{
-                    ...smallButton,
-                    opacity: submissionsMeta.get(assignment.id)?.hasZip ? 1 : 0.6,
-                    cursor: submissionsMeta.get(assignment.id)?.hasZip ? 'pointer' : 'not-allowed'
-                  }}
-                  onClick={() => handleAssignReviews(assignment.id)}
-                  disabled={assigning || !submissionsMeta.get(assignment.id)?.hasZip}
-                >
-                  {assigning ? 'Asignando...' : 'Asignación'}
-                </button>
-                <button type="button" style={smallButton} onClick={() => handleExport(assignment.id)}>
-                  Exportar CSV
-                </button>
-              </div>
-            </li>
+            <AssignmentCard
+              key={assignment.id}
+              assignment={assignment}
+              meta={submissionsMeta.get(assignment.id)}
+              fileInputRef={(el) => {
+                fileInputsRef.current[assignment.id] = el;
+              }}
+              uploadingAssignmentId={uploadingAssignmentId}
+              onUpload={handleUploadZip}
+              onTriggerUpload={triggerUploadPicker}
+              onOpenRubric={handleOpenRubric}
+              onOpenAssign={openAssignModal}
+              onExport={handleExport}
+              styles={{ cardStyle, metaStyle, descStyle, actionsStyle, smallButton }}
+              formatDateTime={formatDateTime}
+            />
           ))}
         </ul>
       )}
 
-      {assignSummary && (
-        <div style={panelStyle}>
-          <h3>Resultado de asignación</h3>
-          {assignSummary.pairs.length === 0 ? (
-            <p>Necesitas al menos dos equipos con entrega para repartir revisiones.</p>
-          ) : (
-            <ul style={listStyle}>
-              {assignSummary.pairs.map((pair) => (
-                <li key={pair.equipoAutor.id} style={miniCard}>
-                  <p>
-                    <strong>{pair.equipoAutor.nombre || `Equipo ${pair.equipoAutor.id}`}</strong> será revisado por{' '}
-                    <strong>
-                      {pair.revisores.length === 0
-                        ? 'sin asignar'
-                        : pair.revisores.map((rev) => rev.nombre || `Equipo ${rev.id}`).join(', ')}
-                    </strong>.
-                  </p>
-                  {pair.revisores.map((rev) => (
-                    <p key={rev.id} style={miniMeta}>
-                      {rev.nombre || `Equipo ${rev.id}`} · Miembros:{' '}
-                      {rev.revisores?.length
-                        ? rev.revisores.map((user) => user.nombre_completo).join(', ')
-                        : 'sin miembros cargados'}
-                    </p>
-                  ))}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
+      <AssignModal
+        isOpen={assignModalOpen && Boolean(assignTarget)}
+        assignment={assignTarget}
+        assignMode={assignMode}
+        assignReviews={assignReviews}
+        assignPreview={assignPreview}
+        assignWarnings={assignWarnings}
+        assignModalError={assignModalError}
+        assignInfo={assignInfo}
+        assignModalLoading={assignModalLoading}
+        assignConfirming={assignConfirming}
+        onClose={closeAssignModal}
+        onPreview={() => handlePreviewAssignment()}
+        onReassign={() => handlePreviewAssignment({ freshSeed: true })}
+        onConfirm={handleConfirmAssignment}
+        onModeChange={(value) => {
+          setAssignMode(value);
+          setAssignPreview(null);
+          setAssignWarnings([]);
+          setAssignSeed('');
+          setAssignInfo('');
+          setAssignModalError('');
+        }}
+        onReviewsChange={(value) => {
+          setAssignReviews(value);
+          setAssignPreview(null);
+          setAssignWarnings([]);
+          setAssignInfo('');
+          setAssignModalError('');
+        }}
+        styles={{modalOverlay, modalContent, modalHeader, modalFormRow, labelStyle, inputStyle, smallButton,  plainLinkButton, successStyle,
+          errorStyle, warningListStyle, warningItemStyle, listStyle, metaStyle, miniCard, miniMeta, previewGrid, previewColumn, tagsRow, tag}}
+      />
 
       {rubricTarget && (
         <div style={panelStyle}>
@@ -520,21 +608,6 @@ export default function Assignments() {
   );
 }
 
-function AssignmentUploadsInfo({ meta }) {
-  if (!meta?.hasZip) {
-    return <div style={metaStyle}>No hay entregas subidas aún.</div>;
-  }
-  return (
-    <div style={{ ...metaStyle, display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
-      <span>
-        Última carga: {meta.uploadedAt ? formatDateTime(meta.uploadedAt) : 'sin fecha'}{' '}
-        {meta.zipName ? `· ZIP: ${meta.zipName}` : ''}
-      </span>
-      <span>Entregas detectadas: {meta.total || '—'}</span>
-    </div>
-  );
-}
-
 function formatDateTime(value) {
   if (!value) return '';
   try {
@@ -543,125 +616,3 @@ function formatDateTime(value) {
     return value;
   }
 }
-
-const formStyle = {
-  display: 'grid',
-  gap: '1rem',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  margin: '1.5rem 0'
-};
-
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  fontWeight: 600,
-  gap: '0.35rem'
-};
-
-const inputStyle = {
-  padding: '0.5rem 0.65rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
-};
-
-const buttonStyle = {
-  padding: '0.6rem 0.3rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
-};
-
-const errorStyle = {
-  color: 'crimson',
-  marginBottom: '1rem'
-};
-
-const successStyle = {
-  color: '#0f7b0f',
-  marginBottom: '1rem'
-};
-
-const listStyle = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '1.5rem 0',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem'
-};
-
-const cardStyle = {
-  padding: '1rem',
-  border: '1px solid #e0e0e0',
-  borderRadius: '8px',
-  background: '#fff',
-  display: 'flex',
-  justifyContent: 'space-between',
-  gap: '1rem',
-  alignItems: 'center'
-};
-
-const actionsStyle = {
-  display: 'flex',
-  gap: '0.5rem',
-  alignItems: 'flex-end',
-  flexWrap: 'wrap'
-};
-
-const smallButton = {
-  background: '#f0f4ff',
-  border: '1px solid #0b74de',
-  color: '#0b74de',
-  padding: '0.4rem 0.7rem',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
-};
-
-const metaStyle = {
-  fontSize: '0.85rem',
-  color: '#666'
-};
-
-const descStyle = {
-  marginTop: '0.35rem',
-  fontSize: '0.9rem',
-  color: '#444'
-};
-
-const panelStyle = {
-  marginTop: '2rem',
-  padding: '1rem',
-  borderRadius: '8px',
-  border: '1px solid #d0d0d0',
-  background: '#fafafa'
-};
-
-const miniCard = {
-  padding: '0.75rem',
-  borderRadius: '6px',
-  border: '1px solid #dcdcdc',
-  background: '#fff'
-};
-
-const miniMeta = {
-  fontSize: '0.85rem',
-  color: '#555'
-};
-
-const rubricRowStyle = {
-  display: 'flex',
-  gap: '0.5rem',
-  alignItems: 'center',
-  marginBottom: '0.5rem'
-};
-
-const rubricNumberStyle = {
-  width: '90px',
-  padding: '0.45rem 0.6rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
-};

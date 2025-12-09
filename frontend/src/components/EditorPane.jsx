@@ -6,13 +6,6 @@ import { javascript } from '@codemirror/lang-javascript';
 import LineMenu from './LineMenu.jsx';
 import { buildPermalink } from '../utils/permalink.js';
 
-// Pequeño editor de solo lectura inspirado en GitHub.
-// Funciona así:
-// 1. Click en el número de línea -> resalta la línea y aparece el botón "...".
-// 2. Click en "..." -> abre un menú con Copy line / Copy permalink / Add comment.
-// 3. Los comentarios se guardan en memoria y se muestran debajo de la línea.
-
-// Tema básico del editor (fuente mono y cuidado con los números de línea).
 const baseTheme = EditorView.theme({
   '.cm-scroller': {
     fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace',
@@ -38,6 +31,9 @@ const baseTheme = EditorView.theme({
   }
 });
 
+/**
+ * Editor de solo lectura que resalta líneas, permite comentarios en línea y acciones rápidas.
+ */
 export default function EditorPane({
   path,
   code,
@@ -59,6 +55,9 @@ export default function EditorPane({
   const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, line: 0 });
   const [renderError, setRenderError] = useState('');
 
+  /**
+   * Ajusta la línea seleccionada asegurando que sea un entero positivo.
+   */
   const setSelectedLineSafe = useCallback((lineNumber) => {
     const parsed = Number(lineNumber);
     const safeLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
@@ -137,6 +136,9 @@ export default function EditorPane({
     return () => clearTimeout(timer);
   }, [selectedLine, editorReady, renderError]);
 
+  /**
+   * Detecta clicks en el gutter para seleccionar línea sin abrir menú.
+   */
   const onGutterMouseDown = useCallback((event) => {
     const target = event.target instanceof Element
       ? event.target.closest('.cm-lineNumbers .cm-gutterElement')
@@ -157,6 +159,9 @@ export default function EditorPane({
     return () => view.dom.removeEventListener('mousedown', onGutterMouseDown);
   }, [editorReady, onGutterMouseDown, renderError]);
 
+  /**
+   * Calcula y posiciona el menú contextual sobre una línea.
+   */
   const openMenuForLine = (lineNum) => {
     if (!viewRef.current || !containerRef.current) return;
     const view = viewRef.current;
@@ -178,8 +183,14 @@ export default function EditorPane({
     }
   };
 
+  /**
+   * Oculta el menú contextual.
+   */
   const closeMenu = () => setMenu((prev) => ({ ...prev, visible: false }));
 
+  /**
+   * Copia el texto completo de la línea seleccionada al portapapeles.
+   */
   const copyLine = async () => {
     if (!viewRef.current || !menu.line) return;
     const line = getValidLine(viewRef.current.state.doc, menu.line);
@@ -188,6 +199,9 @@ export default function EditorPane({
     closeMenu();
   };
 
+  /**
+   * Copia un enlace permanente a la línea seleccionada.
+   */
   const copyPermalink = async () => {
     const lineNumber = Number(menu.line) || 0;
     if (!lineNumber) return;
@@ -198,6 +212,9 @@ export default function EditorPane({
     closeMenu();
   };
 
+  /**
+   * Notifica hacia arriba la creación de un comentario en la línea seleccionada.
+   */
   const addComment = (text) => {
     if (onAddComment && menu.line) {
       const doc = viewRef.current?.state?.doc;
@@ -330,11 +347,66 @@ export default function EditorPane({
 
 // ----- Extensiones auxiliares -----
 
+/**
+ * Convierte un valor a número de línea entero o 0 si no es válido.
+ */
 function normalizeLineNumber(value) {
   const num = Number(value);
   return Number.isInteger(num) ? num : 0;
 }
 
+/**
+ * Homogeneiza la estructura de un comentario para renderizarlo en el editor.
+ */
+function normalizeCommentItem(entry) {
+  if (entry && typeof entry === 'object') {
+    const message = String(entry.message ?? entry.text ?? entry.contenido ?? '').trim();
+    if (!message) return null;
+    const alias = String(entry.alias ?? '').trim();
+    const aliasTitle = String(entry.aliasTitle ?? entry.fullName ?? '').trim();
+    const timeText = String(entry.timeText ?? '').trim();
+    const timeTitle = String(entry.timeTitle ?? '').trim();
+    return {
+      id: entry.id ?? entry.commentId ?? undefined,
+      message,
+      alias,
+      aliasTitle,
+      timeText,
+      timeTitle
+    };
+  }
+
+  const message = String(entry ?? '').trim();
+  if (!message) return null;
+  return {
+    id: undefined,
+    message,
+    alias: '',
+    aliasTitle: '',
+    timeText: '',
+    timeTitle: ''
+  };
+}
+
+/**
+ * Compara dos comentarios normalizados para reutilizar widgets sin re-render.
+ */
+function areCommentItemsEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return (
+    a.id === b.id &&
+    a.message === b.message &&
+    a.alias === b.alias &&
+    a.aliasTitle === b.aliasTitle &&
+    a.timeText === b.timeText &&
+    a.timeTitle === b.timeTitle
+  );
+}
+
+/**
+ * Valida que la línea exista en el documento y devuelve su info.
+ */
 function getValidLine(doc, lineNumber) {
   if (!doc) return null;
   const num = normalizeLineNumber(lineNumber);
@@ -342,13 +414,19 @@ function getValidLine(doc, lineNumber) {
   return doc.line(num);
 }
 
+/**
+ * Limpia y filtra una lista de comentarios en bruto.
+ */
 function sanitizeCommentsList(comments) {
   if (!Array.isArray(comments)) return [];
   return comments
-    .map((text) => String(text ?? '').trim())
-    .filter((text) => text.length > 0);
+    .map((entry) => normalizeCommentItem(entry))
+    .filter(Boolean);
 }
 
+/**
+ * Genera la extensión de resaltado para una línea concreta.
+ */
 function buildHighlightExtension(lineNumber) {
   const target = normalizeLineNumber(lineNumber);
   if (!target || target <= 0) return [];
@@ -378,6 +456,9 @@ function buildHighlightExtension(lineNumber) {
   return [field];
 }
 
+/**
+ * Construye la extensión que coloca widgets de comentarios bajo sus líneas.
+ */
 function buildCommentsExtension(commentsByLine) {
   const entries = commentsByLine instanceof Map ? Array.from(commentsByLine.entries()) : [];
   const normalizedEntries = entries
@@ -428,6 +509,9 @@ function buildCommentsExtension(commentsByLine) {
   return [field];
 }
 
+/**
+ * Widget que renderiza la lista de comentarios de una línea.
+ */
 class CommentWidget extends WidgetType {
   constructor(comments) {
     super();
@@ -439,7 +523,7 @@ class CommentWidget extends WidgetType {
     const current = Array.isArray(this.comments) ? this.comments : [];
     const next = Array.isArray(other.comments) ? other.comments : [];
     if (current.length !== next.length) return false;
-    return current.every((c, idx) => c === next[idx]);
+    return current.every((c, idx) => areCommentItemsEqual(c, next[idx]));
   }
 
   toDOM() {
@@ -452,13 +536,58 @@ class CommentWidget extends WidgetType {
       border-radius: 6px;
       font-size: 13px;
       color: #333;
+      word-break: break-word;
     `;
 
     const list = Array.isArray(this.comments) ? this.comments : [];
-    list.forEach((text) => {
+    list.forEach((item, idx) => {
       const comment = document.createElement('div');
-      comment.textContent = `💬 ${text}`;
-      comment.style.marginBottom = '4px';
+      comment.style.display = 'flex';
+      comment.style.alignItems = 'center';
+      comment.style.flexWrap = 'wrap';
+      comment.style.gap = '6px';
+      comment.style.marginBottom = idx === list.length - 1 ? '0' : '6px';
+
+      const icon = document.createElement('span');
+      icon.textContent = '💬';
+      comment.appendChild(icon);
+
+      const hasAlias = !!item?.alias;
+      const hasTime = !!item?.timeText;
+      if (hasAlias) {
+        const alias = document.createElement('span');
+        alias.textContent = item.alias;
+        if (item.aliasTitle) {
+          alias.title = item.aliasTitle;
+        }
+        alias.style.fontWeight = '600';
+        alias.style.color = '#333';
+        comment.appendChild(alias);
+      }
+
+      if (hasTime) {
+        const time = document.createElement('span');
+        time.textContent = item.timeText;
+        if (item.timeTitle) {
+          time.title = item.timeTitle;
+        }
+        time.style.color = '#555';
+        time.style.fontSize = '12px';
+        comment.appendChild(time);
+      }
+
+      if (hasAlias || hasTime) {
+        const dash = document.createElement('span');
+        dash.textContent = '-';
+        dash.style.color = '#666';
+        comment.appendChild(dash);
+      }
+
+      const text = document.createElement('span');
+      text.textContent = item?.message || '';
+      text.style.color = '#333';
+      comment.appendChild(text);
+
       wrap.appendChild(comment);
     });
 
@@ -466,6 +595,9 @@ class CommentWidget extends WidgetType {
   }
 }
 
+/**
+ * Límite de error para aislar fallos de render del editor.
+ */
 class EditorErrorBoundary extends React.Component {
   constructor(props) {
     super(props);

@@ -20,7 +20,11 @@ import {
   splitHandle
 } from './styles.js';
 import { findBestPath } from './helpers.js';
+import { buildAlias, formatRelativeTime } from '../../utils/reviewCommentFormat.js';
 
+/**
+ * Visor de revisión que muestra árbol de archivos, comentarios en línea y descarga de la entrega.
+ */
 export default function ReviewViewer({ revisionId, initialPath = '', initialLine: presetLine = 0, onFileOpened }) {
   const { token } = useAuth();
   const [files, setFiles] = useState([]);
@@ -119,9 +123,17 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       const content = (comment.contenido ?? '').trim();
       if (!content) return;
       const list = map.get(lineNum) || [];
-      const author = comment.autor?.nombre || 'Revisor';
-      const stamp = comment.creado_en ? ` · ${comment.creado_en}` : '';
-      list.push(`${author}${stamp}: ${content}`);
+      const authorName = (comment.autor?.nombre ?? '').trim();
+      const alias = buildAlias(authorName || 'Revisor');
+      const { relativeText, absoluteText } = formatRelativeTime(comment.creado_en);
+      list.push({
+        id: comment.id,
+        message: content,
+        alias,
+        aliasTitle: authorName || 'Revisor',
+        timeText: relativeText,
+        timeTitle: absoluteText
+      });
       map.set(lineNum, list);
     });
     return map;
@@ -143,6 +155,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     [fileData.comments]
   );
 
+  /**
+   * Abre un archivo concreto, carga comentarios y actualiza la URL con la línea solicitada.
+   */
   const openFile = useCallback(
     async (pathValue, line = 0) => {
       if (!revisionId || !pathValue) return;
@@ -213,6 +228,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     }
   }, [revisionId, files, fileNames, currentPath, openFile]);
 
+  /**
+   * Alterna la expansión de un directorio en el árbol de archivos.
+   */
   const toggleDir = (dir) => {
     if (!dir) return;
     setExpandedPaths((prev) => {
@@ -226,6 +244,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     });
   };
 
+  /**
+   * Ajusta la expansión del árbol según la ruta seleccionada en el breadcrumb.
+   */
   const handleBreadcrumb = (segPath) => {
     if (!segPath) {
       setExpandedPaths(new Set(collectDirPaths(fileNames)));
@@ -242,6 +263,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     });
   };
 
+  /**
+   * Envía un comentario nuevo y recarga el archivo para reflejarlo.
+   */
   const handleAddComment = async (line, text) => {
     if (!revisionId || !currentPath) {
       setError('Selecciona un archivo antes de comentar.');
@@ -265,6 +289,9 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     }
   };
 
+  /**
+   * Descarga el ZIP original de la entrega con autenticación del usuario.
+   */
   const handleDownloadZip = async () => {
     if (!meta?.submissionId) return;
     if (!token) {

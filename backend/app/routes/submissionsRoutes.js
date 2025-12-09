@@ -3,14 +3,8 @@ const fs = require('fs');
 const path = require('path');
 const { requireAuth } = require('../../auth');
 const { db } = require('../../db');
-const {
-  persistUploadedZip,
-  extractSubmission,
-  persistAssignmentZip,
-  assignmentFolder,
-  unzipFile,
-  clearDirectory,
-  TEMP_DIRNAME
+const {persistUploadedZip, extractSubmission, persistAssignmentZip, 
+  assignmentFolder, unzipFile, clearDirectory, TEMP_DIRNAME
 } = require('../../utils/deliveries');
 const { sendError, safeNumber, ensureAssignmentExists, ensureSubmissionAccess } = require('../helpers');
 const { WORKSPACE_ROOT, BACKEND_ROOT } = require('../constants');
@@ -20,10 +14,16 @@ const fsp = fs.promises;
 
 const router = express.Router();
 
+/**
+ * Normaliza un texto a minúsculas alfanuméricas para comparar nombres de equipo.
+ */
 function normalizeLabel(text = '') {
   return text.toLowerCase().replace(/[^a-z0-9]/g, '');
 }
 
+/**
+ * Extrae códigos tipo ABC123 y los devuelve en formato normalizado.
+ */
 function canonicalCode(text = '') {
   const match = text.match(/([a-zA-Z]+)(\d+)/);
   if (!match) return null;
@@ -33,6 +33,9 @@ function canonicalCode(text = '') {
   return `${letters}${digits}`;
 }
 
+/**
+ * Construye un conversor que mapea nombres/códigos de carpeta a id de equipo.
+ */
 function buildTeamResolver(assignmentId) {
   const knownTeams = db
     .prepare(
@@ -91,6 +94,9 @@ function buildTeamResolver(assignmentId) {
   };
 }
 
+/**
+ * Recorre recursivamente el directorio descomprimido para localizar zips por equipo.
+ */
 async function findTeamArchives(rootDir) {
   const queue = [rootDir];
   const results = [];
@@ -116,6 +122,9 @@ async function findTeamArchives(rootDir) {
   return results;
 }
 
+/**
+ * Procesa los zips encontrados: resuelve equipo, guarda zip y registra/actualiza la entrega.
+ */
 async function processTeamArchives({ assignmentId, uploaderId, archives }) {
   const resolveTeam = buildTeamResolver(assignmentId);
   const processed = [];
@@ -158,6 +167,9 @@ async function processTeamArchives({ assignmentId, uploaderId, archives }) {
   return processed;
 }
 
+/**
+ * Sube un lote de entregas en ZIP, las descomprime y registra cada entrega.
+ */
 router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploadZip.single('zipFile'), async (req, res) => {
   let tempPathToClean = '';
   let extractionDir = '';
@@ -236,6 +248,9 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
   }
 });
 
+/**
+ * Lista las entregas de una tarea; para alumnos filtra solo sus equipos.
+ */
 router.get('/api/submissions', requireAuth(), (req, res) => {
   try {
     const assignmentId = safeNumber(req.query.assignmentId);
@@ -332,6 +347,9 @@ router.get('/api/submissions', requireAuth(), (req, res) => {
   }
 });
 
+/**
+ * Permite descargar el ZIP de una entrega concreta si el usuario tiene permiso.
+ */
 router.get('/api/submissions/:submissionId/download', requireAuth(), (req, res) => {
   try {
     const submissionId = safeNumber(req.params.submissionId);

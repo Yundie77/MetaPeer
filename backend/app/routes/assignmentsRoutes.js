@@ -16,6 +16,9 @@ const { ROSTER_PREFIX } = require('../constants');
 
 const router = express.Router();
 
+/**
+ * Lista todas las tareas (excepto roster) con metadatos de asignación.
+ */
 router.get('/api/assignments', requireAuth(), (_req, res) => {
   try {
     const rows = db
@@ -51,6 +54,9 @@ router.get('/api/assignments', requireAuth(), (_req, res) => {
   }
 });
 
+/**
+ * Crea una nueva tarea y copia equipos roster; devuelve la tarea creada.
+ */
 router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const title = (req.body?.titulo || req.body?.title || '').trim();
@@ -116,6 +122,9 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   }
 });
 
+/**
+ * Obtiene una tarea por id con información de asignación.
+ */
 router.get('/api/assignments/:assignmentId', requireAuth(), (req, res) => {
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
@@ -160,6 +169,9 @@ router.get('/api/assignments/:assignmentId', requireAuth(), (req, res) => {
   }
 });
 
+/**
+ * Guarda los ítems de rúbrica para una tarea.
+ */
 router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
@@ -217,6 +229,9 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
   }
 });
 
+/**
+ * Devuelve la rúbrica asociada a una tarea.
+ */
 router.get('/api/assignments/:assignmentId/rubrica', requireAuth(), (req, res) => {
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
@@ -232,6 +247,9 @@ router.get('/api/assignments/:assignmentId/rubrica', requireAuth(), (req, res) =
   }
 });
 
+/**
+ * Genera previsualización de asignación (equipo/individual) o la confirma y persiste.
+ */
 router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
@@ -314,6 +332,9 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
   }
 });
 
+/**
+ * Devuelve el mapa actual de revisiones asignadas para una tarea.
+ */
 router.get('/api/assignments/:assignmentId/assignment-map', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.params.assignmentId);

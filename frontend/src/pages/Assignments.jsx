@@ -7,6 +7,9 @@ import {formStyle, labelStyle, inputStyle, buttonStyle, errorStyle, successStyle
   descStyle, panelStyle, miniCard, miniMeta, rubricRowStyle, rubricNumberStyle, modalOverlay, modalContent, modalHeader,
   modalFormRow, plainLinkButton, warningListStyle, warningItemStyle, previewGrid, previewColumn, tagsRow, tag} from './assignments/styles.js';
 
+/**
+ * Pantalla de tareas para profes: alta de tareas, rúbricas, carga de ZIPs y asignación de revisiones.
+ */
 export default function Assignments() {
   const { role } = useAuth();
   const [assignments, setAssignments] = useState([]);
@@ -34,12 +37,15 @@ export default function Assignments() {
   const [assignModalError, setAssignModalError] = useState('');
   const [assignModalLoading, setAssignModalLoading] = useState(false);
   const [assignConfirming, setAssignConfirming] = useState(false);
-  const [assignSeed, setAssignSeed] = useState('');
-  const [assignInfo, setAssignInfo] = useState('');
-  const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
-  const [uploadMessage, setUploadMessage] = useState('');
-  const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
+const [assignSeed, setAssignSeed] = useState('');
+const [assignInfo, setAssignInfo] = useState('');
+const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
+const [uploadMessage, setUploadMessage] = useState('');
+const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
 
+  /**
+   * Guarda metadatos de las entregas (ZIP, total, fecha) asociados a una tarea.
+   */
   const updateSubmissionsMeta = (assignmentId, meta) => {
     if (!assignmentId) return;
     setSubmissionsMeta((prev) => {
@@ -54,6 +60,9 @@ export default function Assignments() {
     });
   };
 
+  /**
+   * Precarga metadatos de entregas cuando se cargan las tareas.
+   */
   const preloadSubmissionsMeta = async (list = []) => {
     const entries = Array.isArray(list) ? list : [];
     for (const item of entries) {
@@ -76,9 +85,12 @@ export default function Assignments() {
     }
   };
 
-  const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
-  const fileInputsRef = useRef({});
+const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
+const fileInputsRef = useRef({});
 
+  /**
+   * Carga inicial de tareas y asignaturas para profesores.
+   */
   useEffect(() => {
     if (!isTeacher) {
       return;
@@ -108,6 +120,9 @@ export default function Assignments() {
     load();
   }, [isTeacher]);
 
+  /**
+   * Crea una nueva tarea desde el formulario.
+   */
   const handleCreate = async (event) => {
     event.preventDefault();
     if (!title.trim()) {
@@ -139,6 +154,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Separa un texto de rúbrica en etiqueta y detalle.
+   */
   const splitLabelDetail = (texto = '') => {
     const parts = texto.split('||DETAIL||');
     return {
@@ -147,12 +165,18 @@ export default function Assignments() {
     };
   };
 
+  /**
+   * Une etiqueta y detalle en el formato esperado por backend.
+   */
   const combineLabelDetail = (label, detail) => {
     const safeLabel = label || '';
     const safeDetail = detail || '';
     return safeDetail ? `${safeLabel}||DETAIL||${safeDetail}` : safeLabel;
   };
 
+  /**
+   * Abre el modal de rúbrica y carga ítems existentes.
+   */
   const handleOpenRubric = async (assignment) => {
     try {
       setRubricTarget(assignment);
@@ -179,6 +203,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Añade un criterio vacío a la rúbrica.
+   */
   const handleAddRubricItem = () => {
     setRubricItems((prev) => [
       ...prev,
@@ -192,12 +219,18 @@ export default function Assignments() {
     ]);
   };
 
+  /**
+   * Actualiza un campo de un criterio de rúbrica.
+   */
   const handleRubricChange = (index, field, value) => {
     setRubricItems((prev) =>
       prev.map((item, i) => (i === index ? { ...item, [field]: value } : item))
     );
   };
 
+  /**
+   * Valida pesos y guarda la rúbrica en backend.
+   */
   const handleSaveRubric = async () => {
     if (!rubricTarget) {
       return;
@@ -227,6 +260,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Abre el selector de archivo para subir un ZIP de entregas.
+   */
   const triggerUploadPicker = (assignmentId) => {
     setUploadMessage('');
     const input = fileInputsRef.current[assignmentId];
@@ -236,6 +272,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Sube un ZIP de entregas y actualiza metadatos de la tarea.
+   */
   const handleUploadZip = async (assignmentId, file) => {
     if (!file) return;
     if (!file.name.toLowerCase().endsWith('.zip')) {
@@ -273,6 +312,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Abre el modal de asignación si hay entregas y la tarea no está bloqueada.
+   */
   const openAssignModal = (assignment) => {
     const meta = submissionsMeta.get(assignment.id);
     if (!meta?.hasZip) {
@@ -297,6 +339,9 @@ export default function Assignments() {
     setAssignModalOpen(true);
   };
 
+  /**
+   * Cierra el modal de asignación y limpia estados.
+   */
   const closeAssignModal = () => {
     setAssignModalOpen(false);
     setAssignTarget(null);
@@ -308,6 +353,9 @@ export default function Assignments() {
     setAssignInfo('');
   };
 
+  /**
+   * Pide al backend una previsualización de asignación (con semilla opcional).
+   */
   const handlePreviewAssignment = async ({ freshSeed = false } = {}) => {
     if (!assignTarget) return;
     const requested = Math.floor(Number(assignReviews) || 0);
@@ -336,6 +384,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Confirma y persiste la asignación usando la previsualización actual.
+   */
   const handleConfirmAssignment = async () => {
     if (!assignTarget) return;
     const requested = Math.floor(Number(assignReviews) || 0);
@@ -395,6 +446,9 @@ export default function Assignments() {
     }
   };
 
+  /**
+   * Exporta notas a CSV para una tarea.
+   */
   const handleExport = async (assignmentId) => {
     try {
       const token = localStorage.getItem('metaPeerToken');
@@ -608,6 +662,9 @@ export default function Assignments() {
   );
 }
 
+/**
+ * Formatea una fecha/hora a cadena legible en español.
+ */
 function formatDateTime(value) {
   if (!value) return '';
   try {

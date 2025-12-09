@@ -2,6 +2,9 @@ const crypto = require('crypto');
 const { db } = require('../db');
 const { buildSeededRandom, shuffleArray } = require('../utils/random');
 
+/**
+ * Verifica que la tarea existe y devuelve sus datos básicos de asignación.
+ */
 function ensureAssignmentExists(assignmentId) {
   return db
     .prepare(
@@ -14,6 +17,9 @@ function ensureAssignmentExists(assignmentId) {
     .get(assignmentId);
 }
 
+/**
+ * Garantiza que exista un registro en asignacion para la tarea, devolviendo su id.
+ */
 function ensureAssignmentRecord(assignmentId) {
   const existing = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
   if (existing) {
@@ -23,6 +29,9 @@ function ensureAssignmentRecord(assignmentId) {
   return result.lastInsertRowid;
 }
 
+/**
+ * Obtiene los miembros de un equipo, ordenados por nombre.
+ */
 function getTeamMembers(teamId) {
   return db
     .prepare(
@@ -37,6 +46,9 @@ function getTeamMembers(teamId) {
     .all(teamId);
 }
 
+/**
+ * Construye el contexto de asignación: entregas, equipos, nombres y miembros por equipo.
+ */
 function fetchAssignmentContext(assignmentId) {
   const submissions = db
     .prepare(
@@ -78,6 +90,9 @@ function fetchAssignmentContext(assignmentId) {
   };
 }
 
+/**
+ * Asegura la entrada de un equipo revisado en el mapa acumulado.
+ */
 function ensureReviewedEntry(reviewedMap, teamId, context) {
   if (!reviewedMap.has(teamId)) {
     reviewedMap.set(teamId, {
@@ -91,6 +106,9 @@ function ensureReviewedEntry(reviewedMap, teamId, context) {
   return reviewedMap.get(teamId);
 }
 
+/**
+ * Devuelve la lista de personas involucradas (miembro de equipo con entrega) sin duplicados.
+ */
 function listIndividualReviewers(assignmentId) {
   const rows = db
     .prepare(
@@ -132,6 +150,9 @@ function listIndividualReviewers(assignmentId) {
   return reviewers;
 }
 
+/**
+ * Genera el plan en modo equipos: baraja equipos y asigna N siguientes evitando autorrevisión.
+ */
 function buildTeamPlan(context, requestedReviewsPerReviewer, randomFn) {
   const warnings = [];
   if (context.teamIds.length < 2) {
@@ -220,6 +241,9 @@ function buildTeamPlan(context, requestedReviewsPerReviewer, randomFn) {
   };
 }
 
+/**
+ * Genera el plan en modo individual: baraja personas y asigna revisiones a otros equipos.
+ */
 function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
   const warnings = [];
   if (context.teamIds.length < 2) {
@@ -343,6 +367,9 @@ function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
   };
 }
 
+/**
+ * Crea (o reutiliza) un equipo contenedor para un revisor individual y lo devuelve.
+ */
 function ensureIndividualReviewerTeam(assignmentId, userId, reviewerLabel = '') {
   const baseName = reviewerLabel ? reviewerLabel.trim() : `Usuario ${userId}`;
   const teamName = `[REV ${assignmentId}] ${baseName}`;
@@ -357,6 +384,9 @@ function ensureIndividualReviewerTeam(assignmentId, userId, reviewerLabel = '') 
   return insertTeam.lastInsertRowid;
 }
 
+/**
+ * Persiste el plan calculado en la base de datos y bloquea la asignación.
+ */
 function persistAssignmentPlan(plan) {
   if (!plan || !Array.isArray(plan.pairs) || plan.pairs.length === 0) {
     throw new Error('No hay asignaciones para guardar.');
@@ -415,6 +445,9 @@ function persistAssignmentPlan(plan) {
   };
 }
 
+/**
+ * Construye una previsualización de asignación (equipo o individual) con validaciones y avisos.
+ */
 function buildAssignmentPlan({ assignmentId, mode = 'equipo', reviewsPerReviewer = 1, seed = null }) {
   const assignment = ensureAssignmentExists(assignmentId);
   if (!assignment) {
@@ -442,6 +475,9 @@ function buildAssignmentPlan({ assignmentId, mode = 'equipo', reviewsPerReviewer
   };
 }
 
+/**
+ * Ejecuta la asignación en modo equipos (N revisores siguientes), persiste y devuelve pares.
+ */
 function buildTeamAssignments(assignmentId, { reviewsPerReviewer = 1, seed = null } = {}) {
   const plan = buildAssignmentPlan({ assignmentId, mode: 'equipo', reviewsPerReviewer, seed });
   if (!plan.pairs || plan.pairs.length === 0) {

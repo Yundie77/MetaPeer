@@ -94,9 +94,8 @@ async function persistUploadedZip(
 async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   const baseFolder = path.join(assignmentFolder(assignmentId), BATCHES_DIRNAME);
   await fsp.mkdir(baseFolder, { recursive: true });
-
   const timestamp = new Date()
-    .toISOString()
+    .toISOString() // "2025-01-18T06:23:45.123Z"
     .replace(/[-:.TZ]/g, "")
     .slice(0, 14);
   const safeName = sanitizeName(originalName);

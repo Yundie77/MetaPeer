@@ -3,7 +3,8 @@ const fs = require('fs');
 const fsp = fs.promises;
 const { requireAuth } = require('../../../auth');
 const { db } = require('../../../db');
-const { contentFolder, ensureInside } = require('../../../utils/deliveries');
+const { contentFolder, ensureInside, listAllFiles } = require('../../../utils/deliveries');
+const { findFileById, normalizeRelativePath } = require('../../../utils/reviewFileIds');
 const { fileHash } = require('../../../utils/fileHash');
 const { sendError, safeNumber, ensureRevisionPermission } = require('../../helpers');
 
@@ -12,11 +13,11 @@ const router = express.Router();
 router.post('/api/reviews/:revisionId/comments', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
-    const relativePath = (req.body?.path || req.body?.ruta || '').toString().replace(/^[\\/]+/, '').trim();
+    const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
     const linea = safeNumber(req.body?.line || req.body?.linea);
     const contenido = (req.body?.contenido || req.body?.text || '').toString().trim();
 
-    if (!revisionId || !relativePath) {
+    if (!revisionId || !fileId) {
       return sendError(res, 400, 'Falta indicar el archivo.');
     }
     if (!linea || linea <= 0) {
@@ -36,6 +37,13 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(), async (req, res)
       return sendError(res, 404, 'No encontramos los archivos de la entrega.');
     }
 
+    const files = await listAllFiles(baseDir);
+    const target = findFileById(files, revisionId, fileId);
+    if (!target) {
+      return sendError(res, 404, 'No encontramos el archivo indicado.');
+    }
+
+    const relativePath = normalizeRelativePath(target.path);
     const absolutePath = ensureInside(baseDir, relativePath);
     const stats = await fsp.stat(absolutePath);
     if (!stats.isFile()) {

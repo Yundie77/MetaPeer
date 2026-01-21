@@ -68,7 +68,12 @@ export default function StudentReviews({ user }) {
       setComment(task.comentario || '');
       setGrade(task.nota_numerica || '');
       setSuccess('');
-      const normalizedInitial = initialFile?.path
+      const normalizedInitial = initialFile?.fileId
+        ? {
+            fileId: String(initialFile.fileId),
+            line: Number(initialFile.line) || 0
+          }
+        : initialFile?.path
         ? {
             path: normalizePath(initialFile.path),
             line: Number(initialFile.line) || 0
@@ -100,7 +105,9 @@ export default function StudentReviews({ user }) {
       return;
     }
     deepLinkHandledRef.current = true;
-    const initialFile = deepLink.path
+    const initialFile = deepLink.fileId
+      ? { fileId: deepLink.fileId, line: deepLink.line || 0 }
+      : deepLink.path
       ? { path: normalizePath(deepLink.path), line: deepLink.line || 0 }
       : null;
     handleSelectTask(target, { initialFile, preserveUrl: true });
@@ -166,6 +173,7 @@ export default function StudentReviews({ user }) {
             <div style={reviewRightColumn}>
               <ReviewViewer
                 revisionId={selected.id}
+                initialFileId={pendingFile?.fileId || ''}
                 initialPath={pendingFile?.path || ''}
                 initialLine={pendingFile?.line || 0}
                 onFileOpened={handleViewerOpened}

@@ -15,6 +15,8 @@ import {
   anchorBar,
   anchorButton,
   binaryWarning,
+  previewWrapper,
+  previewFrame,
   linkButton,
   errorStyle,
   splitHandle
@@ -22,15 +24,39 @@ import {
 import { findBestPath } from './helpers.js';
 import { buildAlias, formatRelativeTime } from '../../utils/reviewCommentFormat.js';
 
+const PREVIEWABLE_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
+
+function getFileExtension(pathValue) {
+  if (!pathValue) return '';
+  const lastDot = pathValue.lastIndexOf('.');
+  if (lastDot === -1) return '';
+  return pathValue.slice(lastDot + 1).toLowerCase();
+}
+
+function getPreviewType(pathValue) {
+  const ext = getFileExtension(pathValue);
+  if (!ext) return '';
+  if (ext === 'pdf') return 'pdf';
+  if (PREVIEWABLE_IMAGE_EXTENSIONS.has(ext)) return 'image';
+  return '';
+}
+
 /**
  * Visor de revisión que muestra árbol de archivos, comentarios en línea y descarga de la entrega.
  */
-export default function ReviewViewer({ revisionId, initialPath = '', initialLine: presetLine = 0, onFileOpened }) {
+export default function ReviewViewer({
+  revisionId,
+  initialFileId = '',
+  initialPath = '',
+  initialLine: presetLine = 0,
+  onFileOpened
+}) {
   const { token } = useAuth();
   const [files, setFiles] = useState([]);
   const [meta, setMeta] = useState(null);
   const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [currentPath, setCurrentPath] = useState('');
+  const [currentFileId, setCurrentFileId] = useState('');
   const [initialLine, setInitialLine] = useState(0);
   const [fileData, setFileData] = useState({
     content: '',
@@ -39,6 +65,10 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     path: '',
     size: 0
   });
+  const [binaryPreviewUrl, setBinaryPreviewUrl] = useState('');
+  const [binaryPreviewType, setBinaryPreviewType] = useState('');
+  const [binaryPreviewLoading, setBinaryPreviewLoading] = useState(false);
+  const [binaryPreviewError, setBinaryPreviewError] = useState('');
   const [treeLoading, setTreeLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState('');
@@ -54,20 +84,29 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       return;
     }
 
+    const normalizedInitialId = String(initialFileId || '').trim();
+    if (normalizedInitialId) {
+      pendingFileRef.current = { fileId: normalizedInitialId, line: presetLine || 0 };
+      return;
+    }
+
     if (initialPath) {
       pendingFileRef.current = { path: normalizePath(initialPath), line: presetLine || 0 };
       return;
     }
 
-    // Fallback: leer ?path&line de la URL si no vino por props
-    const { path: urlPath, line: urlLine, revisionId: urlRevision } = readFromURL();
+    // Fallback: leer ?file&line o ?path&line de la URL si no vino por props
+    const { fileId: urlFileId, path: urlPath, line: urlLine, revisionId: urlRevision } = readFromURL();
+    const normalizedUrlFileId = String(urlFileId || '').trim();
     const safeLine = Number.isInteger(urlLine) && urlLine > 0 ? urlLine : 0;
-    if (urlPath && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
+    if (normalizedUrlFileId && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
+      pendingFileRef.current = { fileId: normalizedUrlFileId, line: safeLine };
+    } else if (urlPath && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
       pendingFileRef.current = { path: normalizePath(urlPath), line: safeLine };
     } else {
       pendingFileRef.current = null;
     }
-  }, [revisionId, initialPath, presetLine]);
+  }, [revisionId, initialFileId, initialPath, presetLine]);
 
   useEffect(() => {
     if (!revisionId) {
@@ -75,6 +114,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       setMeta(null);
       setExpandedPaths(new Set());
       setCurrentPath('');
+      setCurrentFileId('');
       setError('');
       setFileData({
         content: '',
@@ -83,6 +123,10 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
         path: '',
         size: 0
       });
+      setBinaryPreviewUrl('');
+      setBinaryPreviewType('');
+      setBinaryPreviewLoading(false);
+      setBinaryPreviewError('');
       return;
     }
 
@@ -99,6 +143,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
         const names = (data.files || []).map((file) => normalizePath(file.path));
         setExpandedPaths(new Set(collectDirPaths(names)));
         setCurrentPath('');
+        setCurrentFileId('');
         setInitialLine(0);
       } catch (err) {
         setFiles([]);
@@ -114,6 +159,11 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
 
   const fileNames = useMemo(() => files.map((file) => normalizePath(file.path)), [files]);
   const treeData = useMemo(() => buildTreeFromPaths(fileNames), [fileNames]);
+  const fileMapById = useMemo(() => new Map(files.map((file) => [file.id, file])), [files]);
+  const fileMapByPath = useMemo(
+    () => new Map(files.map((file) => [normalizePath(file.path), file])),
+    [files]
+  );
 
   const commentsByLine = useMemo(() => {
     const map = new Map();
@@ -156,21 +206,25 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
   );
 
   /**
-   * Abre un archivo concreto, carga comentarios y actualiza la URL con la línea solicitada.
+   * Abre un archivo por su identificador y actualiza estado + URL.
    */
-  const openFile = useCallback(
-    async (pathValue, line = 0) => {
-      if (!revisionId || !pathValue) return;
-      const normalizedPath = normalizePath(pathValue);
+  const openFileById = useCallback(
+    async (fileId, line = 0) => {
+      if (!revisionId || !fileId) return;
       const parsedLine = Number(line);
       const safeLine = Number.isInteger(parsedLine) && parsedLine > 0 ? parsedLine : 0;
       try {
         setFileLoading(true);
         setError('');
-        const data = await getJson(`/reviews/${revisionId}/file?path=${encodeURIComponent(normalizedPath)}`);
+        setBinaryPreviewUrl('');
+        setBinaryPreviewType('');
+        setBinaryPreviewLoading(false);
+        setBinaryPreviewError('');
+        const data = await getJson(`/reviews/${revisionId}/file?fileId=${encodeURIComponent(fileId)}`);
         if (!data?.path) {
           throw new Error('Archivo inválido');
         }
+        const resolvedFileId = data.id || fileId;
         setFileData({
           content: data.content || '',
           comments: Array.isArray(data.comments) ? data.comments : [],
@@ -179,6 +233,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
           size: data.size || 0
         });
         setCurrentPath(data.path);
+        setCurrentFileId(resolvedFileId);
         setInitialLine(safeLine);
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -187,7 +242,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
         });
         writeToURL({
           revisionId,
-          path: data.path,
+          fileId: resolvedFileId,
           line: safeLine
         });
         if (onFileOpened) {
@@ -202,6 +257,122 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     [revisionId, onFileOpened]
   );
 
+  /**
+   * Abre un archivo a partir de su ruta (usada por el árbol de archivos).
+   */
+  const openFile = useCallback(
+    (pathValue, line = 0) => {
+      if (!pathValue) return;
+      const normalizedPath = normalizePath(pathValue);
+      const target = fileMapByPath.get(normalizedPath);
+      if (!target?.id) {
+        setError('No encontramos el archivo solicitado.');
+        return;
+      }
+      openFileById(target.id, line);
+    },
+    [fileMapByPath, openFileById]
+  );
+
+  useEffect(() => {
+    let isActive = true;
+    const controller = new AbortController();
+    let objectUrl = '';
+
+    if (!revisionId || !currentPath || !currentFileId || !fileData.isBinary) {
+      setBinaryPreviewLoading(false);
+      setBinaryPreviewError('');
+      setBinaryPreviewType('');
+      setBinaryPreviewUrl('');
+      return () => {
+        controller.abort();
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }
+
+    const previewType = getPreviewType(currentPath);
+    if (!previewType) {
+      setBinaryPreviewLoading(false);
+      setBinaryPreviewError('');
+      setBinaryPreviewType('');
+      setBinaryPreviewUrl('');
+      return () => {
+        controller.abort();
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }
+
+    if (!token) {
+      setBinaryPreviewLoading(false);
+      setBinaryPreviewError('Tu sesión expiró, inicia sesión nuevamente.');
+      setBinaryPreviewType(previewType);
+      setBinaryPreviewUrl('');
+      return () => {
+        controller.abort();
+        if (objectUrl) {
+          URL.revokeObjectURL(objectUrl);
+        }
+      };
+    }
+
+    setBinaryPreviewType(previewType);
+    setBinaryPreviewLoading(true);
+    setBinaryPreviewError('');
+    setBinaryPreviewUrl('');
+
+    const loadPreview = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/reviews/${revisionId}/file/raw?fileId=${encodeURIComponent(currentFileId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            },
+            signal: controller.signal
+          }
+        );
+
+        if (!response.ok) {
+          let message = 'No pudimos cargar la vista previa.';
+          try {
+            const data = await response.json();
+            if (data?.error) message = data.error;
+          } catch (_err) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        if (!isActive) return;
+        objectUrl = URL.createObjectURL(blob);
+        setBinaryPreviewUrl(objectUrl);
+      } catch (err) {
+        if (!isActive || controller.signal.aborted) return;
+        setBinaryPreviewError(err.message || 'No pudimos cargar la vista previa.');
+        setBinaryPreviewUrl('');
+      } finally {
+        if (isActive) {
+          setBinaryPreviewLoading(false);
+        }
+      }
+    };
+
+    loadPreview();
+
+    return () => {
+      isActive = false;
+      controller.abort();
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [revisionId, currentPath, currentFileId, fileData.isBinary, token]);
+
   useEffect(() => {
     if (!revisionId || files.length === 0) {
       return;
@@ -209,24 +380,40 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
 
     const pending = pendingFileRef.current;
     if (pending) {
-      const normalized = normalizePath(pending.path || '');
       const line = pending.line || 0;
+      if (pending.fileId) {
+        const target = fileMapById.get(pending.fileId);
+        pendingFileRef.current = null;
+        if (target?.id) {
+          openFileById(target.id, line);
+        } else if (files[0]?.id) {
+          setError('No encontramos el archivo indicado. Abrimos el primero disponible.');
+          openFileById(files[0].id, 0);
+        }
+        return;
+      }
+
+      const normalized = normalizePath(pending.path || '');
       const availablePath = findBestPath(fileNames, normalized);
       if (availablePath && availablePath !== normalized) {
         setError('No encontramos el archivo indicado. Abrimos el primero disponible.');
       }
+      const target = fileMapByPath.get(availablePath);
       pendingFileRef.current = null;
-      if (availablePath) {
-        openFile(availablePath, availablePath === normalized ? line : 0);
+      if (target?.id) {
+        openFileById(target.id, availablePath === normalized ? line : 0);
       }
       return;
     }
 
-    if (!currentPath && fileNames.length > 0) {
+    if (!currentFileId && fileNames.length > 0) {
       const best = findBestPath(fileNames, fileNames[0]);
-      openFile(best, 0);
+      const target = fileMapByPath.get(best);
+      if (target?.id) {
+        openFileById(target.id, 0);
+      }
     }
-  }, [revisionId, files, fileNames, currentPath, openFile]);
+  }, [revisionId, files, fileNames, currentFileId, fileMapById, fileMapByPath, openFileById]);
 
   /**
    * Alterna la expansión de un directorio en el árbol de archivos.
@@ -267,7 +454,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
    * Envía un comentario nuevo y recarga el archivo para reflejarlo.
    */
   const handleAddComment = async (line, text) => {
-    if (!revisionId || !currentPath) {
+    if (!revisionId || !currentFileId) {
       setError('Selecciona un archivo antes de comentar.');
       return;
     }
@@ -276,14 +463,14 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
       setError('La línea indicada no es válida.');
       return;
     }
-    const lastPath = currentPath;
+    const lastFileId = currentFileId;
     try {
       await postJson(`/reviews/${revisionId}/comments`, {
-        path: currentPath,
+        fileId: currentFileId,
         linea: safeLine,
         contenido: text
       });
-      await openFile(lastPath, safeLine);
+      await openFileById(lastFileId, safeLine);
     } catch (err) {
       setError(err.message);
     }
@@ -361,6 +548,11 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
     };
   }, [dragging]);
 
+  const showBinaryPreview = fileData.isBinary && !!binaryPreviewUrl && !binaryPreviewLoading && !binaryPreviewError;
+  const showBinaryLoading = fileData.isBinary && binaryPreviewLoading;
+  const showBinaryError = fileData.isBinary && !!binaryPreviewError;
+  const previewLabel = binaryPreviewType === 'pdf' ? 'PDF' : 'imagen';
+
   return (
     <div style={viewerCard}>
       <div style={viewerHeader}>
@@ -427,7 +619,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
                     onClick={() => {
                       const parsed = Number(comment.line);
                       const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
-                      openFile(currentPath, targetLine);
+                      openFileById(currentFileId, targetLine);
                     }}
                   >
                     L{comment.line}
@@ -440,7 +632,21 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
             ) : !currentPath ? (
               <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
             ) : fileData.isBinary ? (
-              <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
+              showBinaryPreview ? (
+                <div style={previewWrapper}>
+                  <iframe
+                    title={`Vista previa de ${previewLabel}`}
+                    src={binaryPreviewUrl}
+                    style={previewFrame}
+                  />
+                </div>
+              ) : showBinaryLoading ? (
+                <p>Cargando vista previa...</p>
+              ) : showBinaryError ? (
+                <div style={binaryWarning}>{binaryPreviewError}</div>
+              ) : (
+                <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
+              )
             ) : (
               <EditorPane
                 path={currentPath}
@@ -450,6 +656,7 @@ export default function ReviewViewer({ revisionId, initialPath = '', initialLine
                 commentsByLine={commentsByLine}
                 onAddComment={handleAddComment}
                 revisionId={revisionId}
+                fileId={currentFileId}
               />
             )}
           </div>

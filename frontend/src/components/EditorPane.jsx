@@ -41,7 +41,8 @@ export default function EditorPane({
   initialLine = 0,
   commentsByLine = new Map(),
   onAddComment,
-  revisionId
+  revisionId,
+  fileId
 }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
@@ -207,7 +208,7 @@ export default function EditorPane({
     if (!lineNumber) return;
     const doc = viewRef.current?.state?.doc;
     if (doc && !getValidLine(doc, lineNumber)) return;
-    const url = buildPermalink({ path, line: lineNumber, revisionId });
+    const url = buildPermalink({ path, line: lineNumber, revisionId, fileId });
     await navigator.clipboard.writeText(url);
     closeMenu();
   };

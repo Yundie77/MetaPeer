@@ -191,6 +191,23 @@ export const binaryWarning = {
   color: "#92400e",
 };
 
+export const previewWrapper = {
+  border: "1px solid #e5e5e5",
+  borderRadius: "8px",
+  background: "#fff",
+  overflow: "hidden",
+  minHeight: "560px",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+export const previewFrame = {
+  border: "none",
+  width: "100%",
+  height: "560px",
+  display: "block",
+};
+
 export const linkButton = {
   border: "1px solid #0b74de",
   borderRadius: "4px",

@@ -1,13 +1,25 @@
 const express = require('express');
 const fs = require('fs');
+const path = require('path');
 const fsp = fs.promises;
 const { requireAuth } = require('../../../auth');
 const { db } = require('../../../db');
 const { listAllFiles, ensureInside, contentFolder } = require('../../../utils/deliveries');
+const { attachFileIds, findFileById, normalizeRelativePath } = require('../../../utils/reviewFileIds');
 const { fileHash } = require('../../../utils/fileHash');
 const { sendError, safeNumber, ensureRevisionPermission, isLikelyBinary } = require('../../helpers');
 
 const router = express.Router();
+
+const PREVIEW_MIME_TYPES = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml'};
+
+/**
+ * Resuelve el tipo de contenido basado en la extensión del archivo
+ */
+function resolveContentType(filePath) {
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  return PREVIEW_MIME_TYPES[ext] || 'application/octet-stream';
+}
 
 router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => {
   try {
@@ -31,7 +43,7 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
       revisionId,
       submissionId: revision.submission_id,
       zipName: revision.zip_name,
-      files
+      files: attachFileIds(files, revisionId)
     });
   } catch (error) {
     console.error('Error al listar archivos de revisión:', error);
@@ -42,9 +54,9 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
 router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
-    const relativePath = (req.query.path || '').toString().replace(/^[\\/]+/, '').trim();
+    const fileId = (req.query.fileId || req.query.file || '').toString().trim();
 
-    if (!revisionId || !relativePath) {
+    if (!revisionId || !fileId) {
       return sendError(res, 400, 'Debes indicar la revisión y el archivo.');
     }
 
@@ -58,6 +70,13 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
       return sendError(res, 404, 'No encontramos los archivos descomprimidos.');
     }
 
+    const files = await listAllFiles(baseDir);
+    const target = findFileById(files, revisionId, fileId);
+    if (!target) {
+      return sendError(res, 404, 'No encontramos el archivo solicitado.');
+    }
+
+    const relativePath = normalizeRelativePath(target.path);
     const absolutePath = ensureInside(baseDir, relativePath);
     const stats = await fsp.stat(absolutePath);
     if (!stats.isFile()) {
@@ -94,6 +113,7 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
       }));
 
     return res.json({
+      id: target.id,
       path: relativePath.replace(/\\/g, '/'),
       size: stats.size,
       isBinary,
@@ -103,6 +123,51 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
     });
   } catch (error) {
     console.error('Error al leer archivo de revisión:', error);
+    return sendError(res, 500, 'No pudimos abrir el archivo solicitado.');
+  }
+});
+
+/**
+ * Envía el archivo directamente para vista previa o descarga
+ */
+router.get('/api/reviews/:revisionId/file/raw', requireAuth(), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    const fileId = (req.query.fileId || req.query.file || '').toString().trim();
+
+    if (!revisionId || !fileId) {
+      return sendError(res, 400, 'Debes indicar la revisión y el archivo.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
+    if (!revision) {
+      return sendError(res, 403, 'No puedes abrir este archivo.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'No encontramos los archivos descomprimidos.');
+    }
+
+    const files = await listAllFiles(baseDir);
+    const target = findFileById(files, revisionId, fileId);
+    if (!target) {
+      return sendError(res, 404, 'No encontramos el archivo solicitado.');
+    }
+
+    const relativePath = normalizeRelativePath(target.path);
+    const absolutePath = ensureInside(baseDir, relativePath);
+    const stats = await fsp.stat(absolutePath);
+    if (!stats.isFile()) {
+      return sendError(res, 400, 'La ruta indicada no es un fichero.');
+    }
+
+    const contentType = resolveContentType(absolutePath);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `inline; filename="${path.basename(absolutePath)}"`);
+    return res.sendFile(absolutePath);
+  } catch (error) {
+    console.error('Error al enviar archivo de revisión:', error);
     return sendError(res, 500, 'No pudimos abrir el archivo solicitado.');
   }
 });

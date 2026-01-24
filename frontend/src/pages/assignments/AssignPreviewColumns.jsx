@@ -16,18 +16,25 @@ export default function AssignPreviewColumns({
                 <p style={{ margin: 0 }}>
                   <strong>{rev.name}</strong> {rev.teamName ? <span style={metaStyle}>({rev.teamName})</span> : null}
                 </p>
-                <p style={miniMeta}>
-                  {rev.members?.length
-                    ? `Miembros: ${rev.members.map((user) => user.nombre_completo || user.nombre).join(', ')}`
-                    : 'Sin miembros asociados'}
-                </p>
+                {rev.type !== 'usuario' && (
+                  <p style={miniMeta}>
+                    {rev.members?.length
+                      ? `Miembros: ${rev.members.map((user) => user.nombre_completo || user.nombre).join(', ')}`
+                      : 'Sin miembros asociados'}
+                  </p>
+                )}
                 {rev.targets?.length ? (
-                  <div style={tagsRow}>
-                    {rev.targets.map((target) => (
-                      <span key={`${rev.id}-${target.teamId}`} style={tag}>
-                        {target.teamName || `Equipo ${target.teamId}`}
-                      </span>
-                    ))}
+                  <div>
+                    <p style={{ ...miniMeta, margin: '0.35rem 0 0.25rem', fontWeight: 700, fontSize: '0.95rem' }}>
+                      Revisa a
+                    </p>
+                    <div style={tagsRow}>
+                      {rev.targets.map((target) => (
+                        <span key={`${rev.id}-${target.teamId}`} style={tag}>
+                          {target.teamName || `Equipo ${target.teamId}`}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <p style={miniMeta}>Sin revisiones asignadas.</p>
@@ -54,12 +61,17 @@ export default function AssignPreviewColumns({
                     : 'Miembros no cargados'}
                 </p>
                 {item.reviewers?.length ? (
-                  <div style={tagsRow}>
-                    {item.reviewers.map((rev) => (
-                      <span key={`${item.teamId}-${rev.type}-${rev.id}`} style={tag}>
-                        {rev.name}
-                      </span>
-                    ))}
+                  <div>
+                    <p style={{ ...miniMeta, margin: '0.35rem 0 0.25rem', fontWeight: 700, fontSize: '0.95rem' }}>
+                      Es revisado por
+                    </p>
+                    <div style={tagsRow}>
+                      {item.reviewers.map((rev) => (
+                        <span key={`${item.teamId}-${rev.type}-${rev.id}`} style={tag}>
+                          {rev.name}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 ) : (
                   <p style={miniMeta}>Sin revisores asignados.</p>

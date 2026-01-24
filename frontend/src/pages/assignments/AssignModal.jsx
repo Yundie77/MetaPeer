@@ -79,7 +79,7 @@ export default function AssignModal({
               onClick={onReassign}
               disabled={assignModalLoading || assignConfirming || assignment?.asignacion_bloqueada}
             >
-              Reasignar
+              Re-barajar
             </button>
             <button
               type="button"

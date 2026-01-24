@@ -310,6 +310,8 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
       return sendError(res, 400, fallbackMessage);
     }
 
+    // console.log('PLAN GENERADO', plan); 
+
     let assignmentState = null;
     if (confirmFlag) {
       const persisted = persistAssignmentPlan(plan);

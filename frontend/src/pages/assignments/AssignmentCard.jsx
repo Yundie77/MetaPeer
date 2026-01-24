@@ -9,14 +9,23 @@ export default function AssignmentCard({
   onTriggerUpload,
   onOpenRubric,
   onOpenAssign,
+  onReassign,
   onExport,
   styles,
   formatDateTime
 }) { 
-  const {cardStyle, metaStyle, descStyle, actionsStyle, smallButton} = styles;
+  const {cardStyle, metaStyle, descStyle, actionsStyle, smallButton, dangerButton} = styles;
 
   const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
   const hasZip = Boolean(meta?.hasZip);
+  const canAssign = hasZip && !blocked;
+  const assignButtonStyle = blocked
+    ? dangerButton
+    : {
+        ...smallButton,
+        opacity: canAssign ? 1 : 0.6,
+        cursor: canAssign ? 'pointer' : 'not-allowed'
+      };
 
   return (
     <li key={assignment.id} style={cardStyle}>
@@ -64,15 +73,11 @@ export default function AssignmentCard({
         </button>
         <button
           type="button"
-          style={{
-            ...smallButton,
-            opacity: hasZip && !blocked ? 1 : 0.6,
-            cursor: hasZip && !blocked ? 'pointer' : 'not-allowed'
-          }}
-          onClick={() => onOpenAssign(assignment)}
-          disabled={!hasZip || blocked}
+          style={assignButtonStyle}
+          onClick={() => (blocked ? onReassign(assignment) : onOpenAssign(assignment))}
+          disabled={!blocked && !canAssign}
         >
-          {blocked ? 'Asignación bloqueada' : 'Asignación'}
+          {blocked ? 'Reasignar' : 'Asignación'}
         </button>
         <button type="button" style={smallButton} onClick={() => onExport(assignment.id)}>
           Exportar CSV

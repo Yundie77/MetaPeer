@@ -11,7 +11,15 @@ const { sendError, safeNumber, ensureRevisionPermission, isLikelyBinary } = requ
 
 const router = express.Router();
 
-const PREVIEW_MIME_TYPES = {pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml'};
+const PREVIEW_MIME_TYPES = {
+  pdf: 'application/pdf',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  svg: 'image/svg+xml'
+};
 
 /**
  * Resuelve el tipo de contenido basado en la extensión del archivo
@@ -21,6 +29,9 @@ function resolveContentType(filePath) {
   return PREVIEW_MIME_TYPES[ext] || 'application/octet-stream';
 }
 
+/**
+ * Lista los archivos de una revisión específica
+ */
 router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
@@ -51,6 +62,9 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
   }
 });
 
+/**
+ * Obtiene el contenido de un archivo específico dentro de una revisión
+ */
 router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);

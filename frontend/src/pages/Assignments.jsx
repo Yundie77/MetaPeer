@@ -2,10 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { fetchJson, getJson, postJson } from '../api.js';
 import AssignModal from './assignments/AssignModal.jsx';
+import ReassignConfirmModal from './assignments/ReassignConfirmModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
-import {formStyle, labelStyle, inputStyle, buttonStyle, errorStyle, successStyle, listStyle, cardStyle, actionsStyle, smallButton, metaStyle,
-  descStyle, panelStyle, miniCard, miniMeta, rubricRowStyle, rubricNumberStyle, modalOverlay, modalContent, modalHeader,
-  modalFormRow, plainLinkButton, warningListStyle, warningItemStyle, previewGrid, previewColumn, tagsRow, tag} from './assignments/styles.js';
+import * as styles from './assignments/styles.js';
 
 /**
  * Pantalla de tareas para profes: alta de tareas, rúbricas, carga de ZIPs y asignación de revisiones.
@@ -39,6 +38,10 @@ export default function Assignments() {
   const [assignConfirming, setAssignConfirming] = useState(false);
 const [assignSeed, setAssignSeed] = useState('');
 const [assignInfo, setAssignInfo] = useState('');
+const [resetModalOpen, setResetModalOpen] = useState(false);
+const [resetTarget, setResetTarget] = useState(null);
+const [resetLoading, setResetLoading] = useState(false);
+const [resetError, setResetError] = useState('');
 const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
 const [uploadMessage, setUploadMessage] = useState('');
 const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
@@ -340,6 +343,56 @@ const fileInputsRef = useRef({});
   };
 
   /**
+   * Abre el modal de confirmación para reasignar.
+   */
+  const openResetModal = (assignment) => {
+    setResetTarget(assignment);
+    setResetError('');
+    setResetModalOpen(true);
+  };
+
+  /**
+   * Cierra el modal de confirmación de reasignación.
+   */
+  const closeResetModal = () => {
+    if (resetLoading) {
+      return;
+    }
+    setResetModalOpen(false);
+    setResetTarget(null);
+    setResetError('');
+  };
+
+  /**
+   * Resetea la asignación actual y abre el modal normal.
+   */
+  const handleResetAssignment = async () => {
+    if (!resetTarget) return;
+    try {
+      setResetLoading(true);
+      setResetError('');
+      const response = await postJson(`/assignments/${resetTarget.id}/reset`);
+      const updatedAssignment =
+        response?.assignment || {
+          ...resetTarget,
+          asignacion_bloqueada: 0,
+          asignacion_total_revisiones: 0,
+          asignacion_fecha_asignacion: null
+        };
+      setAssignments((prev) =>
+        prev.map((item) => (item.id === resetTarget.id ? { ...item, ...updatedAssignment } : item))
+      );
+      setResetModalOpen(false);
+      setResetTarget(null);
+      openAssignModal(updatedAssignment);
+    } catch (err) {
+      setResetError(err.message);
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  /**
    * Cierra el modal de asignación y limpia estados.
    */
   const closeAssignModal = () => {
@@ -486,11 +539,11 @@ const fileInputsRef = useRef({});
         Crea tareas, define rúbricas y lanza la asignación automática de revisores.
       </p>
 
-      <form onSubmit={handleCreate} style={formStyle}>
-        <label style={labelStyle}>
+      <form onSubmit={handleCreate} style={styles.formStyle}>
+        <label style={styles.labelStyle}>
           Asignatura
           <select
-            style={inputStyle}
+            style={styles.inputStyle}
             value={subjectId}
             onChange={(event) => setSubjectId(event.target.value)}
             disabled={loadingList || saving || subjects.length === 0}
@@ -502,49 +555,49 @@ const fileInputsRef = useRef({});
               ))}
           </select>
         </label>
-        <label style={labelStyle}>
+        <label style={styles.labelStyle}>
           Título
           <input
-            style={inputStyle}
+            style={styles.inputStyle}
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             disabled={saving}
             placeholder="Ej: Proyecto 1"
           />
         </label>
-        <label style={labelStyle}>
+        <label style={styles.labelStyle}>
           Descripción (opcional)
           <textarea
-            style={{ ...inputStyle, minHeight: '72px' }}
+            style={{ ...styles.inputStyle, minHeight: '72px' }}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             disabled={saving}
             placeholder="Notas para el profesorado o el alumnado"
           />
         </label>
-        <label style={labelStyle}>
+        <label style={styles.labelStyle}>
           Fecha de entrega
           <input
-            style={inputStyle}
+            style={styles.inputStyle}
             type="date"
             value={dueDate}
             onChange={(event) => setDueDate(event.target.value)}
             disabled={saving}
           />
         </label>
-        <button type="submit" style={buttonStyle} disabled={saving}>
+        <button type="submit" style={styles.buttonStyle} disabled={saving}>
           {saving ? 'Creando...' : 'Crear tarea'}
         </button>
       </form>
 
-      {error && <p style={errorStyle}>{error}</p>}
-      {uploadMessage && <p style={successStyle}>{uploadMessage}</p>}
+      {error && <p style={styles.errorStyle}>{error}</p>}
+      {uploadMessage && <p style={styles.successStyle}>{uploadMessage}</p>}
       {loadingList ? (
         <p>Cargando tareas...</p>
       ) : assignments.length === 0 ? (
         <p>No hay asignaciones aún.</p>
       ) : (
-        <ul style={listStyle}>
+        <ul style={styles.listStyle}>
           {assignments.map((assignment) => (
             <AssignmentCard
               key={assignment.id}
@@ -558,13 +611,24 @@ const fileInputsRef = useRef({});
               onTriggerUpload={triggerUploadPicker}
               onOpenRubric={handleOpenRubric}
               onOpenAssign={openAssignModal}
+              onReassign={openResetModal}
               onExport={handleExport}
-              styles={{ cardStyle, metaStyle, descStyle, actionsStyle, smallButton }}
+              styles={styles}
               formatDateTime={formatDateTime}
             />
           ))}
         </ul>
       )}
+
+      <ReassignConfirmModal
+        isOpen={resetModalOpen && Boolean(resetTarget)}
+        assignment={resetTarget}
+        loading={resetLoading}
+        error={resetError}
+        onCancel={closeResetModal}
+        onConfirm={handleResetAssignment}
+        styles={styles}
+      />
 
       <AssignModal
         isOpen={assignModalOpen && Boolean(assignTarget)}
@@ -596,31 +660,30 @@ const fileInputsRef = useRef({});
           setAssignInfo('');
           setAssignModalError('');
         }}
-        styles={{modalOverlay, modalContent, modalHeader, modalFormRow, labelStyle, inputStyle, smallButton,  plainLinkButton, successStyle,
-          errorStyle, warningListStyle, warningItemStyle, listStyle, metaStyle, miniCard, miniMeta, previewGrid, previewColumn, tagsRow, tag}}
+        styles={styles}
       />
 
       {rubricTarget && (
-        <div style={panelStyle}>
+        <div style={styles.panelStyle}>
           <h3>Rúbrica para {rubricTarget.titulo}</h3>
           <p style={{ color: '#666', fontSize: '0.9rem' }}>
             Ajusta los criterios y pesos. Los alumnos verán estos campos al realizar la revisión.
           </p>
           {rubricItems.map((item, index) => (
-            <div key={item.clave || index} style={rubricRowStyle}>
+            <div key={item.clave || index} style={styles.rubricRowStyle}>
               <input
-                style={{ ...inputStyle, flex: 1 }}
+                style={{ ...styles.inputStyle, flex: 1 }}
                 value={item.texto}
                 onChange={(event) => handleRubricChange(index, 'texto', event.target.value)}
               />
               <textarea
-                style={{ ...inputStyle, flex: 1, minHeight: '60px' }}
+                style={{ ...styles.inputStyle, flex: 1, minHeight: '60px' }}
                 placeholder="Notas en markdown (opcional)"
                 value={item.detalle || ''}
                 onChange={(event) => handleRubricChange(index, 'detalle', event.target.value)}
               />
               <input
-                style={rubricNumberStyle}
+                style={styles.rubricNumberStyle}
                 type="number"
                 min="0"
                 max="100"
@@ -630,7 +693,7 @@ const fileInputsRef = useRef({});
               />
               <button
                 type="button"
-                style={{ ...smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
+                style={{ ...styles.smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
                 onClick={() => setRubricItems((prev) => prev.filter((_, i) => i !== index))}
                 disabled={rubricSaving || index === 0}
                 title={index === 0 ? 'El primer criterio no se puede eliminar' : 'Eliminar criterio'}
@@ -640,22 +703,22 @@ const fileInputsRef = useRef({});
             </div>
           ))}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="button" style={smallButton} onClick={handleAddRubricItem} disabled={rubricSaving}>
+            <button type="button" style={styles.smallButton} onClick={handleAddRubricItem} disabled={rubricSaving}>
               Añadir criterio
             </button>
-            <button type="button" style={smallButton} onClick={handleSaveRubric} disabled={rubricSaving}>
+            <button type="button" style={styles.smallButton} onClick={handleSaveRubric} disabled={rubricSaving}>
               {rubricSaving ? 'Guardando...' : 'Guardar rúbrica'}
             </button>
             <button
               type="button"
-              style={{ ...smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
+              style={{ ...styles.smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
               onClick={() => setRubricTarget(null)}
               disabled={rubricSaving}
             >
               Cerrar
             </button>
           </div>
-          {rubricError && <p style={errorStyle}>{rubricError}</p>}
+          {rubricError && <p style={styles.errorStyle}>{rubricError}</p>}
         </div>
       )}
     </section>

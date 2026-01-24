@@ -145,6 +145,12 @@ export const modalContent = {
   border: '1px solid #e5e7eb'
 };
 
+export const dangerModalContent = {
+  ...modalContent,
+  border: '2px solid #b91c1c',
+  background: '#fff1f2'
+};
+
 export const modalHeader = {
   display: 'flex',
   alignItems: 'center',
@@ -209,3 +215,73 @@ export const tag = {
   fontSize: '0.85rem',
   border: '1px solid #d4d8ff'
 };
+
+export const dangerHeader = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '0.75rem',
+  padding: '0.75rem 0.9rem',
+  borderRadius: '8px',
+  background: '#b91c1c',
+  color: '#fff'
+};
+
+export const dangerIcon = {
+  width: '36px',
+  height: '36px',
+  borderRadius: '50%',
+  background: '#fff',
+  color: '#b91c1c',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontWeight: 800,
+  fontSize: '1.1rem'
+};
+
+export const dangerBody = {
+  marginTop: '1rem',
+  padding: '0.9rem',
+  background: '#fee2e2',
+  border: '1px solid #b91c1c',
+  borderRadius: '8px',
+  color: '#7f1d1d',
+  lineHeight: 1.4
+};
+
+export const dangerListStyle = {
+  margin: '0.35rem 0 0.5rem',
+  paddingLeft: '1.1rem',
+  color: '#7f1d1d',
+  listStyle: 'disc'
+};
+
+export const dangerActions = {
+  display: 'flex',
+  gap: '0.75rem',
+  justifyContent: 'flex-end',
+  marginTop: '1rem',
+  flexWrap: 'wrap'
+};
+
+export const dangerButton = {
+  background: '#b91c1c',
+  border: '1px solid #7f1d1d',
+  color: '#fff',
+  padding: '0.4rem 0.7rem',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontWeight: 700
+};
+
+export const dangerCancelButton = {
+  background: '#fff',
+  border: '1px solid #9ca3af',
+  color: '#374151',
+  padding: '0.4rem 0.7rem',
+  borderRadius: '4px',
+  cursor: 'pointer',
+  fontWeight: 600
+};
+

@@ -333,6 +333,93 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
 });
 
 /**
+ * Resetea la asignación de una tarea eliminando revisiones y dependencias, sin borrar entregas.
+ */
+router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  try {
+    const assignmentId = safeNumber(req.params.assignmentId);
+    if (!assignmentId) {
+      return sendError(res, 400, 'Identificador inválido.');
+    }
+
+    const assignment = ensureAssignmentExists(assignmentId);
+    if (!assignment) {
+      return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    const assignmentRecord = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
+    const assignmentRecordId = assignmentRecord ? assignmentRecord.id : ensureAssignmentRecord(assignmentId);
+
+    const reviewerPrefix = `[REV ${assignmentId}]%`;
+    const selectReviewerTeams = db.prepare(
+      `
+      SELECT eq.id
+      FROM equipo eq
+      LEFT JOIN entregas ent ON ent.id_equipo = eq.id
+      WHERE eq.id_tarea = ?
+        AND eq.nombre LIKE ?
+        AND ent.id IS NULL
+    `
+    );
+    const deleteReviewerTeam = db.prepare('DELETE FROM equipo WHERE id = ?');
+    const deleteMetaReviews = db.prepare('DELETE FROM meta_revision WHERE id_tarea = ?');
+    const deleteRevisions = db.prepare('DELETE FROM revision WHERE id_asignacion = ?');
+    const resetAssignment = db.prepare(
+      `
+      UPDATE asignacion
+      SET bloqueada = 0,
+          fecha_asignacion = NULL
+      WHERE id = ?
+    `
+    );
+
+    const tx = db.transaction(() => {
+      deleteMetaReviews.run(assignmentId);
+      deleteRevisions.run(assignmentRecordId);
+
+      const reviewerTeams = selectReviewerTeams.all(assignmentId, reviewerPrefix);
+      reviewerTeams.forEach((team) => {
+        deleteReviewerTeam.run(team.id);
+      });
+
+      resetAssignment.run(assignmentRecordId);
+    });
+
+    tx();
+
+    const updated = db
+      .prepare(
+        `
+        SELECT t.id,
+               t.id_asignatura,
+               t.titulo,
+               t.descripcion,
+               t.fecha_entrega,
+               t.estado,
+               t.revisores_por_entrega,
+               COALESCE(a.modo, 'equipo') AS asignacion_modo,
+               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                 ELSE COALESCE(a.bloqueada, 0)
+               END AS asignacion_bloqueada,
+               a.fecha_asignacion AS asignacion_fecha_asignacion,
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+        FROM tarea t
+        LEFT JOIN asignacion a ON a.id_tarea = t.id
+        WHERE t.id = ?
+      `
+      )
+      .get(assignmentId);
+
+    res.json({ ok: true, assignment: updated });
+  } catch (error) {
+    console.error('Error al resetear asignación:', error);
+    return sendError(res, 500, 'No pudimos reiniciar la asignación.');
+  }
+});
+
+/**
  * Devuelve el mapa actual de revisiones asignadas para una tarea.
  */
 router.get('/api/assignments/:assignmentId/assignment-map', requireAuth(['ADMIN', 'PROF']), (req, res) => {

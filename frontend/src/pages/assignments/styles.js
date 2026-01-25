@@ -285,3 +285,119 @@ export const dangerCancelButton = {
   fontWeight: 600
 };
 
+export const tabRow = {
+  display: 'flex',
+  gap: '0.5rem',
+  marginTop: '1rem',
+  flexWrap: 'wrap'
+};
+
+export const tabButton = {
+  border: '1px solid #cbd5f5',
+  background: '#f8faff',
+  color: '#1e3a8a',
+  padding: '0.35rem 0.7rem',
+  borderRadius: '999px',
+  cursor: 'pointer',
+  fontWeight: 600
+};
+
+export const tabButtonActive = {
+  ...tabButton,
+  background: '#0b74de',
+  color: '#fff',
+  borderColor: '#0b74de'
+};
+
+export const summaryGrid = {
+  display: 'grid',
+  gap: '0.75rem',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  marginTop: '1rem'
+};
+
+export const summaryCard = {
+  padding: '0.75rem',
+  borderRadius: '8px',
+  border: '1px solid #e5e7eb',
+  background: '#f8fafc'
+};
+
+export const summaryLabel = {
+  fontSize: '0.78rem',
+  textTransform: 'uppercase',
+  letterSpacing: '0.04em',
+  color: '#64748b',
+  marginBottom: '0.25rem'
+};
+
+export const statusList = {
+  listStyle: 'none',
+  padding: 0,
+  margin: '1rem 0 0',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem'
+};
+
+export const statusItem = {
+  padding: '0.75rem',
+  borderRadius: '8px',
+  border: '1px solid #e5e7eb',
+  background: '#fff',
+  display: 'flex',
+  gap: '1rem',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  flexWrap: 'wrap'
+};
+
+export const statusBadge = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '0.3rem',
+  borderRadius: '999px',
+  padding: '0.2rem 0.6rem',
+  fontSize: '0.78rem',
+  fontWeight: 700
+};
+
+export const statusBadgePending = {
+  ...statusBadge,
+  background: '#fef3c7',
+  color: '#92400e',
+  border: '1px solid #f59e0b'
+};
+
+export const statusBadgeSubmitted = {
+  ...statusBadge,
+  background: '#dbeafe',
+  color: '#1e40af',
+  border: '1px solid #60a5fa'
+};
+
+export const statusBadgeGraded = {
+  ...statusBadge,
+  background: '#dcfce7',
+  color: '#166534',
+  border: '1px solid #22c55e'
+};
+
+export const statusActions = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem',
+  flexWrap: 'wrap'
+};
+
+export const linkPill = {
+  background: '#eef2ff',
+  color: '#1e3a8a',
+  padding: '0.2rem 0.6rem',
+  borderRadius: '999px',
+  fontSize: '0.8rem',
+  border: '1px solid #c7d2fe',
+  textDecoration: 'none',
+  fontWeight: 600
+};
+

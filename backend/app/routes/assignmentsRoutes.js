@@ -6,6 +6,7 @@ const {
   safeNumber,
   ensureAssignmentExists,
   ensureAssignmentRecord,
+  getTeamMembers,
   cloneRosterTeamsToAssignment,
   fetchAssignmentRubric,
   buildAssignmentPlan,
@@ -418,6 +419,186 @@ router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF'
   } catch (error) {
     console.error('Error al resetear asignación:', error);
     return sendError(res, 500, 'No pudimos reiniciar la asignación.');
+  }
+});
+
+/**
+ * Devuelve un resumen de la asignación con mapa, totales y estado de revisiones.
+ */
+router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  try {
+    const assignmentId = safeNumber(req.params.assignmentId);
+    if (!assignmentId) {
+      return sendError(res, 400, 'Identificador inválido.');
+    }
+
+    const assignment = ensureAssignmentExists(assignmentId);
+    if (!assignment) {
+      return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    const assignmentRecord = db.prepare('SELECT id FROM asignacion WHERE id_tarea = ?').get(assignmentId);
+    const assignmentRecordId = assignmentRecord ? assignmentRecord.id : null;
+
+    // Resumen de la tarea y asignación
+    const summaryAssignment = db
+      .prepare(
+        `
+        SELECT t.id,
+               t.id_asignatura,
+               t.titulo,
+               t.descripcion,
+               t.fecha_entrega,
+               t.estado,
+               t.revisores_por_entrega,
+               COALESCE(a.modo, 'equipo') AS asignacion_modo,
+               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+               /* 
+               Si ya hay revisiones creadas, la asignación se considera bloqueada,
+               aunque el campo bloqueada esté a 0.
+               */
+               CASE
+                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                 ELSE COALESCE(a.bloqueada, 0)
+               END AS asignacion_bloqueada,
+               a.fecha_asignacion AS asignacion_fecha_asignacion,
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+        FROM tarea t
+        LEFT JOIN asignacion a ON a.id_tarea = t.id
+        WHERE t.id = ?
+      `
+      )
+      .get(assignmentId);
+
+    const totalSubmissions =
+      db.prepare('SELECT COUNT(*) AS total FROM entregas WHERE id_tarea = ?').get(assignmentId)?.total || 0;
+
+    const totalReviews =
+      assignmentRecordId
+        ? db.prepare('SELECT COUNT(*) AS total FROM revision WHERE id_asignacion = ?').get(assignmentRecordId)?.total || 0
+        : 0;
+    const totalReviewers =
+      assignmentRecordId
+        ? db
+            .prepare('SELECT COUNT(DISTINCT id_revisores) AS total FROM revision WHERE id_asignacion = ?')
+            .get(assignmentRecordId)?.total || 0
+        : 0;
+    
+    // Detalles de cada revisión realizada (mapa de revisiones)
+    const revisionRows = assignmentRecordId
+      ? db
+          .prepare(
+            `
+            SELECT rev.id AS revision_id,
+                   rev.id_entrega AS submission_id,
+                   rev.id_revisores AS reviewer_team_id,
+                   rev.fecha_asignacion AS assigned_at,
+                   rev.fecha_envio AS submitted_at,
+                   rev.nota_numerica AS grade,
+                   rev.comentario_extra AS comment,
+                   ent.id_equipo AS author_team_id,
+                   equipo_autor.nombre AS author_team_name,
+                   equipo_revisor.nombre AS reviewer_team_name
+            FROM revision rev
+            JOIN entregas ent ON ent.id = rev.id_entrega
+            JOIN equipo equipo_autor ON equipo_autor.id = ent.id_equipo
+            JOIN equipo equipo_revisor ON equipo_revisor.id = rev.id_revisores
+            WHERE rev.id_asignacion = ?
+            ORDER BY rev.id
+          `
+          )
+          .all(assignmentRecordId)
+      : [];
+
+    const reviewerMap = new Map(); // clave: reviewer_team_id, valor: { id, type, name, teamName, members, targets }
+    const reviewedMap = new Map(); // clave: author_team_id, valor: { teamId, teamName, submissionId, members, reviewers }
+    const reviewerMembersCache = new Map(); 
+    const authorMembersCache = new Map();
+    
+    // Evitar usar varias veces getTeamMembers
+    const getCachedMembers = (teamId, cache) => {
+      if (!cache.has(teamId)) {
+        cache.set(teamId, getTeamMembers(teamId));
+      }
+      return cache.get(teamId);
+    };
+
+    const reviews = revisionRows.map((row) => {
+      const reviewerMembers = getCachedMembers(row.reviewer_team_id, reviewerMembersCache); 
+      const authorMembers = getCachedMembers(row.author_team_id, authorMembersCache);
+      const reviewerPrefix = `[REV ${assignmentId}]`;
+      const isIndividual = (row.reviewer_team_name || '').startsWith(reviewerPrefix);
+      const reviewerName = isIndividual
+        ? reviewerMembers?.[0]?.nombre_completo || reviewerMembers?.[0]?.nombre || row.reviewer_team_name
+        : row.reviewer_team_name;
+
+      if (!reviewerMap.has(row.reviewer_team_id)) {
+        reviewerMap.set(row.reviewer_team_id, {
+          id: row.reviewer_team_id,
+          type: isIndividual ? 'usuario' : 'equipo',
+          name: reviewerName,
+          teamName: isIndividual ? null : row.reviewer_team_name,
+          members: reviewerMembers || [],
+          targets: []
+        });
+      }
+
+      reviewerMap.get(row.reviewer_team_id).targets.push({
+        teamId: row.author_team_id,
+        teamName: row.author_team_name,
+        submissionId: row.submission_id
+      });
+
+      if (!reviewedMap.has(row.author_team_id)) {
+        reviewedMap.set(row.author_team_id, {
+          teamId: row.author_team_id,
+          teamName: row.author_team_name,
+          submissionId: row.submission_id,
+          members: authorMembers || [],
+          reviewers: []
+        });
+      }
+
+      reviewedMap.get(row.author_team_id).reviewers.push({
+        id: row.reviewer_team_id,
+        type: isIndividual ? 'usuario' : 'equipo',
+        name: reviewerName,
+        teamName: row.reviewer_team_name,
+        members: reviewerMembers || []
+      });
+
+      return {
+        revisionId: row.revision_id,
+        submissionId: row.submission_id,
+        reviewerTeamId: row.reviewer_team_id,
+        reviewerName,
+        reviewerType: isIndividual ? 'usuario' : 'equipo',
+        reviewerTeamName: row.reviewer_team_name,
+        authorTeamId: row.author_team_id,
+        authorTeamName: row.author_team_name,
+        assignedAt: row.assigned_at,
+        submittedAt: row.submitted_at,
+        grade: row.grade,
+        comment: row.comment
+      };
+    });
+
+    res.json({
+      assignment: summaryAssignment,
+      totals: {
+        totalSubmissions,
+        totalReviewers,
+        totalReviews
+      },
+      map: {
+        reviewers: Array.from(reviewerMap.values()),
+        reviewed: Array.from(reviewedMap.values())
+      },
+      reviews
+    });
+  } catch (error) {
+    console.error('Error al obtener resumen de asignación:', error);
+    return sendError(res, 500, 'No pudimos obtener el resumen de la asignación.');
   }
 });
 

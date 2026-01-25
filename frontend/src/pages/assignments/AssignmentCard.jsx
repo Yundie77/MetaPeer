@@ -10,6 +10,7 @@ export default function AssignmentCard({
   onOpenRubric,
   onOpenAssign,
   onReassign,
+  onOpenSummary,
   onExport,
   styles,
   formatDateTime
@@ -71,6 +72,11 @@ export default function AssignmentCard({
         <button type="button" style={smallButton} onClick={() => onOpenRubric(assignment)}>
           Rúbrica
         </button>
+        {blocked && (
+          <button type="button" style={smallButton} onClick={() => onOpenSummary(assignment)}>
+            Resumen Asignación
+          </button>
+        )}
         <button
           type="button"
           style={assignButtonStyle}

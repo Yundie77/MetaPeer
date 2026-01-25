@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext.jsx';
 import { fetchJson, getJson, postJson } from '../api.js';
 import AssignModal from './assignments/AssignModal.jsx';
 import ReassignConfirmModal from './assignments/ReassignConfirmModal.jsx';
+import AssignmentSummaryModal from './assignments/AssignmentSummaryModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
 import * as styles from './assignments/styles.js';
 
@@ -42,6 +43,12 @@ const [resetModalOpen, setResetModalOpen] = useState(false);
 const [resetTarget, setResetTarget] = useState(null);
 const [resetLoading, setResetLoading] = useState(false);
 const [resetError, setResetError] = useState('');
+const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+const [summaryTarget, setSummaryTarget] = useState(null);
+const [summaryData, setSummaryData] = useState(null);
+const [summaryLoading, setSummaryLoading] = useState(false);
+const [summaryError, setSummaryError] = useState('');
+const [summaryTab, setSummaryTab] = useState('map');
 const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
 const [uploadMessage, setUploadMessage] = useState('');
 const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
@@ -393,6 +400,38 @@ const fileInputsRef = useRef({});
   };
 
   /**
+   * Abre el modal de resumen y carga los datos desde backend.
+   */
+  const openSummaryModal = async (assignment) => {
+    if (!assignment) return;
+    setSummaryTarget(assignment);
+    setSummaryTab('map');
+    setSummaryError('');
+    setSummaryData(null);
+    setSummaryModalOpen(true);
+    try {
+      setSummaryLoading(true);
+      const data = await getJson(`/assignments/${assignment.id}/assignment-summary`);
+      setSummaryData(data);
+    } catch (err) {
+      setSummaryError(err.message);
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
+  /**
+   * Cierra el modal de resumen y limpia estados.
+   */
+  const closeSummaryModal = () => {
+    setSummaryModalOpen(false);
+    setSummaryTarget(null);
+    setSummaryData(null);
+    setSummaryError('');
+    setSummaryLoading(false);
+  };
+
+  /**
    * Cierra el modal de asignación y limpia estados.
    */
   const closeAssignModal = () => {
@@ -612,6 +651,7 @@ const fileInputsRef = useRef({});
               onOpenRubric={handleOpenRubric}
               onOpenAssign={openAssignModal}
               onReassign={openResetModal}
+              onOpenSummary={openSummaryModal}
               onExport={handleExport}
               styles={styles}
               formatDateTime={formatDateTime}
@@ -619,6 +659,19 @@ const fileInputsRef = useRef({});
           ))}
         </ul>
       )}
+
+      <AssignmentSummaryModal
+        isOpen={summaryModalOpen}
+        assignment={summaryTarget}
+        summary={summaryData}
+        loading={summaryLoading}
+        error={summaryError}
+        activeTab={summaryTab}
+        onTabChange={setSummaryTab}
+        onClose={closeSummaryModal}
+        styles={styles}
+        formatDateTime={formatDateTime}
+      />
 
       <ReassignConfirmModal
         isOpen={resetModalOpen && Boolean(resetTarget)}

@@ -4,6 +4,7 @@ import { fetchJson, getJson, postJson } from '../api.js';
 import AssignModal from './assignments/AssignModal.jsx';
 import ReassignConfirmModal from './assignments/ReassignConfirmModal.jsx';
 import AssignmentSummaryModal from './assignments/AssignmentSummaryModal.jsx';
+import RubricModal from './assignments/RubricModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
 import * as styles from './assignments/styles.js';
 
@@ -716,64 +717,19 @@ const fileInputsRef = useRef({});
         styles={styles}
       />
 
-      {rubricTarget && (
-        <div style={styles.panelStyle}>
-          <h3>Rúbrica para {rubricTarget.titulo}</h3>
-          <p style={{ color: '#666', fontSize: '0.9rem' }}>
-            Ajusta los criterios y pesos. Los alumnos verán estos campos al realizar la revisión.
-          </p>
-          {rubricItems.map((item, index) => (
-            <div key={item.clave || index} style={styles.rubricRowStyle}>
-              <input
-                style={{ ...styles.inputStyle, flex: 1 }}
-                value={item.texto}
-                onChange={(event) => handleRubricChange(index, 'texto', event.target.value)}
-              />
-              <textarea
-                style={{ ...styles.inputStyle, flex: 1, minHeight: '60px' }}
-                placeholder="Notas en markdown (opcional)"
-                value={item.detalle || ''}
-                onChange={(event) => handleRubricChange(index, 'detalle', event.target.value)}
-              />
-              <input
-                style={styles.rubricNumberStyle}
-                type="number"
-                min="0"
-                max="100"
-                step="0.5"
-                value={item.peso}
-                onChange={(event) => handleRubricChange(index, 'peso', event.target.value)}
-              />
-              <button
-                type="button"
-                style={{ ...styles.smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
-                onClick={() => setRubricItems((prev) => prev.filter((_, i) => i !== index))}
-                disabled={rubricSaving || index === 0}
-                title={index === 0 ? 'El primer criterio no se puede eliminar' : 'Eliminar criterio'}
-              >
-                X
-              </button>
-            </div>
-          ))}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button type="button" style={styles.smallButton} onClick={handleAddRubricItem} disabled={rubricSaving}>
-              Añadir criterio
-            </button>
-            <button type="button" style={styles.smallButton} onClick={handleSaveRubric} disabled={rubricSaving}>
-              {rubricSaving ? 'Guardando...' : 'Guardar rúbrica'}
-            </button>
-            <button
-              type="button"
-              style={{ ...styles.smallButton, background: '#ffecec', color: '#b91c1c', borderColor: '#b91c1c' }}
-              onClick={() => setRubricTarget(null)}
-              disabled={rubricSaving}
-            >
-              Cerrar
-            </button>
-          </div>
-          {rubricError && <p style={styles.errorStyle}>{rubricError}</p>}
-        </div>
-      )}
+      <RubricModal
+        isOpen={Boolean(rubricTarget)}
+        rubricTarget={rubricTarget}
+        rubricItems={rubricItems}
+        rubricSaving={rubricSaving}
+        rubricError={rubricError}
+        onClose={() => setRubricTarget(null)}
+        onAddItem={handleAddRubricItem}
+        onSave={handleSaveRubric}
+        onChangeItem={handleRubricChange}
+        onRemoveItem={(index) => setRubricItems((prev) => prev.filter((_, i) => i !== index))}
+        styles={styles}
+      />
     </section>
   );
 }

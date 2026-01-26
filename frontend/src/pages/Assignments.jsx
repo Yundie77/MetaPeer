@@ -5,6 +5,7 @@ import AssignModal from './assignments/AssignModal.jsx';
 import ReassignConfirmModal from './assignments/ReassignConfirmModal.jsx';
 import AssignmentSummaryModal from './assignments/AssignmentSummaryModal.jsx';
 import RubricModal from './assignments/RubricModal.jsx';
+import CreateAssignmentModal from './assignments/CreateAssignmentModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
 import * as styles from './assignments/styles.js';
 
@@ -23,6 +24,8 @@ export default function Assignments() {
   const [description, setDescription] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [subjectId, setSubjectId] = useState('');
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const [rubricTarget, setRubricTarget] = useState(null);
   const [rubricItems, setRubricItems] = useState([]);
@@ -98,6 +101,16 @@ const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
 
 const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
 const fileInputsRef = useRef({});
+// Se recalcula al cambiar "assignments" o "subjectId"
+const filteredAssignments = useMemo(() => {
+  if (!subjectId) return assignments;
+  return assignments.filter((assignment) => String(assignment.id_asignatura) === String(subjectId));
+}, [assignments, subjectId]);
+const selectedSubjectLabel = useMemo(() => {
+  if (!subjectId) return '';
+  const match = subjects.find((subject) => String(subject.id) === String(subjectId));
+  return match?.nombre || '';
+}, [subjects, subjectId]);
 
   /**
    * Carga inicial de tareas y asignaturas para profesores.
@@ -135,19 +148,21 @@ const fileInputsRef = useRef({});
    * Crea una nueva tarea desde el formulario.
    */
   const handleCreate = async (event) => {
-    event.preventDefault();
+    if (event?.preventDefault) {
+      event.preventDefault();
+    }
     if (!title.trim()) {
-      setError('El título es obligatorio.');
+      setCreateError('El título es obligatorio.');
       return;
     }
     if (!subjectId) {
-      setError('Selecciona una asignatura.');
+      setCreateError('Selecciona una asignatura.');
       return;
     }
 
     try {
       setSaving(true);
-      setError('');
+      setCreateError('');
       const created = await postJson('/assignments', {
         titulo: title.trim(),
         descripcion: description.trim(),
@@ -158,8 +173,9 @@ const fileInputsRef = useRef({});
       setTitle('');
       setDescription('');
       setDueDate('');
+      setCreateModalOpen(false);
     } catch (err) {
-      setError(err.message);
+      setCreateError(err.message);
     } finally {
       setSaving(false);
     }
@@ -579,66 +595,45 @@ const fileInputsRef = useRef({});
         Crea tareas, define rúbricas y lanza la asignación automática de revisores.
       </p>
 
-      <form onSubmit={handleCreate} style={styles.formStyle}>
+      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', margin: '1rem 0' }}>
         <label style={styles.labelStyle}>
           Asignatura
           <select
             style={styles.inputStyle}
             value={subjectId}
             onChange={(event) => setSubjectId(event.target.value)}
-            disabled={loadingList || saving || subjects.length === 0}
+            disabled={loadingList || subjects.length === 0}
           >
-              {subjects.map((subject) => (
-                <option key={subject.id} value={subject.id}>
-                  {subject.nombre}
-                </option>
-              ))}
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.nombre}
+              </option>
+            ))}
           </select>
+          <span style={styles.metaStyle}>Seleccione una asignatura para ver las tareas correspondientes.</span>
         </label>
-        <label style={styles.labelStyle}>
-          Título
-          <input
-            style={styles.inputStyle}
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
-            disabled={saving}
-            placeholder="Ej: Proyecto 1"
-          />
-        </label>
-        <label style={styles.labelStyle}>
-          Descripción (opcional)
-          <textarea
-            style={{ ...styles.inputStyle, minHeight: '72px' }}
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            disabled={saving}
-            placeholder="Notas para el profesorado o el alumnado"
-          />
-        </label>
-        <label style={styles.labelStyle}>
-          Fecha de entrega
-          <input
-            style={styles.inputStyle}
-            type="date"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-            disabled={saving}
-          />
-        </label>
-        <button type="submit" style={styles.buttonStyle} disabled={saving}>
-          {saving ? 'Creando...' : 'Crear tarea'}
+        <button
+          type="button"
+          style={styles.buttonStyle}
+          onClick={() => {
+            setCreateModalOpen(true);
+            setCreateError('');
+          }}
+          disabled={subjects.length === 0}
+        >
+          Crear tarea
         </button>
-      </form>
+      </div>
 
       {error && <p style={styles.errorStyle}>{error}</p>}
       {uploadMessage && <p style={styles.successStyle}>{uploadMessage}</p>}
       {loadingList ? (
         <p>Cargando tareas...</p>
-      ) : assignments.length === 0 ? (
-        <p>No hay asignaciones aún.</p>
+      ) : filteredAssignments.length === 0 ? (
+        <p>No hay asignaciones para esta asignatura.</p>
       ) : (
         <ul style={styles.listStyle}>
-          {assignments.map((assignment) => (
+          {filteredAssignments.map((assignment) => (
             <AssignmentCard
               key={assignment.id}
               assignment={assignment}
@@ -660,6 +655,25 @@ const fileInputsRef = useRef({});
           ))}
         </ul>
       )}
+
+      <CreateAssignmentModal
+        isOpen={createModalOpen}
+        subjectLabel={selectedSubjectLabel}
+        title={title}
+        description={description}
+        dueDate={dueDate}
+        saving={saving}
+        error={createError}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setCreateError('');
+        }}
+        onSubmit={handleCreate}
+        onTitleChange={setTitle}
+        onDescriptionChange={setDescription}
+        onDueDateChange={setDueDate}
+        styles={styles}
+      />
 
       <AssignmentSummaryModal
         isOpen={summaryModalOpen}

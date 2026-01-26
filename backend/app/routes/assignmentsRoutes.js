@@ -43,7 +43,7 @@ router.get('/api/assignments', requireAuth(), (_req, res) => {
         FROM tarea t
         LEFT JOIN asignacion a ON a.id_tarea = t.id
         WHERE t.titulo NOT LIKE ?
-        ORDER BY t.fecha_entrega IS NULL, t.fecha_entrega DESC, t.id DESC
+        ORDER BY t.id DESC
       `
       )
       .all(`${ROSTER_PREFIX}%`);
@@ -190,6 +190,32 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
       return sendError(res, 400, 'Debes enviar al menos un ítem de rúbrica.');
     }
 
+    const normalizedItems = items.map((item, index) => {
+      const clave = (item.clave || item.key || `item_${index + 1}`).trim();
+      const texto = (item.texto || item.label || item.descripcion || '').trim();
+      const pesoRaw = item.peso ?? item.weight;
+      const pesoNumber = Number(pesoRaw);
+      const peso = Number.isFinite(pesoNumber) ? pesoNumber : 0;
+      const tipo = item.tipo || 'numero';
+      const obligatorio = item.obligatorio ? 1 : 0;
+
+      return {
+        clave,
+        texto: texto || `Criterio ${index + 1}`,
+        peso,
+        tipo,
+        obligatorio,
+        minimo: item.minimo ?? null,
+        maximo: item.maximo ?? null,
+        orden: index + 1
+      };
+    });
+
+    const totalPeso = normalizedItems.reduce((acc, item) => acc + (Number(item.peso) || 0), 0);
+    if (Math.abs(totalPeso - 100) > 0.001) {
+      return sendError(res, 400, 'La suma de los pesos debe ser exactamente 100.');
+    }
+
     const assignmentRecordId = ensureAssignmentRecord(assignmentId);
     db.prepare('DELETE FROM rubrica_items WHERE id_asignacion = ?').run(assignmentRecordId);
 
@@ -199,24 +225,18 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
     `);
 
     const tx = db.transaction(() => {
-      items.forEach((item, index) => {
-        const clave = (item.clave || item.key || `item_${index + 1}`).trim();
-        const texto = (item.texto || item.label || item.descripcion || '').trim();
-        const peso = Number(item.peso ?? item.weight ?? 1) || 1;
-        const tipo = item.tipo || 'numero';
-        const obligatorio = item.obligatorio ? 1 : 0;
-
+      normalizedItems.forEach((item) => {
         insertItem.run(
           assignmentRecordId,
           'Rúbrica general',
-          clave,
-          texto || `Criterio ${index + 1}`,
-          tipo,
-          peso,
-          obligatorio,
-          item.minimo ?? null,
-          item.maximo ?? null,
-          index + 1
+          item.clave,
+          item.texto,
+          item.tipo,
+          item.peso,
+          item.obligatorio,
+          item.minimo,
+          item.maximo,
+          item.orden
         );
       });
     });

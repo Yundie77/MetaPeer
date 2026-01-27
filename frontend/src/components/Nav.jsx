@@ -56,7 +56,16 @@ export default function Nav({ onNavigate, currentPath }) {
         ))}
       </div>
       <div style={userStyle}>
-        <span>{user?.nombre}</span>
+        <button
+          type="button"
+          onClick={() => handleClick('/profile')}
+          style={profileButtonStyle(currentPath === '/profile')}
+        >
+          <span style={profileIconStyle} aria-hidden="true">
+            👤
+          </span>
+          <span>{user?.nombre || 'Perfil'}</span>
+        </button>
         <button type="button" style={logoutStyle} onClick={logout}>
           Salir
         </button>
@@ -100,6 +109,24 @@ const userStyle = {
   alignItems: 'center',
   gap: '0.5rem',
   fontSize: '0.9rem'
+};
+
+const profileButtonStyle = (active) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.35rem',
+  background: active ? '#61dafb' : '#313640',
+  color: active ? '#000' : '#fff',
+  border: active ? '1px solid #61dafb' : '1px solid #424650',
+  padding: '0.35rem 0.65rem',
+  borderRadius: '6px',
+  cursor: 'pointer',
+  fontWeight: 700
+});
+
+const profileIconStyle = {
+  fontSize: '1rem',
+  lineHeight: 1
 };
 
 const buttonStyle = (active) => ({

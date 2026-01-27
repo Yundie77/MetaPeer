@@ -12,6 +12,7 @@ const assignmentsRoutes = require('./app/routes/assignmentsRoutes');
 const submissionsRoutes = require('./app/routes/submissionsRoutes');
 const reviewsRoutes = require('./app/routes/reviewsRoutes');
 const exportRoutes = require('./app/routes/exportRoutes');
+const profileRoutes = require('./app/routes/profileRoutes');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
 seedDatabase();
@@ -33,6 +34,7 @@ app.use(assignmentsRoutes);
 app.use(submissionsRoutes);
 app.use(reviewsRoutes);
 app.use(exportRoutes);
+app.use(profileRoutes);
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada.' });

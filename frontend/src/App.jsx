@@ -11,6 +11,7 @@ import Professors from './pages/Professors.jsx';
 import Feedback from './pages/Feedback.jsx';
 import Export from './pages/Export.jsx';
 import Login from './pages/Login.jsx';
+import Profile from './pages/Profile.jsx';
 
 const currentRoute = () => `${window.location.pathname}${window.location.search}`;
 
@@ -80,6 +81,9 @@ function renderContent(pathname, role) {
   }
   if (pathname === '/export') {
     return <Export />;
+  }
+  if (pathname === '/profile') {
+    return <Profile />;
   }
   if (role === 'ADMIN' || role === 'PROF' || role === 'ALUM') {
     return <p>Página no encontrada.</p>;

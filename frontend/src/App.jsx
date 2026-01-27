@@ -3,7 +3,6 @@ import { useAuth } from './auth/AuthContext.jsx';
 import ProtectedRoute from './auth/ProtectedRoute.jsx';
 import Nav from './components/Nav.jsx';
 import Assignments from './pages/Assignments.jsx';
-import Submissions from './pages/Submissions.jsx';
 import Reviews from './pages/Reviews.jsx';
 import AdminDB from './pages/AdminDB.jsx';
 import Subjects from './pages/Subjects.jsx';
@@ -65,7 +64,7 @@ function renderContent(pathname, role) {
     if (role === 'ALUM') {
       return <p>Las entregas ahora las sube el profesorado. Consulta la sección de Tareas.</p>;
     }
-    return <Submissions />;
+    return <Assignments />;
   }
   if (pathname === '/reviews') {
     return <Reviews />;

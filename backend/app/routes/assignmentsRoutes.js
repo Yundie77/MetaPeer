@@ -20,33 +20,64 @@ const router = express.Router();
 /**
  * Lista todas las tareas (excepto roster) con metadatos de asignación.
  */
-router.get('/api/assignments', requireAuth(), (_req, res) => {
+router.get('/api/assignments', requireAuth(), (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `
-        SELECT t.id,
-               t.id_asignatura,
-               t.titulo,
-               t.descripcion,
-               t.fecha_entrega,
-               t.estado,
-               t.revisores_por_entrega,
-               COALESCE(a.modo, 'equipo') AS asignacion_modo,
-               a.revisores_por_entrega AS asignacion_revisores_por_entrega,
-               CASE
-                 WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
-                 ELSE COALESCE(a.bloqueada, 0)
-               END AS asignacion_bloqueada,
-               a.fecha_asignacion AS asignacion_fecha_asignacion,
-               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
-        FROM tarea t
-        LEFT JOIN asignacion a ON a.id_tarea = t.id
-        WHERE t.titulo NOT LIKE ?
-        ORDER BY t.id DESC
-      `
-      )
-      .all(`${ROSTER_PREFIX}%`);
+    const rosterLike = `${ROSTER_PREFIX}%`;
+    const isProf = req.user?.rol === 'PROF';
+    const rows = isProf
+      ? db
+          .prepare(
+            `
+            SELECT t.id,
+                   t.id_asignatura,
+                   t.titulo,
+                   t.descripcion,
+                   t.fecha_entrega,
+                   t.estado,
+                   t.revisores_por_entrega,
+                   COALESCE(a.modo, 'equipo') AS asignacion_modo,
+                   a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+                   CASE
+                     WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                     ELSE COALESCE(a.bloqueada, 0)
+                   END AS asignacion_bloqueada,
+                   a.fecha_asignacion AS asignacion_fecha_asignacion,
+                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+            FROM tarea t
+            LEFT JOIN asignacion a ON a.id_tarea = t.id
+            JOIN usuario_asignatura ua
+              ON ua.id_asignatura = t.id_asignatura
+             AND ua.id_usuario = ?
+            WHERE t.titulo NOT LIKE ?
+            ORDER BY t.id DESC
+          `
+          )
+          .all(req.user.id, rosterLike)
+      : db
+          .prepare(
+            `
+            SELECT t.id,
+                   t.id_asignatura,
+                   t.titulo,
+                   t.descripcion,
+                   t.fecha_entrega,
+                   t.estado,
+                   t.revisores_por_entrega,
+                   COALESCE(a.modo, 'equipo') AS asignacion_modo,
+                   a.revisores_por_entrega AS asignacion_revisores_por_entrega,
+                   CASE
+                     WHEN EXISTS (SELECT 1 FROM revision rev WHERE rev.id_asignacion = a.id) THEN 1
+                     ELSE COALESCE(a.bloqueada, 0)
+                   END AS asignacion_bloqueada,
+                   a.fecha_asignacion AS asignacion_fecha_asignacion,
+                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+            FROM tarea t
+            LEFT JOIN asignacion a ON a.id_tarea = t.id
+            WHERE t.titulo NOT LIKE ?
+            ORDER BY t.id DESC
+          `
+          )
+          .all(rosterLike);
 
     res.json(rows);
   } catch (error) {

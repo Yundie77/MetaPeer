@@ -10,7 +10,7 @@ const { sendError, safeNumber, ensureRevisionPermission } = require('../../helpe
 
 const router = express.Router();
 
-router.post('/api/reviews/:revisionId/comments', requireAuth(), async (req, res) => {
+router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
     const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();

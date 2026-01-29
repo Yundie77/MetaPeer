@@ -30,17 +30,30 @@ router.post('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   }
 });
 
-router.get('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (_req, res) => {
+router.get('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `
-        SELECT id, nombre
-        FROM asignatura
-        ORDER BY nombre
-      `
-      )
-      .all();
+    const isProf = req.user?.rol === 'PROF';
+    const rows = isProf
+      ? db
+          .prepare(
+            `
+            SELECT a.id, a.nombre
+            FROM asignatura a
+            JOIN usuario_asignatura ua ON ua.id_asignatura = a.id
+            WHERE ua.id_usuario = ?
+            ORDER BY a.nombre
+          `
+          )
+          .all(req.user.id)
+      : db
+          .prepare(
+            `
+            SELECT id, nombre
+            FROM asignatura
+            ORDER BY nombre
+          `
+          )
+          .all();
 
     res.json(rows);
   } catch (error) {

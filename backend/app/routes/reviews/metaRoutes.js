@@ -73,8 +73,18 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
       return sendError(res, 404, 'La revisión no existe.');
     }
 
-    const notaCalidad = req.body?.nota_calidad !== undefined ? Number(req.body.nota_calidad) : null;
+    const rawNota = req.body?.nota_calidad;
+    const notaCalidad = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
     const observacion = (req.body?.observacion || '').trim();
+
+    if (notaCalidad !== null) {
+      if (!Number.isFinite(notaCalidad)) {
+        return sendError(res, 400, 'La nota de calidad no es válida.');
+      }
+      if (notaCalidad < 0 || notaCalidad > 10) {
+        return sendError(res, 400, 'La nota de calidad debe estar entre 0 y 10.');
+      }
+    }
 
     const existing = db.prepare('SELECT id FROM meta_revision WHERE id_revision = ?').get(reviewId);
 

@@ -26,6 +26,12 @@ const splitLabelDetail = (texto = '') => {
   };
 };
 
+const noteHelpStyle = {
+  fontSize: '0.78rem',
+  color: '#666',
+  fontWeight: 500
+};
+
 export default function StudentReviews({ user }) {
   const [tasks, setTasks] = useState([]);
   const [selected, setSelected] = useState(null);
@@ -126,6 +132,30 @@ export default function StudentReviews({ user }) {
       setError('Selecciona una revisión primero.');
       return;
     }
+    const parsedGrade = grade !== '' ? Number(grade) : null;
+    if (parsedGrade !== null) {
+      if (!Number.isFinite(parsedGrade)) {
+        setError('La nota global no es válida.');
+        return;
+      }
+      if (parsedGrade < 0 || parsedGrade > 10) {
+        setError('La nota global debe estar entre 0 y 10.');
+        return;
+      }
+    }
+
+    for (const [clave, value] of Object.entries(scores || {})) {
+      if (value === '' || value === null || value === undefined) continue;
+      const parsed = Number(value);
+      if (!Number.isFinite(parsed)) {
+        setError(`La nota de la rúbrica (${clave}) no es válida.`);
+        return;
+      }
+      if (parsed < 0 || parsed > 10) {
+        setError(`La nota de la rúbrica (${clave}) debe estar entre 0 y 10.`);
+        return;
+      }
+    }
     try {
       setSaving(true);
       setError('');
@@ -135,7 +165,7 @@ export default function StudentReviews({ user }) {
         reviewerUserId: user.id,
         respuestasJson: scores,
         comentario: comment,
-        notaNumerica: grade ? Number(grade) : null
+        notaNumerica: parsedGrade
       });
       setSuccess('Revisión guardada correctamente.');
     } catch (err) {
@@ -191,10 +221,13 @@ export default function StudentReviews({ user }) {
                             {splitLabelDetail(item.texto).detail}
                           </small>
                         )}
+                        <small style={noteHelpStyle}>0-10</small>
                         <input
                           style={inputStyle}
                           type="number"
                           step="0.5"
+                          min="0"
+                          max="10"
                           value={scores[item.clave_item] ?? ''}
                           onChange={(event) => handleScoreChange(item.clave_item, event.target.value)}
                         />
@@ -204,10 +237,13 @@ export default function StudentReviews({ user }) {
                 )}
                 <label style={labelStyle}>
                   Nota global
+                  <small style={noteHelpStyle}>0-10</small>
                   <input
                     style={inputStyle}
                     type="number"
                     step="0.5"
+                    min="0"
+                    max="10"
                     value={grade}
                     onChange={(event) => setGrade(event.target.value)}
                   />

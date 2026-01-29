@@ -21,7 +21,28 @@ function getUserById(userId) {
     .get(userId);
 }
 
-function listRelevantAssignments(userId) {
+function listRelevantAssignments(user) {
+  if (!user) {
+    return [];
+  }
+  if (user.rol === 'ADMIN') {
+    return db
+      .prepare(
+        `
+        SELECT
+          t.id,
+          t.titulo,
+          t.id_asignatura,
+          a.nombre AS asignatura_nombre
+        FROM tarea t
+        LEFT JOIN asignatura a ON a.id = t.id_asignatura
+        WHERE t.titulo NOT LIKE ?
+        ORDER BY t.id DESC
+      `
+      )
+      .all(ROSTER_LIKE);
+  }
+
   return db
     .prepare(
       `
@@ -32,15 +53,26 @@ function listRelevantAssignments(userId) {
         a.nombre AS asignatura_nombre
       FROM tarea t
       LEFT JOIN asignatura a ON a.id = t.id_asignatura
-      LEFT JOIN usuario_asignatura ua
+      JOIN usuario_asignatura ua
         ON ua.id_asignatura = t.id_asignatura
        AND ua.id_usuario = @userId
       WHERE t.titulo NOT LIKE @rosterLike
-        AND (t.creado_por = @userId OR ua.id_usuario IS NOT NULL)
       ORDER BY t.id DESC
     `
     )
-    .all({ userId, rosterLike: ROSTER_LIKE });
+    .all({ userId: user.id, rosterLike: ROSTER_LIKE });
+}
+
+function listAllSubjects() {
+  return db
+    .prepare(
+      `
+      SELECT id, nombre
+      FROM asignatura
+      ORDER BY nombre
+    `
+    )
+    .all();
 }
 
 // Si ids = [3, 7, 9] devuelve: ?, ?, ?
@@ -349,8 +381,8 @@ function buildProfilePayload(userId) {
     return null;
   }
 
-  const subjects = getProfessorSubjects(userId) || [];
-  const relevantAssignments = listRelevantAssignments(userId);
+  const subjects = user.rol === 'ADMIN' ? listAllSubjects() : getProfessorSubjects(userId) || [];
+  const relevantAssignments = listRelevantAssignments(user);
   const assignmentIds = relevantAssignments.map((row) => row.id);
   const assignmentRecords = listAssignmentRecords(assignmentIds);
   const assignmentRecordIds = assignmentRecords.map((row) => row.asignacion_id);

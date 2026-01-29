@@ -668,6 +668,10 @@ export default function ReviewViewer({
       return;
     }
     const notaValid = notaValue !== null && Number.isFinite(notaValue);
+    if (notaValid && (notaValue < 0 || notaValue > 10)) {
+      setMetaReviewError('La nota de calidad debe estar entre 0 y 10.');
+      return;
+    }
     const observacionValue = metaReview.observacion ? metaReview.observacion.trim() : '';
 
     if (!notaValid && !observacionValue) {
@@ -871,10 +875,13 @@ export default function ReviewViewer({
                   <div style={metaReviewFields}>
                     <label style={labelStyle}>
                       Nota de calidad
+                      <small style={miniMeta}>0-10</small>
                       <input
                         style={inputStyle}
                         type="number"
                         step="0.5"
+                        min="0"
+                        max="10"
                         value={metaReview.nota}
                         onChange={(event) =>
                           setMetaReview((prev) => ({ ...prev, nota: event.target.value }))

@@ -11,7 +11,8 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
     const reviewerUserId = safeNumber(req.body?.reviewerUserId) || req.user.id;
     const respuestasJson = req.body?.respuestasJson || req.body?.respuestas || null;
     const comentario = (req.body?.comentario || req.body?.comentarioExtra || '').trim();
-    const notaNumerica = req.body?.notaNumerica !== undefined ? Number(req.body.notaNumerica) : null;
+    const rawNota = req.body?.notaNumerica;
+    const notaNumerica = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
 
     if (!submissionId) {
       return sendError(res, 400, 'Debes indicar submissionId.');
@@ -19,6 +20,15 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
 
     if (reviewerUserId !== req.user.id) {
       return sendError(res, 403, 'Solo puedes completar tus propias revisiones.');
+    }
+
+    if (notaNumerica !== null) {
+      if (!Number.isFinite(notaNumerica)) {
+        return sendError(res, 400, 'La nota numérica no es válida.');
+      }
+      if (notaNumerica < 0 || notaNumerica > 10) {
+        return sendError(res, 400, 'La nota numérica debe estar entre 0 y 10.');
+      }
     }
 
     const revision = db
@@ -38,13 +48,35 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       return sendError(res, 404, 'No tienes una revisión asignada para esta entrega.');
     }
 
+    let respuestasPayload = respuestasJson;
+    if (typeof respuestasPayload === 'string') {
+      try {
+        respuestasPayload = JSON.parse(respuestasPayload);
+      } catch (_error) {
+        return sendError(res, 400, 'Las respuestas de la rúbrica no son válidas.');
+      }
+    }
+
+    if (respuestasPayload && typeof respuestasPayload === 'object' && !Array.isArray(respuestasPayload)) {
+      for (const [clave, value] of Object.entries(respuestasPayload)) {
+        if (value === '' || value === null || value === undefined) continue;
+        const parsed = Number(value);
+        if (!Number.isFinite(parsed)) {
+          return sendError(res, 400, `La nota de la rúbrica (${clave}) no es válida.`);
+        }
+        if (parsed < 0 || parsed > 10) {
+          return sendError(res, 400, `La nota de la rúbrica (${clave}) debe estar entre 0 y 10.`);
+        }
+      }
+    }
+
     db.prepare(
       `
       UPDATE revision
       SET respuestas_json = ?, nota_numerica = ?, comentario_extra = ?, fecha_envio = datetime('now')
       WHERE id = ?
     `
-    ).run(respuestasJson ? JSON.stringify(respuestasJson) : null, notaNumerica, comentario || null, revision.id);
+    ).run(respuestasPayload ? JSON.stringify(respuestasPayload) : null, notaNumerica, comentario || null, revision.id);
 
     const updated = db
       .prepare(

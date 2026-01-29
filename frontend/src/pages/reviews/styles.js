@@ -226,3 +226,99 @@ export const splitHandle = {
   borderRadius: "6px",
   flex: "0 0 auto",
 };
+
+export const metaReviewPanel = {
+  border: "1px solid #dadada",
+  borderRadius: "8px",
+  padding: "1rem",
+  background: "#fff",
+  marginTop: "1rem",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.75rem",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+export const miniMeta = {
+  fontSize: "0.85rem",
+  color: "#555",
+};
+
+export const statusList = {
+  listStyle: "none",
+  padding: 0,
+  margin: "0.75rem 0 0",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.75rem",
+};
+
+export const statusItem = {
+  padding: "0.75rem",
+  borderRadius: "8px",
+  border: "1px solid #e5e7eb",
+  background: "#fff",
+  display: "flex",
+  gap: "1rem",
+  justifyContent: "space-between",
+  alignItems: "center",
+  flexWrap: "wrap",
+};
+
+export const statusBadge = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: "0.3rem",
+  borderRadius: "999px",
+  padding: "0.2rem 0.6rem",
+  fontSize: "0.78rem",
+  fontWeight: 700,
+};
+
+export const statusBadgePending = {
+  ...statusBadge,
+  background: "#fef3c7",
+  color: "#92400e",
+  border: "1px solid #f59e0b",
+};
+
+export const statusBadgeSubmitted = {
+  ...statusBadge,
+  background: "#dbeafe",
+  color: "#1e40af",
+  border: "1px solid #60a5fa",
+};
+
+export const statusBadgeGraded = {
+  ...statusBadge,
+  background: "#dcfce7",
+  color: "#166534",
+  border: "1px solid #22c55e",
+};
+
+export const statusActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+export const linkPill = {
+  background: "#eef2ff",
+  color: "#1e3a8a",
+  padding: "0.2rem 0.6rem",
+  borderRadius: "999px",
+  fontSize: "0.8rem",
+  border: "1px solid #c7d2fe",
+  textDecoration: "none",
+  fontWeight: 600,
+  cursor: "pointer",
+};
+
+export const metaReviewFields = {
+  display: "grid",
+  gap: "0.75rem",
+  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  marginTop: "0.75rem",
+};

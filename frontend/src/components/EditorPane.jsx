@@ -42,7 +42,8 @@ export default function EditorPane({
   commentsByLine = new Map(),
   onAddComment,
   revisionId,
-  fileId
+  fileId,
+  readOnly = false
 }) {
   const containerRef = useRef(null);
   const viewRef = useRef(null);
@@ -208,7 +209,7 @@ export default function EditorPane({
     if (!lineNumber) return;
     const doc = viewRef.current?.state?.doc;
     if (doc && !getValidLine(doc, lineNumber)) return;
-    const url = buildPermalink({ path, line: lineNumber, revisionId, fileId });
+    const url = buildPermalink({ path, line: lineNumber, revisionId, fileId, useRevisionId: readOnly });
     await navigator.clipboard.writeText(url);
     closeMenu();
   };
@@ -217,6 +218,7 @@ export default function EditorPane({
    * Notifica hacia arriba la creación de un comentario en la línea seleccionada.
    */
   const addComment = (text) => {
+    if (readOnly) return;
     if (onAddComment && menu.line) {
       const doc = viewRef.current?.state?.doc;
       if (doc && !getValidLine(doc, menu.line)) return;
@@ -340,6 +342,7 @@ export default function EditorPane({
           onCopyPermalink={copyPermalink}
           onAddComment={addComment}
           onClose={closeMenu}
+          allowComment={!readOnly}
         />
       </div>
     </EditorErrorBoundary>

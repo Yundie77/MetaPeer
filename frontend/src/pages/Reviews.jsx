@@ -10,6 +10,8 @@ export default function Reviews() {
   const isStudent = useMemo(() => role === 'ALUM', [role]);
   const isReviewer = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
   const { revisionId } = readFromURL();
+  const params = new URLSearchParams(window.location.search);
+  const hasRevisionIdParam = params.has('revisionId');
 
   if (isReviewer && revisionId) {
     return (
@@ -26,6 +28,25 @@ export default function Reviews() {
           Volver a Revisiones
         </button>
         <ReviewViewer revisionId={revisionId} />
+      </section>
+    );
+  }
+
+  if (isStudent && revisionId && hasRevisionIdParam) {
+    return (
+      <section>
+        <h2>Revisión puntual</h2>
+        <button
+          type="button"
+          style={backButtonStyle}
+          onClick={() => {
+            window.history.pushState({}, '', '/reviews');
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }}
+        >
+          Volver a Revisiones
+        </button>
+        <ReviewViewer revisionId={revisionId} readOnly />
       </section>
     );
   }

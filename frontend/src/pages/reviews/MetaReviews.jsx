@@ -1,31 +1,50 @@
-import React, { useEffect, useState } from 'react';
-import { getJson, postJson } from '../../api.js';
+import React, { useEffect, useMemo, useState } from 'react';
+import { getJson } from '../../api.js';
 import {
   panelStyle,
   labelStyle,
   inputStyle,
-  buttonStyle,
   errorStyle,
-  successStyle,
-  listStyle,
-  metaCardStyle,
-  metaInfoStyle
+  statusList,
+  statusItem,
+  statusActions,
+  statusBadgePending,
+  statusBadgeSubmitted,
+  statusBadgeGraded,
+  linkPill,
+  miniMeta
 } from './styles.js';
+
+const formatDate = (value) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+};
+
+const resolveStatus = (review) => {
+  if (!review?.submittedAt) {
+    return { label: 'Pendiente', style: statusBadgePending };
+  }
+  if (review.grade !== null && review.grade !== undefined) {
+    return { label: 'Con nota', style: statusBadgeGraded };
+  }
+  return { label: 'Enviada', style: statusBadgeSubmitted };
+};
 
 export default function MetaReviews() {
   const [assignments, setAssignments] = useState([]);
   const [assignmentId, setAssignmentId] = useState('');
-  const [mapData, setMapData] = useState([]);
+  const [reviews, setReviews] = useState([]);
   const [loadingAssignments, setLoadingAssignments] = useState(true);
   const [loadingReviews, setLoadingReviews] = useState(false);
   const [error, setError] = useState('');
-  const [metaInputs, setMetaInputs] = useState({});
-  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     const loadAssignments = async () => {
       try {
         setLoadingAssignments(true);
+        setError('');
         const data = await getJson('/assignments');
         setAssignments(data);
         if (data.length > 0) {
@@ -42,7 +61,7 @@ export default function MetaReviews() {
 
   useEffect(() => {
     if (!assignmentId) {
-      setMapData([]);
+      setReviews([]);
       return;
     }
 
@@ -50,20 +69,11 @@ export default function MetaReviews() {
       try {
         setLoadingReviews(true);
         setError('');
-        setSuccess('');
-        const map = await getJson(`/assignments/${assignmentId}/assignment-map`);
-        const pairs = map.pairs || [];
-
-        const reviewDetails = [];
-        for (const pair of pairs) {
-          for (const submissionId of pair.entregas) {
-            const reviews = await getJson(`/reviews?submissionId=${submissionId}`);
-            reviewDetails.push(...reviews);
-          }
-        }
-        setMapData(reviewDetails);
+        const summary = await getJson(`/assignments/${assignmentId}/assignment-summary`);
+        setReviews(summary?.reviews || []);
       } catch (err) {
         setError(err.message);
+        setReviews([]);
       } finally {
         setLoadingReviews(false);
       }
@@ -72,43 +82,24 @@ export default function MetaReviews() {
     loadReviews();
   }, [assignmentId]);
 
-  const handleMetaChange = (reviewId, field, value) => {
-    setMetaInputs((prev) => ({
-      ...prev,
-      [reviewId]: {
-        ...(prev[reviewId] || {}),
-        [field]: value
-      }
-    }));
+  const openReview = (reviewId) => {
+    if (!reviewId) return;
+    window.history.pushState({}, '', `/reviews?revisionId=${reviewId}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
   };
 
-  const handleSubmitMeta = async (reviewId) => {
-    const payload = metaInputs[reviewId];
-    if (!payload || (!payload.nota && !payload.observacion)) {
-      setError('Ingrese al menos una nota u observación para la meta-revisión.');
-      return;
-    }
-    try {
-      await postJson(`/reviews/${reviewId}/meta`, {
-        nota_calidad: payload.nota ? Number(payload.nota) : null,
-        observacion: payload.observacion || ''
-      });
-      setSuccess('Meta-revisión guardada.');
-    } catch (err) {
-      setError(err.message);
-    }
-  };
+  const hasAssignments = useMemo(() => assignments.length > 0, [assignments]);
 
   return (
     <div style={{ ...panelStyle, marginTop: '2rem' }}>
-      <h3>Meta-evaluación</h3>
+      <h3>Revisiones</h3>
       <label style={labelStyle}>
         Tarea
         <select
           style={inputStyle}
           value={assignmentId}
           onChange={(event) => setAssignmentId(event.target.value)}
-          disabled={loadingAssignments}
+          disabled={loadingAssignments || !hasAssignments}
         >
           {assignments.map((assignment) => (
             <option key={assignment.id} value={assignment.id}>
@@ -119,47 +110,38 @@ export default function MetaReviews() {
       </label>
 
       {error && <p style={errorStyle}>{error}</p>}
-      {success && <p style={successStyle}>{success}</p>}
 
       {loadingReviews ? (
         <p>Cargando revisiones...</p>
-      ) : mapData.length === 0 ? (
-        <p>No hay revisiones registradas para esta tarea.</p>
+      ) : reviews.length === 0 ? (
+        <p style={miniMeta}>No hay revisiones registradas para esta tarea.</p>
       ) : (
-        <ul style={listStyle}>
-          {mapData.map((review) => (
-            <li key={review.id} style={metaCardStyle}>
-              <div>
-                <strong>Revisión #{review.id}</strong>
-                <div style={metaInfoStyle}>
-                  Nota enviada: {review.nota_numerica ?? 'sin nota'} · Guardada el {review.fecha_envio || 'sin fecha'}
+        <ul style={statusList}>
+          {reviews.map((review) => {
+            const status = resolveStatus(review);
+            return (
+              <li key={review.revisionId} style={statusItem}>
+                <div>
+                  <strong>Revisión #{review.revisionId}</strong>
+                  <div style={miniMeta}>
+                    Revisor: {review.reviewerName || review.reviewerTeamName || '—'} · Equipo:{' '}
+                    {review.authorTeamName || '—'}
+                  </div>
+                  <div style={miniMeta}>
+                    Asignada: {formatDate(review.assignedAt)} · Enviada: {formatDate(review.submittedAt)}
+                    {review.grade !== null && review.grade !== undefined ? ` · Nota: ${review.grade}` : ''}
+                  </div>
+                  {review.comment ? <div style={miniMeta}>Comentario: {review.comment}</div> : null}
                 </div>
-              </div>
-              <div>
-                <label style={labelStyle}>
-                  Nota de calidad
-                  <input
-                    style={inputStyle}
-                    type="number"
-                    step="0.5"
-                    value={metaInputs[review.id]?.nota ?? ''}
-                    onChange={(event) => handleMetaChange(review.id, 'nota', event.target.value)}
-                  />
-                </label>
-                <label style={labelStyle}>
-                  Observación
-                  <textarea
-                    style={{ ...inputStyle, minHeight: '70px' }}
-                    value={metaInputs[review.id]?.observacion ?? ''}
-                    onChange={(event) => handleMetaChange(review.id, 'observacion', event.target.value)}
-                  />
-                </label>
-                <button type="button" style={buttonStyle} onClick={() => handleSubmitMeta(review.id)}>
-                  Guardar meta-revisión
-                </button>
-              </div>
-            </li>
-          ))}
+                <div style={statusActions}>
+                  <span style={status.style}>{status.label}</span>
+                  <button type="button" style={linkPill} onClick={() => openReview(review.revisionId)}>
+                    Ver revisión
+                  </button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

@@ -19,7 +19,20 @@ import {
   previewFrame,
   linkButton,
   errorStyle,
-  splitHandle
+  splitHandle,
+  metaReviewPanel,
+  miniMeta,
+  statusList,
+  statusItem,
+  statusActions,
+  statusBadgePending,
+  statusBadgeSubmitted,
+  statusBadgeGraded,
+  linkPill,
+  metaReviewFields,
+  labelStyle,
+  inputStyle,
+  successStyle
 } from './styles.js';
 import { findBestPath } from './helpers.js';
 import { buildAlias, formatRelativeTime } from '../../utils/reviewCommentFormat.js';
@@ -49,11 +62,12 @@ export default function ReviewViewer({
   initialFileId = '',
   initialPath = '',
   initialLine: presetLine = 0,
-  onFileOpened
+  onFileOpened,
+  readOnly = false
 }) {
-  const { token } = useAuth();
+  const { token, role } = useAuth();
   const [files, setFiles] = useState([]);
-  const [meta, setMeta] = useState(null);
+  const [submissionMeta, setSubmissionMeta] = useState(null);
   const [expandedPaths, setExpandedPaths] = useState(new Set());
   const [currentPath, setCurrentPath] = useState('');
   const [currentFileId, setCurrentFileId] = useState('');
@@ -77,6 +91,14 @@ export default function ReviewViewer({
   const [sidebarWidth, setSidebarWidth] = useState(180);
   const splitRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+  const [reviewInfo, setReviewInfo] = useState(null);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [metaReview, setMetaReview] = useState({ nota: '', observacion: '' });
+  const [metaReviewInfo, setMetaReviewInfo] = useState(null);
+  const [metaReviewLoading, setMetaReviewLoading] = useState(false);
+  const [metaReviewSaving, setMetaReviewSaving] = useState(false);
+  const [metaReviewError, setMetaReviewError] = useState('');
+  const [metaReviewSuccess, setMetaReviewSuccess] = useState('');
 
   useEffect(() => {
     if (!revisionId) {
@@ -111,7 +133,7 @@ export default function ReviewViewer({
   useEffect(() => {
     if (!revisionId) {
       setFiles([]);
-      setMeta(null);
+      setSubmissionMeta(null);
       setExpandedPaths(new Set());
       setCurrentPath('');
       setCurrentFileId('');
@@ -127,6 +149,14 @@ export default function ReviewViewer({
       setBinaryPreviewType('');
       setBinaryPreviewLoading(false);
       setBinaryPreviewError('');
+      setReviewInfo(null);
+      setReviewLoading(false);
+      setMetaReview({ nota: '', observacion: '' });
+      setMetaReviewInfo(null);
+      setMetaReviewLoading(false);
+      setMetaReviewSaving(false);
+      setMetaReviewError('');
+      setMetaReviewSuccess('');
       return;
     }
 
@@ -136,7 +166,7 @@ export default function ReviewViewer({
         setError('');
         const data = await getJson(`/reviews/${revisionId}/files`);
         setFiles(data.files || []);
-        setMeta({
+        setSubmissionMeta({
           zipName: data.zipName,
           submissionId: data.submissionId
         });
@@ -147,7 +177,7 @@ export default function ReviewViewer({
         setInitialLine(0);
       } catch (err) {
         setFiles([]);
-        setMeta(null);
+        setSubmissionMeta(null);
         setError(err.message);
       } finally {
         setTreeLoading(false);
@@ -164,6 +194,93 @@ export default function ReviewViewer({
     () => new Map(files.map((file) => [normalizePath(file.path), file])),
     [files]
   );
+  const canMetaReview = role === 'ADMIN' || role === 'PROF';
+
+  useEffect(() => {
+    if (!revisionId || !canMetaReview) {
+      setReviewInfo(null);
+      setReviewLoading(false);
+      setMetaReview({ nota: '', observacion: '' });
+      setMetaReviewInfo(null);
+      setMetaReviewLoading(false);
+      setMetaReviewSaving(false);
+      setMetaReviewError('');
+      setMetaReviewSuccess('');
+      return;
+    }
+    setMetaReviewError('');
+    setMetaReviewSuccess('');
+  }, [revisionId, canMetaReview]);
+
+  useEffect(() => {
+    if (!revisionId || !canMetaReview) {
+      return;
+    }
+
+    let active = true;
+    const loadMetaReview = async () => {
+      try {
+        setMetaReviewLoading(true);
+        setMetaReviewError('');
+        const data = await getJson(`/reviews/${revisionId}/meta`);
+        if (!active) return;
+        const meta = data?.meta || null;
+        setMetaReviewInfo(meta);
+        setMetaReview({
+          nota: meta?.nota_calidad ?? '',
+          observacion: meta?.observacion ?? ''
+        });
+      } catch (err) {
+        if (!active) return;
+        setMetaReviewInfo(null);
+        setMetaReviewError(err.message);
+      } finally {
+        if (active) {
+          setMetaReviewLoading(false);
+        }
+      }
+    };
+
+    loadMetaReview();
+
+    return () => {
+      active = false;
+    };
+  }, [revisionId, canMetaReview]);
+
+  useEffect(() => {
+    if (!revisionId || !submissionMeta?.submissionId || !canMetaReview) {
+      setReviewInfo(null);
+      return;
+    }
+
+    let active = true;
+
+    const loadReviewInfo = async () => {
+      try {
+        setReviewLoading(true);
+        const list = await getJson(`/reviews?submissionId=${submissionMeta.submissionId}`);
+        if (!active) return;
+        const matched = Array.isArray(list)
+          ? list.find((item) => Number(item.id) === Number(revisionId))
+          : null;
+        setReviewInfo(matched || null);
+      } catch (err) {
+        if (!active) return;
+        setReviewInfo(null);
+      } finally {
+        if (active) {
+          setReviewLoading(false);
+        }
+      }
+    };
+
+    loadReviewInfo();
+
+    return () => {
+      active = false;
+    };
+  }, [revisionId, submissionMeta?.submissionId, canMetaReview]);
 
   const commentsByLine = useMemo(() => {
     const map = new Map();
@@ -243,7 +360,8 @@ export default function ReviewViewer({
         writeToURL({
           revisionId,
           fileId: resolvedFileId,
-          line: safeLine
+          line: safeLine,
+          useRevisionId: readOnly
         });
         if (onFileOpened) {
           onFileOpened(data.path, safeLine);
@@ -254,7 +372,7 @@ export default function ReviewViewer({
         setFileLoading(false);
       }
     },
-    [revisionId, onFileOpened]
+    [revisionId, onFileOpened, readOnly]
   );
 
   /**
@@ -438,7 +556,7 @@ export default function ReviewViewer({
     if (!segPath) {
       setExpandedPaths(new Set(collectDirPaths(fileNames)));
       if (revisionId) {
-        writeToURL({ revisionId });
+        writeToURL({ revisionId, useRevisionId: readOnly });
       }
       return;
     }
@@ -454,6 +572,9 @@ export default function ReviewViewer({
    * Envía un comentario nuevo y recarga el archivo para reflejarlo.
    */
   const handleAddComment = async (line, text) => {
+    if (readOnly) {
+      return;
+    }
     if (!revisionId || !currentFileId) {
       setError('Selecciona un archivo antes de comentar.');
       return;
@@ -480,7 +601,7 @@ export default function ReviewViewer({
    * Descarga el ZIP original de la entrega con autenticación del usuario.
    */
   const handleDownloadZip = async () => {
-    if (!meta?.submissionId) return;
+    if (!submissionMeta?.submissionId) return;
     if (!token) {
       setError('Tu sesión expiró, inicia sesión nuevamente.');
       return;
@@ -488,7 +609,7 @@ export default function ReviewViewer({
     try {
       setDownloading(true);
       setError('');
-      const response = await fetch(`${API_BASE}/submissions/${meta.submissionId}/download`, {
+      const response = await fetch(`${API_BASE}/submissions/${submissionMeta.submissionId}/download`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -507,7 +628,7 @@ export default function ReviewViewer({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = meta.zipName || `entrega-${meta.submissionId}.zip`;
+      link.download = submissionMeta.zipName || `entrega-${submissionMeta.submissionId}.zip`;
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -516,6 +637,59 @@ export default function ReviewViewer({
       setError(err.message);
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const reviewStatus = useMemo(() => {
+    if (!reviewInfo?.fecha_envio) {
+      return { label: 'Pendiente', style: statusBadgePending };
+    }
+    if (reviewInfo.nota_numerica !== null && reviewInfo.nota_numerica !== undefined) {
+      return { label: 'Con nota', style: statusBadgeGraded };
+    }
+    return { label: 'Enviada', style: statusBadgeSubmitted };
+  }, [reviewInfo]);
+
+  const submittedTime = useMemo(
+    () => formatRelativeTime(reviewInfo?.fecha_envio),
+    [reviewInfo?.fecha_envio]
+  );
+
+  const metaSavedTime = useMemo(
+    () => formatRelativeTime(metaReviewInfo?.fecha_registro),
+    [metaReviewInfo?.fecha_registro]
+  );
+
+  const handleSaveMetaReview = async () => {
+    if (!revisionId) return;
+    const notaValue = metaReview.nota !== '' ? Number(metaReview.nota) : null;
+    if (metaReview.nota !== '' && !Number.isFinite(notaValue)) {
+      setMetaReviewError('La nota de calidad no es válida.');
+      return;
+    }
+    const notaValid = notaValue !== null && Number.isFinite(notaValue);
+    const observacionValue = metaReview.observacion ? metaReview.observacion.trim() : '';
+
+    if (!notaValid && !observacionValue) {
+      setMetaReviewError('Ingresa al menos una nota u observación para la meta-revisión.');
+      return;
+    }
+
+    try {
+      setMetaReviewSaving(true);
+      setMetaReviewError('');
+      setMetaReviewSuccess('');
+      await postJson(`/reviews/${revisionId}/meta`, {
+        nota_calidad: notaValid ? notaValue : null,
+        observacion: observacionValue
+      });
+      const data = await getJson(`/reviews/${revisionId}/meta`);
+      setMetaReviewInfo(data?.meta || null);
+      setMetaReviewSuccess('Meta-revisión guardada.');
+    } catch (err) {
+      setMetaReviewError(err.message);
+    } finally {
+      setMetaReviewSaving(false);
     }
   };
 
@@ -552,116 +726,201 @@ export default function ReviewViewer({
   const showBinaryLoading = fileData.isBinary && binaryPreviewLoading;
   const showBinaryError = fileData.isBinary && !!binaryPreviewError;
   const previewLabel = binaryPreviewType === 'pdf' ? 'PDF' : 'imagen';
+  const showMetaReview = canMetaReview && !readOnly;
 
   return (
-    <div style={viewerCard}>
-      <div style={viewerHeader}>
-        <strong>Archivos de la entrega</strong>
-        {meta?.submissionId && (
-          <button
-            type="button"
-            style={{
-              ...linkButton,
-              opacity: downloading ? 0.6 : 1,
-              cursor: downloading ? 'wait' : 'pointer'
-            }}
-            onClick={handleDownloadZip}
-            disabled={downloading}
-          >
-            {downloading ? 'Descargando...' : 'Descargar ZIP'}
-          </button>
+    <>
+      <div style={viewerCard}>
+        <div style={viewerHeader}>
+          <strong>Archivos de la entrega</strong>
+          {submissionMeta?.submissionId && (
+            <button
+              type="button"
+              style={{
+                ...linkButton,
+                opacity: downloading ? 0.6 : 1,
+                cursor: downloading ? 'wait' : 'pointer'
+              }}
+              onClick={handleDownloadZip}
+              disabled={downloading}
+            >
+              {downloading ? 'Descargando...' : 'Descargar ZIP'}
+            </button>
+          )}
+        </div>
+        {error && <p style={errorStyle}>{error}</p>}
+        {treeLoading ? (
+          <p>Cargando archivos...</p>
+        ) : files.length === 0 ? (
+          <p>No hay archivos para esta entrega.</p>
+        ) : (
+          <div ref={splitRef} style={viewerGrid}>
+            <aside
+              style={{
+                ...viewerSidebar,
+                width: `${sidebarWidth}px`,
+                minWidth: '240px',
+                maxWidth: '780px',
+                flex: '0 0 auto'
+              }}
+            >
+              <FileTree
+                nodes={treeData}
+                selectedPath={currentPath}
+                expandedPaths={expandedPaths}
+                onToggleDir={toggleDir}
+                onOpenFile={(filePath) => openFile(filePath, 0)}
+              />
+            </aside>
+            <div
+              role="separator"
+              aria-orientation="vertical"
+              tabIndex={-1}
+              style={splitHandle}
+              onMouseDown={(event) => {
+                event.preventDefault();
+                setDragging(true);
+              }}
+            />
+            <div style={viewerContent}>
+              <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumb} />
+              {commentAnchors.length > 0 && (
+                <div style={anchorBar}>
+                  Comentarios:
+                  {commentAnchors.map((comment) => (
+                    <button
+                      key={comment.id}
+                      type="button"
+                      style={anchorButton}
+                      onClick={() => {
+                        const parsed = Number(comment.line);
+                        const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+                        openFileById(currentFileId, targetLine);
+                      }}
+                    >
+                      L{comment.line}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {fileLoading ? (
+                <p>Cargando archivo...</p>
+              ) : !currentPath ? (
+                <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
+              ) : fileData.isBinary ? (
+                showBinaryPreview ? (
+                  <div style={previewWrapper}>
+                    <iframe
+                      title={`Vista previa de ${previewLabel}`}
+                      src={binaryPreviewUrl}
+                      style={previewFrame}
+                    />
+                  </div>
+                ) : showBinaryLoading ? (
+                  <p>Cargando vista previa...</p>
+                ) : showBinaryError ? (
+                  <div style={binaryWarning}>{binaryPreviewError}</div>
+                ) : (
+                  <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
+                )
+              ) : (
+                <EditorPane
+                  path={currentPath}
+                  code={fileData.content}
+                  height="560px"
+                  initialLine={initialLine}
+                  commentsByLine={commentsByLine}
+                  onAddComment={handleAddComment}
+                  revisionId={revisionId}
+                  fileId={currentFileId}
+                  readOnly={readOnly}
+                />
+              )}
+            </div>
+          </div>
         )}
       </div>
-      {error && <p style={errorStyle}>{error}</p>}
-      {treeLoading ? (
-        <p>Cargando archivos...</p>
-      ) : files.length === 0 ? (
-        <p>No hay archivos para esta entrega.</p>
-      ) : (
-        <div ref={splitRef} style={viewerGrid}>
-          <aside
-            style={{
-              ...viewerSidebar,
-              width: `${sidebarWidth}px`,
-              minWidth: '240px',
-              maxWidth: '780px',
-              flex: '0 0 auto'
-            }}
-          >
-            <FileTree
-              nodes={treeData}
-              selectedPath={currentPath}
-              expandedPaths={expandedPaths}
-              onToggleDir={toggleDir}
-              onOpenFile={(filePath) => openFile(filePath, 0)}
-            />
-          </aside>
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            tabIndex={-1}
-            style={splitHandle}
-            onMouseDown={(event) => {
-              event.preventDefault();
-              setDragging(true);
-            }}
-          />
-          <div style={viewerContent}>
-            <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumb} />
-            {commentAnchors.length > 0 && (
-              <div style={anchorBar}>
-                Comentarios:
-                {commentAnchors.map((comment) => (
-                  <button
-                    key={comment.id}
-                    type="button"
-                    style={anchorButton}
-                    onClick={() => {
-                      const parsed = Number(comment.line);
-                      const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
-                      openFileById(currentFileId, targetLine);
-                    }}
-                  >
-                    L{comment.line}
-                  </button>
-                ))}
-              </div>
-            )}
-            {fileLoading ? (
-              <p>Cargando archivo...</p>
-            ) : !currentPath ? (
-              <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
-            ) : fileData.isBinary ? (
-              showBinaryPreview ? (
-                <div style={previewWrapper}>
-                  <iframe
-                    title={`Vista previa de ${previewLabel}`}
-                    src={binaryPreviewUrl}
-                    style={previewFrame}
-                  />
-                </div>
-              ) : showBinaryLoading ? (
-                <p>Cargando vista previa...</p>
-              ) : showBinaryError ? (
-                <div style={binaryWarning}>{binaryPreviewError}</div>
-              ) : (
-                <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
-              )
-            ) : (
-              <EditorPane
-                path={currentPath}
-                code={fileData.content}
-                height="560px"
-                initialLine={initialLine}
-                commentsByLine={commentsByLine}
-                onAddComment={handleAddComment}
-                revisionId={revisionId}
-                fileId={currentFileId}
-              />
-            )}
+
+      {showMetaReview && (
+        <section style={metaReviewPanel}>
+          <div style={viewerHeader}>
+            <strong>Meta-revisión</strong>
+            {metaReviewLoading && <span style={miniMeta}>Cargando...</span>}
           </div>
-        </div>
+          {metaReviewError && <p style={errorStyle}>{metaReviewError}</p>}
+          {metaReviewSuccess && <p style={successStyle}>{metaReviewSuccess}</p>}
+          {reviewLoading ? (
+            <p style={miniMeta}>Cargando resumen de la revisión...</p>
+          ) : (
+            <ul style={statusList}>
+              <li style={statusItem}>
+                <div style={{ minWidth: '240px', flex: 1 }}>
+                  <strong>Revisión #{revisionId}</strong>
+                  <div style={miniMeta}>
+                    Revisor: {reviewInfo?.equipo_revisor?.nombre || '—'}
+                    {submissionMeta?.zipName ? ` · Entrega: ${submissionMeta.zipName}` : ''}
+                  </div>
+                  <div style={miniMeta} title={submittedTime.absoluteText || undefined}>
+                    Enviada: {submittedTime.relativeText || reviewInfo?.fecha_envio || 'sin fecha'}
+                    {reviewInfo?.nota_numerica !== null && reviewInfo?.nota_numerica !== undefined
+                      ? ` · Nota: ${reviewInfo.nota_numerica}`
+                      : ''}
+                  </div>
+                  {reviewInfo?.comentario && <div style={miniMeta}>Comentario: {reviewInfo.comentario}</div>}
+
+                  <div style={metaReviewFields}>
+                    <label style={labelStyle}>
+                      Nota de calidad
+                      <input
+                        style={inputStyle}
+                        type="number"
+                        step="0.5"
+                        value={metaReview.nota}
+                        onChange={(event) =>
+                          setMetaReview((prev) => ({ ...prev, nota: event.target.value }))
+                        }
+                        disabled={metaReviewSaving || metaReviewLoading}
+                      />
+                    </label>
+                    <label style={labelStyle}>
+                      Observación
+                      <textarea
+                        style={{ ...inputStyle, minHeight: '80px' }}
+                        value={metaReview.observacion}
+                        onChange={(event) =>
+                          setMetaReview((prev) => ({ ...prev, observacion: event.target.value }))
+                        }
+                        disabled={metaReviewSaving || metaReviewLoading}
+                      />
+                    </label>
+                  </div>
+
+                  {metaReviewInfo?.fecha_registro && (
+                    <div style={miniMeta} title={metaSavedTime.absoluteText || undefined}>
+                      Meta registrada {metaSavedTime.relativeText || metaReviewInfo.fecha_registro}
+                    </div>
+                  )}
+                </div>
+                <div style={statusActions}>
+                  <span style={reviewStatus.style}>{reviewStatus.label}</span>
+                  <button
+                    type="button"
+                    style={{
+                      ...linkPill,
+                      opacity: metaReviewSaving ? 0.6 : 1,
+                      cursor: metaReviewSaving ? 'wait' : 'pointer'
+                    }}
+                    onClick={handleSaveMetaReview}
+                    disabled={metaReviewSaving}
+                  >
+                    {metaReviewSaving ? 'Guardando...' : 'Guardar meta-revisión'}
+                  </button>
+                </div>
+              </li>
+            </ul>
+          )}
+        </section>
       )}
-    </div>
+    </>
   );
 }

@@ -58,6 +58,12 @@ export default function Feedback() {
     load();
   }, [assignmentId, isStudent]);
 
+  const openReview = (reviewId) => {
+    if (!reviewId) return;
+    window.history.pushState({}, '', `/reviews?revisionId=${reviewId}`);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
+
   return (
     <section>
       <h2>Feedback recibido</h2>
@@ -92,8 +98,20 @@ export default function Feedback() {
               <ul style={innerListStyle}>
                 {(reviews[submission.id] || []).map((review) => (
                   <li key={review.id} style={innerCardStyle}>
-                    <div>Nota: {review.nota_numerica ?? 'sin nota'}</div>
-                    {review.comentario && <div style={metaStyle}>{review.comentario}</div>}
+                    <div>
+                      <div>Nota: {review.nota_numerica ?? 'sin nota'}</div>
+                      {review.equipo_revisor?.nombre && (
+                        <div style={metaStyle}>Revisor: {review.equipo_revisor.nombre}</div>
+                      )}
+                      {review.comentario && <div style={metaStyle}>{review.comentario}</div>}
+                    </div>
+                    <button
+                      type="button"
+                      style={viewButtonStyle}
+                      onClick={() => openReview(review.id)}
+                    >
+                      Ver revisión
+                    </button>
                   </li>
                 ))}
                 {(reviews[submission.id] || []).length === 0 && <li style={metaStyle}>Sin revisiones aún.</li>}
@@ -153,7 +171,22 @@ const innerCardStyle = {
   border: '1px solid #d0d0d0',
   borderRadius: '6px',
   padding: '0.6rem',
-  background: '#fafafa'
+  background: '#fafafa',
+  display: 'flex',
+  gap: '0.75rem',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  flexWrap: 'wrap'
+};
+
+const viewButtonStyle = {
+  background: '#eef2ff',
+  border: '1px solid #c7d2fe',
+  color: '#1e3a8a',
+  padding: '0.35rem 0.7rem',
+  borderRadius: '999px',
+  cursor: 'pointer',
+  fontWeight: 600
 };
 
 const metaStyle = {

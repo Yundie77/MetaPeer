@@ -5,6 +5,52 @@ const { sendError, safeNumber } = require('../../helpers');
 
 const router = express.Router();
 
+router.get('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  try {
+    const reviewId = safeNumber(req.params.reviewId);
+    if (!reviewId) {
+      return sendError(res, 400, 'Identificador inválido.');
+    }
+
+    const revision = db.prepare('SELECT id FROM revision WHERE id = ?').get(reviewId);
+    if (!revision) {
+      return sendError(res, 404, 'La revisión no existe.');
+    }
+
+    const meta = db
+      .prepare(
+        `
+        SELECT mr.id,
+               mr.nota_calidad,
+               mr.observacion,
+               mr.fecha_registro,
+               usr.nombre_completo AS profesor_nombre,
+               usr.correo          AS profesor_correo
+        FROM meta_revision mr
+        LEFT JOIN usuario usr ON usr.id = mr.id_profesor
+        WHERE mr.id_revision = ?
+      `
+      )
+      .get(reviewId);
+
+    return res.json({
+      reviewId,
+      meta: meta
+        ? {
+            id: meta.id,
+            nota_calidad: meta.nota_calidad,
+            observacion: meta.observacion,
+            fecha_registro: meta.fecha_registro,
+            profesor: meta.profesor_nombre ? { nombre: meta.profesor_nombre, correo: meta.profesor_correo } : null
+          }
+        : null
+    });
+  } catch (error) {
+    console.error('Error al consultar meta-revisión:', error);
+    return sendError(res, 500, 'No pudimos obtener la meta-revisión.');
+  }
+});
+
 router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const reviewId = safeNumber(req.params.reviewId);

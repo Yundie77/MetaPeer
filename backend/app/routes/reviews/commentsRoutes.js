@@ -27,7 +27,7 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(), async (req, res)
       return sendError(res, 400, 'El comentario no puede estar vacío.');
     }
 
-    const revision = ensureRevisionPermission(revisionId, req.user);
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
     if (!revision) {
       return sendError(res, 403, 'No puedes comentar este archivo.');
     }

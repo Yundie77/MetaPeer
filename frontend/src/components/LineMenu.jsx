@@ -11,7 +11,8 @@ export default function LineMenu({
   onCopyLine,
   onCopyPermalink,
   onAddComment,
-  onClose
+  onClose,
+  allowComment = true
 }) {
   const [comment, setComment] = useState('');
 
@@ -38,15 +39,17 @@ export default function LineMenu({
       <div style={row}>
         <button type="button" style={btn} onClick={onCopyPermalink}>Copiar enlace</button>
       </div>
-      <div style={{ ...row, alignItems: 'stretch', gap: '0.4rem' }}>
-        <input
-          placeholder={`Comentario en la línea ${line}`}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          style={input}
-        />
-        <button type="button" style={btnPrimary} onClick={add}>Agregar</button>
-      </div>
+      {allowComment && (
+        <div style={{ ...row, alignItems: 'stretch', gap: '0.4rem' }}>
+          <input
+            placeholder={`Comentario en la línea ${line}`}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            style={input}
+          />
+          <button type="button" style={btnPrimary} onClick={add}>Agregar</button>
+        </div>
+      )}
     </div>
   );
 }

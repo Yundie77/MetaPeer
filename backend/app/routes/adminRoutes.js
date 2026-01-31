@@ -7,9 +7,10 @@ const {
   sendError,
   safeNumber,
   ensureRosterAssignment,
+  cloneRosterTeamsToAssignment,
   getProfessorSubjects
 } = require('../helpers');
-const { DEFAULT_PROFESSOR_PASSWORD } = require('../constants');
+const { DEFAULT_PROFESSOR_PASSWORD, ROSTER_PREFIX } = require('../constants');
 
 const router = express.Router();
 
@@ -149,6 +150,26 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
     });
 
     tx();
+
+    const rosterLike = `${ROSTER_PREFIX}%`;
+    const candidateTasks = db
+      .prepare(
+        `
+        SELECT t.id
+        FROM tarea t
+        WHERE t.id_asignatura = ?
+          AND t.titulo NOT LIKE ?
+      `
+      )
+      .all(asignaturaId, rosterLike);
+
+    const selectTeamCount = db.prepare('SELECT COUNT(*) AS total FROM equipo WHERE id_tarea = ?');
+    candidateTasks.forEach((task) => {
+      const teamCount = selectTeamCount.get(task.id)?.total || 0;
+      if (teamCount === 0) {
+        cloneRosterTeamsToAssignment(asignaturaId, task.id);
+      }
+    });
 
     res.json(summary);
   } catch (error) {

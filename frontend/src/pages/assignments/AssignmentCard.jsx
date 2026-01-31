@@ -19,6 +19,7 @@ export default function AssignmentCard({
 
   const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
   const hasZip = Boolean(meta?.hasZip);
+  const hasTeams = Number(assignment.total_equipos) > 0;
   const canAssign = hasZip && !blocked;
   const assignButtonStyle = blocked
     ? dangerButton
@@ -43,7 +44,9 @@ export default function AssignmentCard({
             <span>Entregas detectadas: {meta.total || '—'}</span>
           </div>
         ) : (
-          <div style={metaStyle}>No hay entregas subidas aún.</div>
+          <div style={metaStyle}>
+            {hasTeams ? 'No hay entregas subidas aún.' : 'Contacte el admin para que importe equipos a la asignatura'}
+          </div>
         )}
         {blocked ? (
           <div style={{ ...metaStyle, color: '#b45309' }}>
@@ -63,9 +66,13 @@ export default function AssignmentCard({
         />
         <button
           type="button"
-          style={smallButton}
+          style={{
+            ...smallButton,
+            opacity: uploadingAssignmentId === assignment.id || !hasTeams ? 0.6 : 1,
+            cursor: uploadingAssignmentId === assignment.id || !hasTeams ? 'not-allowed' : 'pointer'
+          }}
           onClick={() => onTriggerUpload(assignment.id)}
-          disabled={uploadingAssignmentId === assignment.id}
+          disabled={uploadingAssignmentId === assignment.id || !hasTeams}
         >
           {uploadingAssignmentId === assignment.id ? 'Cargando...' : 'Subir entregas (ZIP)'}
         </button>

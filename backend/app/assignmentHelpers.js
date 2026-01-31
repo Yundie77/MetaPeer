@@ -351,6 +351,7 @@ function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
         reviewerType: 'user',
         reviewerUserId: reviewer.userId,
         reviewerName: reviewerLabel,
+        reviewerTeamId: reviewer.teamId,
         targetTeamId,
         targetSubmissionId: context.submissionByTeam.get(targetTeamId)
       });
@@ -410,7 +411,7 @@ function persistAssignmentPlan(plan) {
     plan.pairs.forEach((pair) => {
       let reviewerTeamId = pair.reviewerTeamId;
       if (pair.reviewerType === 'user') {
-        reviewerTeamId = ensureIndividualReviewerTeam(plan.assignmentId, pair.reviewerUserId, `Revisor · ${pair.reviewerName || pair.reviewerUserId}`);
+        reviewerTeamId = pair.reviewerTeamId || reviewerTeamId;
       }
       insertRevision.run(assignmentRecordId, pair.targetSubmissionId, reviewerTeamId);
     });

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { fetchJson, getJson, postJson } from '../api.js';
 import AssignModal from './assignments/AssignModal.jsx';
@@ -159,6 +159,10 @@ const selectedSubjectLabel = useMemo(() => {
       setCreateError('Selecciona una asignatura.');
       return;
     }
+    if (!dueDate) {
+      setCreateError('Selecciona una fecha de entrega.');
+      return;
+    }
 
     try {
       setSaving(true);
@@ -166,7 +170,7 @@ const selectedSubjectLabel = useMemo(() => {
       const created = await postJson('/assignments', {
         titulo: title.trim(),
         descripcion: description.trim(),
-        fechaEntrega: dueDate || null,
+        fechaEntrega: dueDate,
         asignaturaId: Number(subjectId)
       });
       setAssignments((prev) => [created, ...prev]);
@@ -292,6 +296,15 @@ const selectedSubjectLabel = useMemo(() => {
    */
   const triggerUploadPicker = (assignmentId) => {
     setUploadMessage('');
+    const meta = submissionsMeta.get(assignmentId);
+    if (meta?.hasZip) {
+      const proceed = window.confirm(
+        'Ya existe un ZIP subido. Si continúas, se eliminará la entrega anterior.'
+      );
+      if (!proceed) {
+        return;
+      }
+    }
     const input = fileInputsRef.current[assignmentId];
     if (input) {
       input.value = '';
@@ -548,6 +561,7 @@ const selectedSubjectLabel = useMemo(() => {
             : prev
         );
       }
+      closeAssignModal();
     } catch (err) {
       setAssignModalError(err.message);
     } finally {

@@ -42,7 +42,8 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                      ELSE COALESCE(a.bloqueada, 0)
                    END AS asignacion_bloqueada,
                    a.fecha_asignacion AS asignacion_fecha_asignacion,
-                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
             FROM tarea t
             LEFT JOIN asignacion a ON a.id_tarea = t.id
             JOIN usuario_asignatura ua
@@ -70,7 +71,8 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                      ELSE COALESCE(a.bloqueada, 0)
                    END AS asignacion_bloqueada,
                    a.fecha_asignacion AS asignacion_fecha_asignacion,
-                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
             FROM tarea t
             LEFT JOIN asignacion a ON a.id_tarea = t.id
             WHERE t.titulo NOT LIKE ?
@@ -103,6 +105,9 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
     if (!subjectId) {
       return sendError(res, 400, 'Debes indicar la asignatura.');
     }
+    if (!dueDateRaw) {
+      return sendError(res, 400, 'La fecha de entrega es obligatoria.');
+    }
 
     const subject = db.prepare('SELECT id FROM asignatura WHERE id = ?').get(subjectId);
     if (!subject) {
@@ -116,7 +121,7 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
         VALUES (?, ?, ?, ?, 'abierta', ?)
       `
       )
-      .run(subjectId, title, description || null, dueDateRaw || null, req.user.id);
+      .run(subjectId, title, description || null, dueDateRaw, req.user.id);
 
     const assignmentId = insert.lastInsertRowid;
     ensureAssignmentRecord(assignmentId);
@@ -139,7 +144,8 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
                  ELSE COALESCE(a.bloqueada, 0)
                END AS asignacion_bloqueada,
                a.fecha_asignacion AS asignacion_fecha_asignacion,
-               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+               (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
         FROM tarea t
         LEFT JOIN asignacion a ON a.id_tarea = t.id
         WHERE t.id = ?
@@ -186,7 +192,8 @@ router.get('/api/assignments/:assignmentId', requireAuth(), (req, res) => {
                  ELSE COALESCE(a.bloqueada, 0)
                END AS asignacion_bloqueada,
                a.fecha_asignacion AS asignacion_fecha_asignacion,
-               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+                   (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
         FROM tarea t
         LEFT JOIN asignacion a ON a.id_tarea = t.id
         WHERE t.id = ?
@@ -458,7 +465,8 @@ router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF'
                  ELSE COALESCE(a.bloqueada, 0)
                END AS asignacion_bloqueada,
                a.fecha_asignacion AS asignacion_fecha_asignacion,
-               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+               (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
         FROM tarea t
         LEFT JOIN asignacion a ON a.id_tarea = t.id
         WHERE t.id = ?
@@ -513,7 +521,8 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
                  ELSE COALESCE(a.bloqueada, 0)
                END AS asignacion_bloqueada,
                a.fecha_asignacion AS asignacion_fecha_asignacion,
-               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones
+               (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
+               (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
         FROM tarea t
         LEFT JOIN asignacion a ON a.id_tarea = t.id
         WHERE t.id = ?

@@ -20,7 +20,7 @@ export default function CreateAssignmentModal({
   }
 
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
+    <div style={styles.modalOverlay}>
       <div style={styles.modalContent} onClick={(event) => event.stopPropagation()}>
         <div style={styles.modalHeader}>
           <div>
@@ -63,6 +63,7 @@ export default function CreateAssignmentModal({
               value={dueDate}
               onChange={(event) => onDueDateChange(event.target.value)}
               disabled={saving}
+              required
             />
           </label>
           <button type="submit" style={styles.buttonStyle} disabled={saving}>

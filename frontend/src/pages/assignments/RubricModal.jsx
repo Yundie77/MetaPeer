@@ -18,7 +18,7 @@ export default function RubricModal({
   }
 
   return (
-    <div style={styles.modalOverlay} onClick={onClose}>
+    <div style={styles.modalOverlay}>
       <div style={styles.modalContent} onClick={(event) => event.stopPropagation()}>
         <div style={styles.modalHeader}>
           <div>

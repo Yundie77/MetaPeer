@@ -6,7 +6,7 @@ const { db } = require('../../db');
 const {persistUploadedZip, extractSubmission, persistAssignmentZip, 
   assignmentFolder, unzipFile, clearDirectory, TEMP_DIRNAME
 } = require('../../utils/deliveries');
-const { sendError, safeNumber, ensureAssignmentExists, ensureSubmissionAccess } = require('../helpers');
+const { sendError, safeNumber, ensureAssignmentExists, ensureSubmissionAccess, cloneRosterTeamsToAssignment } = require('../helpers');
 const { WORKSPACE_ROOT, BACKEND_ROOT } = require('../constants');
 const { uploadZip } = require('../upload');
 
@@ -147,14 +147,16 @@ async function processTeamArchives({ assignmentId, uploaderId, archives }) {
 
     db.prepare(
       `
+      DELETE FROM entregas
+      WHERE id_tarea = ?
+        AND id_equipo = ?
+    `
+    ).run(assignmentId, teamId);
+
+    db.prepare(
+      `
       INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes)
       VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id_tarea, id_equipo) DO UPDATE SET
-        id_subidor = excluded.id_subidor,
-        nombre_zip = excluded.nombre_zip,
-        ruta_archivo = excluded.ruta_archivo,
-        tamano_bytes = excluded.tamano_bytes,
-        fecha_subida = datetime('now')
     `
     ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null);
 
@@ -183,6 +185,20 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     const assignment = ensureAssignmentExists(assignmentId);
     if (!assignment) {
       return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    const existingTeams = db
+      .prepare(
+        `
+        SELECT COUNT(*) AS total
+        FROM equipo
+        WHERE id_tarea = ?
+      `
+      )
+      .get(assignmentId)?.total || 0;
+
+    if (existingTeams === 0 && assignment.id_asignatura) {
+      cloneRosterTeamsToAssignment(assignment.id_asignatura, assignmentId);
     }
 
     if (!req.file) {

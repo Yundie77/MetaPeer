@@ -71,12 +71,41 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
       return acc;
     }, {});
 
+    const codeCommentRows = db
+      .prepare(
+        `
+        SELECT ruta_archivo,
+               COUNT(*) AS total,
+               MIN(linea) AS first_line
+        FROM code_comment
+        WHERE revision_id = ?
+        GROUP BY ruta_archivo
+      `
+      )
+      .all(revisionId);
+
+    const codeCommentCounts = {};
+    const codeCommentFirstLine = {};
+    codeCommentRows.forEach((row) => {
+      const normalized = normalizeRelativePath(row.ruta_archivo);
+      const total = Number(row.total) || 0;
+      if (normalized && total > 0) {
+        codeCommentCounts[normalized] = total;
+        const firstLine = Number(row.first_line) || 0;
+        if (firstLine > 0) {
+          codeCommentFirstLine[normalized] = firstLine;
+        }
+      }
+    });
+
     return res.json({
       revisionId,
       submissionId: revision.submission_id,
       zipName: revision.zip_name,
       files: attachFileIds(files, revisionId),
-      fileCommentCounts
+      fileCommentCounts,
+      codeCommentCounts,
+      codeCommentFirstLine
     });
   } catch (error) {
     console.error('Error al listar archivos de revisión:', error);

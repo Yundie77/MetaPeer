@@ -11,7 +11,9 @@ export default function FileTree({
   onToggleDir,
   onOpenFile,
   commentCounts = {},
-  onCommentBadgeClick
+  onCommentBadgeClick,
+  codeCommentCounts = {},
+  onCodeCommentBadgeClick
 }) {
   return (
     <ul style={ulStyle}>
@@ -26,19 +28,33 @@ export default function FileTree({
           onOpenFile={onOpenFile}
           commentCounts={commentCounts}
           onCommentBadgeClick={onCommentBadgeClick}
+          codeCommentCounts={codeCommentCounts}
+          onCodeCommentBadgeClick={onCodeCommentBadgeClick}
         />
       ))}
     </ul>
   );
 }
 
-function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpenFile, commentCounts, onCommentBadgeClick }) {
+function TreeNode({
+  node,
+  depth,
+  selectedPath,
+  expandedPaths,
+  onToggleDir,
+  onOpenFile,
+  commentCounts,
+  onCommentBadgeClick,
+  codeCommentCounts,
+  onCodeCommentBadgeClick
+}) {
   const isDir = !node.isFile;
   const isExpanded = isDir ? expandedPaths.has(node.path) : false;
   const isSelected = selectedPath === node.path;
   const paddingLeft = 12 + depth * 16;
   const nodeRef = useRef(null);
   const commentCount = getCommentCount(commentCounts, node.path);
+  const codeCommentCount = getCommentCount(codeCommentCounts, node.path);
 
   useEffect(() => {
     if (isSelected && nodeRef.current) {
@@ -81,6 +97,16 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
               {node.name}
             </span>
           </button>
+          {codeCommentCount > 0 && (
+            <button
+              type="button"
+              style={commentBadgeStyle}
+              onClick={() => onCodeCommentBadgeClick && onCodeCommentBadgeClick(node.path)}
+              title="Ver comentarios de código"
+            >
+              {codeCommentCount} comentario{codeCommentCount === 1 ? '' : 's'}
+            </button>
+          )}
           {commentCount > 0 && (
             <button
               type="button"
@@ -107,6 +133,8 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
               onOpenFile={onOpenFile}
               commentCounts={commentCounts}
               onCommentBadgeClick={onCommentBadgeClick}
+              codeCommentCounts={codeCommentCounts}
+              onCodeCommentBadgeClick={onCodeCommentBadgeClick}
             />
           ))}
         </ul>

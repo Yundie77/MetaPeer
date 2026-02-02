@@ -134,6 +134,63 @@ export const viewerHeader = {
   alignItems: "center",
 };
 
+export const viewerHeaderLeft = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "flex-start",
+  gap: "0.35rem",
+};
+
+export const commentSummaryRow = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+export const commentSummaryPill = {
+  border: "1px solid #2563eb",
+  background: "#eff6ff",
+  color: "#1e3a8a",
+  borderRadius: "999px",
+  padding: "0.2rem 0.6rem",
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+export const commentSummaryPillActive = {
+  border: "1px solid #1d4ed8",
+  background: "#dbeafe",
+  color: "#1e3a8a",
+  borderRadius: "999px",
+  padding: "0.2rem 0.6rem",
+  fontSize: "0.78rem",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+export const commentSummaryPanel = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "6px",
+  background: "#fff",
+  padding: "0.5rem 0.75rem",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.35rem",
+};
+
+export const commentSummaryList = {
+  display: "flex",
+  flexWrap: "wrap",
+  gap: "0.5rem",
+};
+
+export const commentSummaryHint = {
+  fontSize: "0.82rem",
+  color: "#555",
+};
+
 export const viewerGrid = {
   display: "flex",
   gap: "1rem",

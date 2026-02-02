@@ -9,6 +9,7 @@ import { readFromURL, writeToURL } from '../../utils/permalink.js';
 import {
   viewerCard,
   viewerHeader,
+  viewerHeaderLeft,
   viewerGrid,
   viewerSidebar,
   viewerContent,
@@ -18,6 +19,12 @@ import {
   previewWrapper,
   previewFrame,
   linkButton,
+  commentSummaryRow,
+  commentSummaryPill,
+  commentSummaryPillActive,
+  commentSummaryPanel,
+  commentSummaryList,
+  commentSummaryHint,
   fileCommentPanel,
   fileCommentHeader,
   fileCommentActions,
@@ -89,6 +96,8 @@ export default function ReviewViewer({
     path: '',
     size: 0
   });
+  const [codeCommentCounts, setCodeCommentCounts] = useState({});
+  const [codeCommentFirstLine, setCodeCommentFirstLine] = useState({});
   const [fileCommentCounts, setFileCommentCounts] = useState({});
   const [fileComments, setFileComments] = useState([]);
   const [fileCommentsLoading, setFileCommentsLoading] = useState(false);
@@ -118,6 +127,7 @@ export default function ReviewViewer({
   const [metaReviewSaving, setMetaReviewSaving] = useState(false);
   const [metaReviewError, setMetaReviewError] = useState('');
   const [metaReviewSuccess, setMetaReviewSuccess] = useState('');
+  const [commentListMode, setCommentListMode] = useState('');
 
   useEffect(() => {
     if (!revisionId) {
@@ -165,6 +175,8 @@ export default function ReviewViewer({
         path: '',
         size: 0
       });
+      setCodeCommentCounts({});
+      setCodeCommentFirstLine({});
       setFileCommentCounts({});
       setFileComments([]);
       setFileCommentsLoading(false);
@@ -184,6 +196,7 @@ export default function ReviewViewer({
       setMetaReviewSaving(false);
       setMetaReviewError('');
       setMetaReviewSuccess('');
+      setCommentListMode('');
       return;
     }
 
@@ -203,6 +216,26 @@ export default function ReviewViewer({
           }
         });
         setFileCommentCounts(normalizedCounts);
+        const rawCodeCounts = data?.codeCommentCounts || {};
+        const normalizedCodeCounts = {};
+        Object.entries(rawCodeCounts).forEach(([pathValue, total]) => {
+          const normalized = normalizePath(pathValue);
+          const count = Number(total) || 0;
+          if (normalized && count > 0) {
+            normalizedCodeCounts[normalized] = count;
+          }
+        });
+        setCodeCommentCounts(normalizedCodeCounts);
+        const rawFirstLines = data?.codeCommentFirstLine || {};
+        const normalizedFirstLines = {};
+        Object.entries(rawFirstLines).forEach(([pathValue, lineValue]) => {
+          const normalized = normalizePath(pathValue);
+          const line = Number(lineValue) || 0;
+          if (normalized && line > 0) {
+            normalizedFirstLines[normalized] = line;
+          }
+        });
+        setCodeCommentFirstLine(normalizedFirstLines);
         setSubmissionMeta({
           zipName: data.zipName,
           submissionId: data.submissionId
@@ -216,6 +249,8 @@ export default function ReviewViewer({
         setFiles([]);
         setSubmissionMeta(null);
         setFileCommentCounts({});
+        setCodeCommentCounts({});
+        setCodeCommentFirstLine({});
         setError(err.message);
       } finally {
         setTreeLoading(false);
@@ -383,6 +418,23 @@ export default function ReviewViewer({
   );
 
   const showFileCommentSection = fileData.isBinary && !!binaryPreviewType;
+  const codeCommentPaths = useMemo(
+    () => fileNames.filter((pathValue) => (Number(codeCommentCounts[pathValue]) || 0) > 0),
+    [fileNames, codeCommentCounts]
+  );
+  const fileCommentPaths = useMemo(
+    () => fileNames.filter((pathValue) => (Number(fileCommentCounts[pathValue]) || 0) > 0),
+    [fileNames, fileCommentCounts]
+  );
+  const codeCommentFileCount = codeCommentPaths.length;
+  const fileCommentFileCount = fileCommentPaths.length;
+  const showCommentSummary = codeCommentFileCount > 0 || fileCommentFileCount > 0;
+  const isCodeListActive = commentListMode === 'code';
+  const isFileListActive = commentListMode === 'file';
+  const activeCommentPaths = isCodeListActive ? codeCommentPaths : fileCommentPaths;
+  const activeCommentLabel = isCodeListActive
+    ? 'Archivos con comentarios de código'
+    : 'Archivos con comentarios generales';
 
   /**
    * Abre un archivo por su identificador y actualiza estado + URL.
@@ -420,6 +472,37 @@ export default function ReviewViewer({
         });
         setCurrentPath(data.path);
         setCurrentFileId(resolvedFileId);
+        const normalizedPath = normalizePath(data.path);
+        const commentTotal = Array.isArray(data.comments) ? data.comments.length : 0;
+        setCodeCommentCounts((prev) => {
+          const next = { ...prev };
+          if (normalizedPath) {
+            if (commentTotal > 0) {
+              next[normalizedPath] = commentTotal;
+            } else {
+              delete next[normalizedPath];
+            }
+          }
+          return next;
+        });
+        const firstLine = Array.isArray(data.comments)
+          ? data.comments.reduce((min, comment) => {
+              const line = Number(comment?.linea) || 0;
+              if (line > 0 && line < min) return line;
+              return min;
+            }, Number.POSITIVE_INFINITY)
+          : Number.POSITIVE_INFINITY;
+        setCodeCommentFirstLine((prev) => {
+          const next = { ...prev };
+          if (normalizedPath) {
+            if (Number.isFinite(firstLine) && firstLine > 0) {
+              next[normalizedPath] = firstLine;
+            } else {
+              delete next[normalizedPath];
+            }
+          }
+          return next;
+        });
         setInitialLine(safeLine);
         setExpandedPaths((prev) => {
           const next = new Set(prev);
@@ -805,6 +888,25 @@ export default function ReviewViewer({
     [currentPath, showFileCommentSection, openFile, currentFileId, revisionId, readOnly, scrollToFileComments]
   );
 
+  const handleOpenCodeCommentFile = useCallback(
+    (pathValue) => {
+      if (!pathValue) return;
+      const normalized = normalizePath(pathValue);
+      const line = Number(codeCommentFirstLine[normalized]) || 0;
+      setCommentListMode('');
+      openFile(normalized, line);
+    },
+    [codeCommentFirstLine, openFile]
+  );
+
+  const handleOpenFileCommentFromList = useCallback(
+    (pathValue) => {
+      setCommentListMode('');
+      handleOpenFileComments(pathValue);
+    },
+    [handleOpenFileComments]
+  );
+
   /**
    * Descarga el ZIP original de la entrega con autenticación del usuario.
    */
@@ -944,7 +1046,37 @@ export default function ReviewViewer({
     <>
       <div style={viewerCard}>
         <div style={viewerHeader}>
-          <strong>Archivos de la entrega</strong>
+          <div style={viewerHeaderLeft}>
+            <strong>Archivos de la entrega</strong>
+            {showCommentSummary && (
+              <div style={commentSummaryRow}>
+                {codeCommentFileCount > 0 && (
+                  <button
+                    type="button"
+                    style={isCodeListActive ? commentSummaryPillActive : commentSummaryPill}
+                    onClick={() =>
+                      setCommentListMode((prev) => (prev === 'code' ? '' : 'code'))
+                    }
+                    title="Ver archivos con comentarios de código"
+                  >
+                    {codeCommentFileCount} archivo{codeCommentFileCount === 1 ? '' : 's'} con comentarios de código
+                  </button>
+                )}
+                {fileCommentFileCount > 0 && (
+                  <button
+                    type="button"
+                    style={isFileListActive ? commentSummaryPillActive : commentSummaryPill}
+                    onClick={() =>
+                      setCommentListMode((prev) => (prev === 'file' ? '' : 'file'))
+                    }
+                    title="Ver archivos con comentarios generales"
+                  >
+                    {fileCommentFileCount} archivo{fileCommentFileCount === 1 ? '' : 's'} con comentarios generales
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {submissionMeta?.submissionId && (
             <button
               type="button"
@@ -960,6 +1092,34 @@ export default function ReviewViewer({
             </button>
           )}
         </div>
+        {showCommentSummary && commentListMode && activeCommentPaths.length > 0 && (
+          <div style={commentSummaryPanel}>
+            <div style={commentSummaryHint}>{activeCommentLabel}</div>
+            <div style={commentSummaryList}>
+              {activeCommentPaths.map((pathValue) => {
+                const count = isCodeListActive
+                  ? Number(codeCommentCounts[pathValue]) || 0
+                  : Number(fileCommentCounts[pathValue]) || 0;
+                const label = `${pathValue} (${count})`;
+                return (
+                  <button
+                    key={pathValue}
+                    type="button"
+                    style={anchorButton}
+                    title={pathValue}
+                    onClick={() =>
+                      (isCodeListActive
+                        ? handleOpenCodeCommentFile(pathValue)
+                        : handleOpenFileCommentFromList(pathValue))
+                    }
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {error && <p style={errorStyle}>{error}</p>}
         {treeLoading ? (
           <p>Cargando archivos...</p>
@@ -984,6 +1144,8 @@ export default function ReviewViewer({
                 onOpenFile={(filePath) => openFile(filePath, 0)}
                 commentCounts={fileCommentCounts}
                 onCommentBadgeClick={handleOpenFileComments}
+                codeCommentCounts={codeCommentCounts}
+                onCodeCommentBadgeClick={handleOpenCodeCommentFile}
               />
             </aside>
             <div

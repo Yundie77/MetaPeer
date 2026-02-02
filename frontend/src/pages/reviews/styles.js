@@ -218,6 +218,89 @@ export const linkButton = {
   cursor: "pointer",
 };
 
+export const fileCommentPanel = {
+  border: "1px solid #e5e7eb",
+  borderRadius: "8px",
+  padding: "0.75rem",
+  background: "#fff",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.75rem",
+  width: "100%",
+  boxSizing: "border-box",
+};
+
+export const fileCommentHeader = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "0.75rem",
+  flexWrap: "wrap",
+};
+
+export const fileCommentActions = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+export const fileCommentForm = {
+  display: "flex",
+  alignItems: "flex-start",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+};
+
+export const fileCommentInput = {
+  padding: "0.5rem 0.65rem",
+  borderRadius: "4px",
+  border: "1px solid #ccc",
+  fontSize: "0.9rem",
+  flex: "1 1 240px",
+  minHeight: "44px",
+  resize: "vertical",
+};
+
+export const fileCommentList = {
+  listStyle: "none",
+  margin: 0,
+  padding: 0,
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.6rem",
+};
+
+export const fileCommentItem = {
+  border: "1px solid #fde68a",
+  borderRadius: "6px",
+  background: "#fffbeb",
+  padding: "0.5rem 0.75rem",
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.35rem",
+};
+
+export const fileCommentMeta = {
+  display: "flex",
+  alignItems: "center",
+  gap: "0.5rem",
+  flexWrap: "wrap",
+  fontSize: "0.82rem",
+  color: "#555",
+};
+
+export const fileCommentMessage = {
+  fontSize: "0.92rem",
+  color: "#333",
+  whiteSpace: "pre-wrap",
+};
+
+export const fileCommentEmpty = {
+  color: "#555",
+  fontSize: "0.9rem",
+};
+
 export const splitHandle = {
   width: "10px",
   cursor: "col-resize",

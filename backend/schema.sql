@@ -142,6 +142,19 @@ CREATE TABLE IF NOT EXISTS code_comment (
   FOREIGN KEY (autor_id)    REFERENCES usuario(id)  ON DELETE SET NULL
 );
 
+CREATE TABLE IF NOT EXISTS file_comment (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  revision_id   INTEGER NOT NULL,
+  sha1          TEXT NOT NULL,
+  ruta_archivo  TEXT NOT NULL,
+  contenido     TEXT NOT NULL,
+  autor_id      INTEGER,
+  creado_en     TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (revision_id, sha1, ruta_archivo),
+  FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE,
+  FOREIGN KEY (autor_id)    REFERENCES usuario(id)  ON DELETE SET NULL
+);
+
 
 CREATE TABLE IF NOT EXISTS meta_revision (
   id             INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -182,6 +195,9 @@ CREATE INDEX IF NOT EXISTS idx_revision_entrega    ON revision(id_entrega);
 CREATE INDEX IF NOT EXISTS idx_revision_revisores  ON revision(id_revisores);
 CREATE INDEX IF NOT EXISTS idx_comment_revision    ON code_comment(revision_id);
 CREATE INDEX IF NOT EXISTS idx_comment_sha1        ON code_comment(sha1);
+CREATE INDEX IF NOT EXISTS idx_file_comment_revision ON file_comment(revision_id);
+CREATE INDEX IF NOT EXISTS idx_file_comment_sha1     ON file_comment(sha1);
+CREATE INDEX IF NOT EXISTS idx_file_comment_path     ON file_comment(ruta_archivo);
 
 CREATE INDEX IF NOT EXISTS idx_meta_tarea          ON meta_revision(id_tarea);
 CREATE INDEX IF NOT EXISTS idx_meta_entrega        ON meta_revision(id_entrega);

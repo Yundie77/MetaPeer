@@ -1,6 +1,6 @@
 // Helpers simples para construir y leer permalinks (?path=...&line=N o ?file=...&line=N)
 
-export function buildPermalink({ path, line, revisionId, fileId, useRevisionId = false }) {
+export function buildPermalink({ path, line, revisionId, fileId, section, useRevisionId = false }) {
   const { origin, pathname } = window.location;
   const params = new URLSearchParams();
   const normalizedRevision = Number(revisionId) || null;
@@ -16,8 +16,13 @@ export function buildPermalink({ path, line, revisionId, fileId, useRevisionId =
     params.set('path', path);
   }
 
-  const normalizedLine = Number(line) || 0;
-  if (normalizedLine > 0) params.set('line', String(normalizedLine));
+  const normalizedSection = (section || '').toString().trim();
+  if (normalizedSection) {
+    params.set('section', normalizedSection);
+  } else {
+    const normalizedLine = Number(line) || 0;
+    if (normalizedLine > 0) params.set('line', String(normalizedLine));
+  }
   const query = params.toString();
 
   return `${origin}${pathname}${query ? `?${query}` : ''}`;
@@ -28,13 +33,21 @@ export function readFromURL() {
   const fileId = (params.get('file') || params.get('fileId') || '').trim();
   const path = params.get('path') || '';
   const line = Number(params.get('line') || '0') || 0;
+  const section = (params.get('section') || '').trim();
+  const commentsFlag = params.get('comments');
   const revisionParam = params.get('revision') || params.get('revisionId');
   const revisionId = revisionParam ? Number(revisionParam) || null : null;
   
-  return { fileId, path, line, revisionId };
+  return {
+    fileId,
+    path,
+    line,
+    revisionId,
+    section: section || (commentsFlag ? 'comments' : '')
+  };
 }
 
-export function writeToURL({ path, line, revisionId, fileId, useRevisionId = false }) {
-  const url = buildPermalink({ path, line, revisionId, fileId, useRevisionId });
+export function writeToURL({ path, line, revisionId, fileId, section, useRevisionId = false }) {
+  const url = buildPermalink({ path, line, revisionId, fileId, section, useRevisionId });
   window.history.replaceState(null, '', url);
 }

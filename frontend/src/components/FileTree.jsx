@@ -9,7 +9,9 @@ export default function FileTree({
   selectedPath = '',
   expandedPaths = new Set(),
   onToggleDir,
-  onOpenFile
+  onOpenFile,
+  commentCounts = {},
+  onCommentBadgeClick
 }) {
   return (
     <ul style={ulStyle}>
@@ -22,18 +24,21 @@ export default function FileTree({
           expandedPaths={expandedPaths}
           onToggleDir={onToggleDir}
           onOpenFile={onOpenFile}
+          commentCounts={commentCounts}
+          onCommentBadgeClick={onCommentBadgeClick}
         />
       ))}
     </ul>
   );
 }
 
-function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpenFile }) {
+function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpenFile, commentCounts, onCommentBadgeClick }) {
   const isDir = !node.isFile;
   const isExpanded = isDir ? expandedPaths.has(node.path) : false;
   const isSelected = selectedPath === node.path;
   const paddingLeft = 12 + depth * 16;
   const nodeRef = useRef(null);
+  const commentCount = getCommentCount(commentCounts, node.path);
 
   useEffect(() => {
     if (isSelected && nodeRef.current) {
@@ -58,23 +63,35 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
           {node.name}
         </button>
       ) : (
-        <button
-          type="button"
-          ref={nodeRef}
-          onClick={() => onOpenFile && onOpenFile(node.path)}
-          style={{
-            ...fileButtonStyle,
-            paddingLeft,
-            backgroundColor: isSelected ? '#d9ecff' : 'transparent',
-            borderColor: isSelected ? '#8cc4ff' : 'transparent'
-          }}
-          title={node.path}
-        >
-          <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📄</span>
-          <span style={{ fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace', fontSize: '0.88rem' }}>
-            {node.name}
-          </span>
-        </button>
+        <div style={fileRowStyle}>
+          <button
+            type="button"
+            ref={nodeRef}
+            onClick={() => onOpenFile && onOpenFile(node.path)}
+            style={{
+              ...fileButtonStyle,
+              paddingLeft,
+              backgroundColor: isSelected ? '#d9ecff' : 'transparent',
+              borderColor: isSelected ? '#8cc4ff' : 'transparent'
+            }}
+            title={node.path}
+          >
+            <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📄</span>
+            <span style={{ fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace', fontSize: '0.88rem' }}>
+              {node.name}
+            </span>
+          </button>
+          {commentCount > 0 && (
+            <button
+              type="button"
+              style={commentBadgeStyle}
+              onClick={() => onCommentBadgeClick && onCommentBadgeClick(node.path)}
+              title="Ver comentarios generales"
+            >
+              {commentCount} comentario{commentCount === 1 ? '' : 's'}
+            </button>
+          )}
+        </div>
       )}
 
       {isDir && isExpanded && node.children && node.children.length > 0 && (
@@ -88,6 +105,8 @@ function TreeNode({ node, depth, selectedPath, expandedPaths, onToggleDir, onOpe
               expandedPaths={expandedPaths}
               onToggleDir={onToggleDir}
               onOpenFile={onOpenFile}
+              commentCounts={commentCounts}
+              onCommentBadgeClick={onCommentBadgeClick}
             />
           ))}
         </ul>
@@ -107,6 +126,12 @@ const ulStyle = {
 
 const liStyle = {
   listStyle: 'none'
+};
+
+const fileRowStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.4rem'
 };
 
 const dirButtonStyle = {
@@ -137,3 +162,22 @@ const fileButtonStyle = {
   fontSize: '0.9rem',
   color: '#24292f'
 };
+
+const commentBadgeStyle = {
+  border: '1px solid #2563eb',
+  background: '#eff6ff',
+  color: '#1e3a8a',
+  borderRadius: '999px',
+  padding: '0.1rem 0.5rem',
+  fontSize: '0.72rem',
+  fontWeight: 600,
+  cursor: 'pointer'
+};
+
+function getCommentCount(commentCounts, path) {
+  if (!commentCounts || !path) return 0;
+  if (commentCounts instanceof Map) {
+    return Number(commentCounts.get(path)) || 0;
+  }
+  return Number(commentCounts[path]) || 0;
+}

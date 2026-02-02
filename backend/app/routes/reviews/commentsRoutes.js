@@ -91,4 +91,178 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
   }
 });
 
+router.get('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    const fileId = (req.query?.fileId || req.query?.file || '').toString().trim();
+
+    if (!revisionId || !fileId) {
+      return sendError(res, 400, 'Falta indicar el archivo.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
+    if (!revision) {
+      return sendError(res, 403, 'No puedes ver los comentarios de este archivo.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'No encontramos los archivos de la entrega.');
+    }
+
+    const files = await listAllFiles(baseDir);
+    const target = findFileById(files, revisionId, fileId);
+    if (!target) {
+      return sendError(res, 404, 'No encontramos el archivo indicado.');
+    }
+
+    const relativePath = normalizeRelativePath(target.path);
+    const absolutePath = ensureInside(baseDir, relativePath);
+    const stats = await fsp.stat(absolutePath);
+    if (!stats.isFile()) {
+      return sendError(res, 400, 'Solo puedes comentar archivos.');
+    }
+
+    const sha1 = await fileHash(absolutePath, 'sha1');
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+
+    const rows = db
+      .prepare(
+        `
+        SELECT fc.id,
+               fc.contenido,
+               fc.creado_en,
+               usr.nombre_completo AS autor_nombre,
+               usr.correo          AS autor_correo
+        FROM file_comment fc
+        LEFT JOIN usuario usr ON usr.id = fc.autor_id
+        WHERE fc.revision_id = ?
+          AND fc.sha1 = ?
+          AND fc.ruta_archivo = ?
+        ORDER BY fc.id
+      `
+      )
+      .all(revisionId, sha1, normalizedPath);
+
+    const comments = rows.map((row) => ({
+      id: row.id,
+      contenido: row.contenido,
+      creado_en: row.creado_en,
+      autor: row.autor_nombre ? { nombre: row.autor_nombre, correo: row.autor_correo } : null,
+      sha1
+    }));
+
+    return res.json(comments);
+  } catch (error) {
+    console.error('Error al cargar comentarios generales:', error);
+    return sendError(res, 500, 'No pudimos cargar los comentarios.');
+  }
+});
+
+router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), async (req, res) => {
+  try {
+    const revisionId = safeNumber(req.params.revisionId);
+    const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
+    const contenido = (req.body?.contenido || req.body?.text || '').toString().trim();
+
+    if (!revisionId || !fileId) {
+      return sendError(res, 400, 'Falta indicar el archivo.');
+    }
+    if (!contenido) {
+      return sendError(res, 400, 'El comentario no puede estar vacío.');
+    }
+
+    const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
+    if (!revision) {
+      return sendError(res, 403, 'No puedes comentar este archivo.');
+    }
+
+    const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
+    if (!fs.existsSync(baseDir)) {
+      return sendError(res, 404, 'No encontramos los archivos de la entrega.');
+    }
+
+    const files = await listAllFiles(baseDir);
+    const target = findFileById(files, revisionId, fileId);
+    if (!target) {
+      return sendError(res, 404, 'No encontramos el archivo indicado.');
+    }
+
+    const relativePath = normalizeRelativePath(target.path);
+    const absolutePath = ensureInside(baseDir, relativePath);
+    const stats = await fsp.stat(absolutePath);
+    if (!stats.isFile()) {
+      return sendError(res, 400, 'Solo puedes comentar archivos.');
+    }
+
+    const sha1 = await fileHash(absolutePath, 'sha1');
+    const normalizedPath = relativePath.replace(/\\/g, '/');
+
+    const existing = db
+      .prepare(
+        `
+        SELECT id
+        FROM file_comment
+        WHERE revision_id = ?
+          AND sha1 = ?
+          AND ruta_archivo = ?
+      `
+      )
+      .get(revisionId, sha1, normalizedPath);
+
+    let commentId = null;
+    let updated = false;
+
+    if (existing?.id) {
+      db.prepare(
+        `
+        UPDATE file_comment
+        SET contenido = ?,
+            autor_id = ?,
+            creado_en = datetime('now')
+        WHERE id = ?
+      `
+      ).run(contenido, req.user.id, existing.id);
+      commentId = existing.id;
+      updated = true;
+    } else {
+      const insert = db
+        .prepare(
+          `
+          INSERT INTO file_comment (revision_id, sha1, ruta_archivo, contenido, autor_id)
+          VALUES (?, ?, ?, ?, ?)
+        `
+        )
+        .run(revisionId, sha1, normalizedPath, contenido, req.user.id);
+      commentId = insert.lastInsertRowid;
+    }
+
+    const created = db
+      .prepare(
+        `
+        SELECT fc.id,
+               fc.contenido,
+               fc.creado_en,
+               usr.nombre_completo AS autor_nombre,
+               usr.correo          AS autor_correo
+        FROM file_comment fc
+        LEFT JOIN usuario usr ON usr.id = fc.autor_id
+        WHERE fc.id = ?
+      `
+      )
+      .get(commentId);
+
+    return res.status(updated ? 200 : 201).json({
+      id: created.id,
+      contenido: created.contenido,
+      creado_en: created.creado_en,
+      autor: created.autor_nombre ? { nombre: created.autor_nombre, correo: created.autor_correo } : null,
+      sha1
+    });
+  } catch (error) {
+    console.error('Error al guardar comentario general:', error);
+    return sendError(res, 500, 'No pudimos guardar el comentario.');
+  }
+});
+
 module.exports = router;

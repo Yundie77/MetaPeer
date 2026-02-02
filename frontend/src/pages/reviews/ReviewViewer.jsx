@@ -18,6 +18,16 @@ import {
   previewWrapper,
   previewFrame,
   linkButton,
+  fileCommentPanel,
+  fileCommentHeader,
+  fileCommentActions,
+  fileCommentForm,
+  fileCommentInput,
+  fileCommentList,
+  fileCommentItem,
+  fileCommentMeta,
+  fileCommentMessage,
+  fileCommentEmpty,
   errorStyle,
   splitHandle,
   metaReviewPanel,
@@ -79,6 +89,15 @@ export default function ReviewViewer({
     path: '',
     size: 0
   });
+  const [fileCommentCounts, setFileCommentCounts] = useState({});
+  const [fileComments, setFileComments] = useState([]);
+  const [fileCommentsLoading, setFileCommentsLoading] = useState(false);
+  const [fileCommentsError, setFileCommentsError] = useState('');
+  const [fileCommentDraft, setFileCommentDraft] = useState('');
+  const [fileCommentFormOpen, setFileCommentFormOpen] = useState(false);
+  const [fileCommentSaving, setFileCommentSaving] = useState(false);
+  const fileCommentsRef = useRef(null);
+  const pendingFileCommentScrollRef = useRef(false);
   const [binaryPreviewUrl, setBinaryPreviewUrl] = useState('');
   const [binaryPreviewType, setBinaryPreviewType] = useState('');
   const [binaryPreviewLoading, setBinaryPreviewLoading] = useState(false);
@@ -118,13 +137,14 @@ export default function ReviewViewer({
     }
 
     // Fallback: leer ?file&line o ?path&line de la URL si no vino por props
-    const { fileId: urlFileId, path: urlPath, line: urlLine, revisionId: urlRevision } = readFromURL();
+    const { fileId: urlFileId, path: urlPath, line: urlLine, revisionId: urlRevision, section } = readFromURL();
     const normalizedUrlFileId = String(urlFileId || '').trim();
-    const safeLine = Number.isInteger(urlLine) && urlLine > 0 ? urlLine : 0;
+    const normalizedSection = section === 'comments' ? 'comments' : '';
+    const safeLine = normalizedSection ? 0 : (Number.isInteger(urlLine) && urlLine > 0 ? urlLine : 0);
     if (normalizedUrlFileId && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
-      pendingFileRef.current = { fileId: normalizedUrlFileId, line: safeLine };
+      pendingFileRef.current = { fileId: normalizedUrlFileId, line: safeLine, section: normalizedSection };
     } else if (urlPath && (urlRevision === null || Number(urlRevision) === Number(revisionId))) {
-      pendingFileRef.current = { path: normalizePath(urlPath), line: safeLine };
+      pendingFileRef.current = { path: normalizePath(urlPath), line: safeLine, section: normalizedSection };
     } else {
       pendingFileRef.current = null;
     }
@@ -145,6 +165,13 @@ export default function ReviewViewer({
         path: '',
         size: 0
       });
+      setFileCommentCounts({});
+      setFileComments([]);
+      setFileCommentsLoading(false);
+      setFileCommentsError('');
+      setFileCommentDraft('');
+      setFileCommentFormOpen(false);
+      setFileCommentSaving(false);
       setBinaryPreviewUrl('');
       setBinaryPreviewType('');
       setBinaryPreviewLoading(false);
@@ -166,6 +193,16 @@ export default function ReviewViewer({
         setError('');
         const data = await getJson(`/reviews/${revisionId}/files`);
         setFiles(data.files || []);
+        const rawCounts = data?.fileCommentCounts || {};
+        const normalizedCounts = {};
+        Object.entries(rawCounts).forEach(([pathValue, total]) => {
+          const normalized = normalizePath(pathValue);
+          const count = Number(total) || 0;
+          if (normalized && count > 0) {
+            normalizedCounts[normalized] = count;
+          }
+        });
+        setFileCommentCounts(normalizedCounts);
         setSubmissionMeta({
           zipName: data.zipName,
           submissionId: data.submissionId
@@ -178,6 +215,7 @@ export default function ReviewViewer({
       } catch (err) {
         setFiles([]);
         setSubmissionMeta(null);
+        setFileCommentCounts({});
         setError(err.message);
       } finally {
         setTreeLoading(false);
@@ -322,14 +360,45 @@ export default function ReviewViewer({
     [fileData.comments]
   );
 
+  const fileCommentItems = useMemo(
+    () =>
+      (fileComments || [])
+        .map((comment) => {
+          const content = (comment.contenido ?? '').trim();
+          if (!content) return null;
+          const authorName = (comment.autor?.nombre ?? '').trim();
+          const alias = buildAlias(authorName || 'Revisor');
+          const { relativeText, absoluteText } = formatRelativeTime(comment.creado_en);
+          return {
+            id: comment.id,
+            message: content,
+            alias,
+            aliasTitle: authorName || 'Revisor',
+            timeText: relativeText,
+            timeTitle: absoluteText
+          };
+        })
+        .filter(Boolean),
+    [fileComments]
+  );
+
+  const showFileCommentSection = fileData.isBinary && !!binaryPreviewType;
+
   /**
    * Abre un archivo por su identificador y actualiza estado + URL.
    */
   const openFileById = useCallback(
-    async (fileId, line = 0) => {
+    async (fileId, line = 0, options = {}) => {
       if (!revisionId || !fileId) return;
+      const normalizedSection = options?.section === 'comments' ? 'comments' : '';
       const parsedLine = Number(line);
-      const safeLine = Number.isInteger(parsedLine) && parsedLine > 0 ? parsedLine : 0;
+      const safeLine =
+        normalizedSection === 'comments'
+          ? 0
+          : (Number.isInteger(parsedLine) && parsedLine > 0 ? parsedLine : 0);
+      if (normalizedSection === 'comments') {
+        pendingFileCommentScrollRef.current = true;
+      }
       try {
         setFileLoading(true);
         setError('');
@@ -361,6 +430,7 @@ export default function ReviewViewer({
           revisionId,
           fileId: resolvedFileId,
           line: safeLine,
+          section: normalizedSection,
           useRevisionId: readOnly
         });
         if (onFileOpened) {
@@ -379,7 +449,7 @@ export default function ReviewViewer({
    * Abre un archivo a partir de su ruta (usada por el árbol de archivos).
    */
   const openFile = useCallback(
-    (pathValue, line = 0) => {
+    (pathValue, line = 0, options = {}) => {
       if (!pathValue) return;
       const normalizedPath = normalizePath(pathValue);
       const target = fileMapByPath.get(normalizedPath);
@@ -387,9 +457,33 @@ export default function ReviewViewer({
         setError('No encontramos el archivo solicitado.');
         return;
       }
-      openFileById(target.id, line);
+      openFileById(target.id, line, options);
     },
     [fileMapByPath, openFileById]
+  );
+
+  const refreshFileComments = useCallback(
+    async (fileId, pathValue) => {
+      if (!revisionId || !fileId) return [];
+      const data = await getJson(`/reviews/${revisionId}/file-comments?fileId=${encodeURIComponent(fileId)}`);
+      const list = Array.isArray(data) ? data : data?.comments || [];
+      setFileComments(list);
+      const normalizedPath = normalizePath(pathValue || '');
+      if (normalizedPath) {
+        setFileCommentCounts((prev) => {
+          const next = { ...prev };
+          const count = Array.isArray(list) ? list.length : 0;
+          if (count > 0) {
+            next[normalizedPath] = count;
+          } else {
+            delete next[normalizedPath];
+          }
+          return next;
+        });
+      }
+      return list;
+    },
+    [revisionId]
   );
 
   useEffect(() => {
@@ -492,6 +586,58 @@ export default function ReviewViewer({
   }, [revisionId, currentPath, currentFileId, fileData.isBinary, token]);
 
   useEffect(() => {
+    if (!revisionId || !currentFileId || !showFileCommentSection) {
+      setFileComments([]);
+      setFileCommentsLoading(false);
+      setFileCommentsError('');
+      return;
+    }
+
+    let active = true;
+    setFileCommentsLoading(true);
+    setFileCommentsError('');
+
+    refreshFileComments(currentFileId, currentPath)
+      .catch((err) => {
+        if (!active) return;
+        setFileCommentsError(err.message || 'No pudimos cargar los comentarios.');
+        setFileComments([]);
+      })
+      .finally(() => {
+        if (active) {
+          setFileCommentsLoading(false);
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [revisionId, currentFileId, currentPath, showFileCommentSection, refreshFileComments]);
+
+  useEffect(() => {
+    setFileCommentDraft('');
+    setFileCommentFormOpen(false);
+    setFileCommentsError('');
+    setFileCommentSaving(false);
+  }, [currentFileId]);
+
+  const scrollToFileComments = useCallback((behavior = 'smooth') => {
+    if (!fileCommentsRef.current) return;
+    fileCommentsRef.current.scrollIntoView({ behavior, block: 'start' });
+  }, []);
+
+  useEffect(() => {
+    if (!pendingFileCommentScrollRef.current) return;
+    if (!showFileCommentSection) return;
+    if (!fileCommentsRef.current) return;
+    const raf = requestAnimationFrame(() => {
+      scrollToFileComments('smooth');
+      pendingFileCommentScrollRef.current = false;
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [showFileCommentSection, fileCommentsLoading, fileComments, scrollToFileComments]);
+
+  useEffect(() => {
     if (!revisionId || files.length === 0) {
       return;
     }
@@ -499,11 +645,12 @@ export default function ReviewViewer({
     const pending = pendingFileRef.current;
     if (pending) {
       const line = pending.line || 0;
+      const section = pending.section || '';
       if (pending.fileId) {
         const target = fileMapById.get(pending.fileId);
         pendingFileRef.current = null;
         if (target?.id) {
-          openFileById(target.id, line);
+          openFileById(target.id, line, { section });
         } else if (files[0]?.id) {
           setError('No encontramos el archivo indicado. Abrimos el primero disponible.');
           openFileById(files[0].id, 0);
@@ -519,7 +666,7 @@ export default function ReviewViewer({
       const target = fileMapByPath.get(availablePath);
       pendingFileRef.current = null;
       if (target?.id) {
-        openFileById(target.id, availablePath === normalized ? line : 0);
+        openFileById(target.id, availablePath === normalized ? line : 0, { section });
       }
       return;
     }
@@ -596,6 +743,67 @@ export default function ReviewViewer({
       setError(err.message);
     }
   };
+
+  const handleAddFileComment = async () => {
+    if (readOnly) return;
+    if (!revisionId || !currentFileId) {
+      setFileCommentsError('Selecciona un archivo antes de comentar.');
+      return;
+    }
+    const contenido = fileCommentDraft.trim();
+    if (!contenido) {
+      setFileCommentsError('El comentario no puede estar vacío.');
+      return;
+    }
+    const lastFileId = currentFileId;
+    const lastPath = currentPath;
+    try {
+      setFileCommentSaving(true);
+      setFileCommentsError('');
+      await postJson(`/reviews/${revisionId}/file-comments`, {
+        fileId: currentFileId,
+        contenido
+      });
+      await refreshFileComments(lastFileId, lastPath);
+      setFileCommentDraft('');
+      setFileCommentFormOpen(false);
+    } catch (err) {
+      setFileCommentsError(err.message);
+    } finally {
+      setFileCommentSaving(false);
+    }
+  };
+
+  const handleOpenFileCommentForm = () => {
+    if (readOnly) return;
+    setFileCommentFormOpen(true);
+    if (!fileCommentDraft && fileComments.length === 1) {
+      const existing = (fileComments[0]?.contenido || '').trim();
+      if (existing) {
+        setFileCommentDraft(existing);
+      }
+    }
+  };
+
+  const handleOpenFileComments = useCallback(
+    (pathValue) => {
+      if (!pathValue) return;
+      const normalized = normalizePath(pathValue);
+      if (normalized === currentPath && showFileCommentSection) {
+        writeToURL({
+          revisionId,
+          fileId: currentFileId,
+          section: 'comments',
+          useRevisionId: readOnly
+        });
+        scrollToFileComments('smooth');
+        return;
+      }
+      pendingFileCommentScrollRef.current = true;
+      openFile(normalized, 0, { section: 'comments' });
+    },
+    [currentPath, showFileCommentSection, openFile, currentFileId, revisionId, readOnly, scrollToFileComments]
+  );
 
   /**
    * Descarga el ZIP original de la entrega con autenticación del usuario.
@@ -774,6 +982,8 @@ export default function ReviewViewer({
                 expandedPaths={expandedPaths}
                 onToggleDir={toggleDir}
                 onOpenFile={(filePath) => openFile(filePath, 0)}
+                commentCounts={fileCommentCounts}
+                onCommentBadgeClick={handleOpenFileComments}
               />
             </aside>
             <div
@@ -812,21 +1022,100 @@ export default function ReviewViewer({
               ) : !currentPath ? (
                 <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
               ) : fileData.isBinary ? (
-                showBinaryPreview ? (
-                  <div style={previewWrapper}>
-                    <iframe
-                      title={`Vista previa de ${previewLabel}`}
-                      src={binaryPreviewUrl}
-                      style={previewFrame}
-                    />
-                  </div>
-                ) : showBinaryLoading ? (
-                  <p>Cargando vista previa...</p>
-                ) : showBinaryError ? (
-                  <div style={binaryWarning}>{binaryPreviewError}</div>
-                ) : (
-                  <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
-                )
+                <>
+                  {showBinaryPreview ? (
+                    <div style={previewWrapper}>
+                      <iframe
+                        title={`Vista previa de ${previewLabel}`}
+                        src={binaryPreviewUrl}
+                        style={previewFrame}
+                      />
+                    </div>
+                  ) : showBinaryLoading ? (
+                    <p>Cargando vista previa...</p>
+                  ) : showBinaryError ? (
+                    <div style={binaryWarning}>{binaryPreviewError}</div>
+                  ) : (
+                    <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
+                  )}
+
+                  {showFileCommentSection && (
+                    <section ref={fileCommentsRef} style={fileCommentPanel}>
+                      <div style={fileCommentHeader}>
+                        <div>
+                          <strong>Comentarios</strong>
+                          <div style={miniMeta}>
+                            {fileCommentsLoading
+                              ? 'Cargando...'
+                              : `${fileCommentItems.length} comentario${fileCommentItems.length === 1 ? '' : 's'}`}
+                          </div>
+                        </div>
+                        <div style={fileCommentActions}>
+                          {!readOnly && (
+                            <button
+                              type="button"
+                              style={linkButton}
+                              onClick={handleOpenFileCommentForm}
+                              disabled={fileCommentSaving}
+                            >
+                              Añadir comentario
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {fileCommentsError && <p style={errorStyle}>{fileCommentsError}</p>}
+
+                      {fileCommentFormOpen && !readOnly && (
+                        <div style={fileCommentForm}>
+                          <textarea
+                            style={fileCommentInput}
+                            value={fileCommentDraft}
+                            onChange={(event) => setFileCommentDraft(event.target.value)}
+                            rows={2}
+                            placeholder="Escribe un comentario general sobre este archivo..."
+                            disabled={fileCommentSaving}
+                          />
+                          <button
+                            type="button"
+                            style={{
+                              ...linkButton,
+                              opacity: fileCommentSaving ? 0.6 : 1,
+                              cursor: fileCommentSaving ? 'wait' : 'pointer'
+                            }}
+                            onClick={handleAddFileComment}
+                            disabled={fileCommentSaving}
+                          >
+                            {fileCommentSaving ? 'Guardando...' : 'Confirmar'}
+                          </button>
+                        </div>
+                      )}
+
+                      {fileCommentsLoading ? (
+                        <p>Cargando comentarios...</p>
+                      ) : fileCommentItems.length > 0 ? (
+                        <ul style={fileCommentList}>
+                          {fileCommentItems.map((item) => (
+                            <li key={item.id || item.message} style={fileCommentItem}>
+                              <div style={fileCommentMeta}>
+                                <span role="img" aria-hidden="true">💬</span>
+                                <span title={item.aliasTitle} style={{ fontWeight: 600, color: '#333' }}>
+                                  {item.alias}
+                                </span>
+                                {item.timeText && (
+                                  <span title={item.timeTitle}>{item.timeText}</span>
+                                )}
+                              </div>
+                              <div style={fileCommentMessage}>{item.message}</div>
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p style={fileCommentEmpty}>Todavía no hay comentarios generales.</p>
+                      )}
+                    </section>
+                  )}
+                </>
               ) : (
                 <EditorPane
                   path={currentPath}

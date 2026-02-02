@@ -411,7 +411,10 @@ function persistAssignmentPlan(plan) {
     plan.pairs.forEach((pair) => {
       let reviewerTeamId = pair.reviewerTeamId;
       if (pair.reviewerType === 'user') {
-        reviewerTeamId = pair.reviewerTeamId || reviewerTeamId;
+        reviewerTeamId =
+          pair.reviewerUserId
+            ? ensureIndividualReviewerTeam(plan.assignmentId, pair.reviewerUserId, pair.reviewerName || '')
+            : reviewerTeamId;
       }
       insertRevision.run(assignmentRecordId, pair.targetSubmissionId, reviewerTeamId);
     });

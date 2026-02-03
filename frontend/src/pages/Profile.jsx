@@ -33,14 +33,15 @@ function typeLabel(type) {
 
 export default function Profile() {
   const { role } = useAuth();
-  const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
+  const isStudent = useMemo(() => role === 'ALUM', [role]);
+  const canView = useMemo(() => Boolean(role), [role]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
 
   useEffect(() => {
-    if (!isTeacher) {
+    if (!canView) {
       setLoading(false);
       setPayload(null);
       return;
@@ -73,11 +74,21 @@ export default function Profile() {
     return () => {
       cancelled = true;
     };
-  }, [isTeacher]);
+  }, [canView]);
 
-  if (!isTeacher) {
-    return <p>Solo profesores y administradores pueden ver el perfil.</p>;
-  }
+  const statItems = isStudent
+    ? [
+        { label: 'Revisiones asignadas', value: payload?.stats?.reviewsAssignedCount ?? 0 },
+        { label: 'Revisiones enviadas', value: payload?.stats?.reviewsSubmittedCount ?? 0 },
+        { label: 'Meta-revisiones', value: payload?.stats?.metaReviewsCount ?? 0 }
+      ]
+    : [
+        { label: 'Asignaciones', value: payload?.stats?.assignmentsAssignedCount ?? 0 },
+        { label: 'Revisiones asignadas', value: payload?.stats?.reviewsAssignedCount ?? 0 },
+        { label: 'Revisiones enviadas', value: payload?.stats?.reviewsSubmittedCount ?? 0 },
+        { label: 'Meta-revisiones', value: payload?.stats?.metaReviewsCount ?? 0 },
+        { label: 'Cargas ZIP', value: payload?.stats?.batchesUploadedCount ?? 0 }
+      ];
 
   return (
     <section>
@@ -124,26 +135,12 @@ export default function Profile() {
             <div style={cardStyle}>
               <h3 style={sectionTitleStyle}>Resumen</h3>
               <div style={statsGridStyle}>
-                <div style={statBoxStyle}>
-                  <div style={statLabelStyle}>Asignaciones</div>
-                  <div style={statValueStyle}>{payload.stats?.assignmentsAssignedCount ?? 0}</div>
-                </div>
-                <div style={statBoxStyle}>
-                  <div style={statLabelStyle}>Revisiones asignadas</div>
-                  <div style={statValueStyle}>{payload.stats?.reviewsAssignedCount ?? 0}</div>
-                </div>
-                <div style={statBoxStyle}>
-                  <div style={statLabelStyle}>Revisiones enviadas</div>
-                  <div style={statValueStyle}>{payload.stats?.reviewsSubmittedCount ?? 0}</div>
-                </div>
-                <div style={statBoxStyle}>
-                  <div style={statLabelStyle}>Meta-revisiones</div>
-                  <div style={statValueStyle}>{payload.stats?.metaReviewsCount ?? 0}</div>
-                </div>
-                <div style={statBoxStyle}>
-                  <div style={statLabelStyle}>Cargas ZIP</div>
-                  <div style={statValueStyle}>{payload.stats?.batchesUploadedCount ?? 0}</div>
-                </div>
+                {statItems.map((item) => (
+                  <div key={item.label} style={statBoxStyle}>
+                    <div style={statLabelStyle}>{item.label}</div>
+                    <div style={statValueStyle}>{item.value}</div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -376,4 +373,3 @@ const errorStyle = {
   color: 'crimson',
   fontWeight: 700
 };
-

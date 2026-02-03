@@ -210,6 +210,72 @@ function listMetaReviews(userId, assignmentIds = []) {
     .all(userId, ...assignmentIds, ROSTER_LIKE);
 }
 
+function listStudentReviewRows(userId) {
+  return db
+    .prepare(
+      `
+      SELECT
+        rev.id AS review_id,
+        rev.id_entrega AS submission_id,
+        rev.fecha_asignacion,
+        rev.fecha_envio,
+        asg.id_tarea AS assignment_id,
+        t.titulo AS assignment_title,
+        t.id_asignatura AS subject_id,
+        a.nombre AS subject_name,
+        ent.id_equipo AS author_team_id,
+        autor.nombre AS author_team_name,
+        revisor.nombre AS reviewer_team_name
+      FROM revision rev
+      JOIN equipo revisor ON revisor.id = rev.id_revisores
+      JOIN miembro_equipo me ON me.id_equipo = revisor.id
+      JOIN asignacion asg ON asg.id = rev.id_asignacion
+      JOIN tarea t ON t.id = asg.id_tarea
+      LEFT JOIN asignatura a ON a.id = t.id_asignatura
+      JOIN entregas ent ON ent.id = rev.id_entrega
+      JOIN equipo autor ON autor.id = ent.id_equipo
+      WHERE me.id_usuario = ?
+        AND t.titulo NOT LIKE ?
+      ORDER BY rev.fecha_asignacion DESC, rev.id DESC
+    `
+    )
+    .all(userId, ROSTER_LIKE);
+}
+
+function listStudentMetaReviews(userId) {
+  return db
+    .prepare(
+      `
+      SELECT
+        mr.id,
+        mr.id_revision AS review_id,
+        mr.id_entrega AS submission_id,
+        mr.nota_calidad,
+        mr.observacion,
+        mr.fecha_registro,
+        t.id AS assignment_id,
+        t.titulo AS assignment_title,
+        t.id_asignatura AS subject_id,
+        a.nombre AS subject_name,
+        ent.id_equipo AS author_team_id,
+        autor.nombre AS author_team_name
+      FROM meta_revision mr
+      JOIN revision rev ON rev.id = mr.id_revision
+      JOIN equipo revisor ON revisor.id = rev.id_revisores
+      JOIN miembro_equipo me ON me.id_equipo = revisor.id
+      JOIN asignacion asg ON asg.id = rev.id_asignacion
+      JOIN tarea t ON t.id = asg.id_tarea
+      LEFT JOIN asignatura a ON a.id = t.id_asignatura
+      JOIN entregas ent ON ent.id = rev.id_entrega
+      JOIN equipo autor ON autor.id = ent.id_equipo
+      WHERE me.id_usuario = ?
+        AND t.titulo NOT LIKE ?
+      ORDER BY mr.fecha_registro DESC, mr.id DESC
+    `
+    )
+    .all(userId, ROSTER_LIKE);
+}
+
 function buildReviewerResolver() {
   const membersCache = new Map();
 
@@ -375,6 +441,71 @@ function buildEvents({ assignmentRecords, revisionRows, batchUploads, metaReview
   return events.slice(0, MAX_EVENTS);
 }
 
+function buildStudentEvents({ reviewRows, metaReviews }) {
+  const events = [];
+
+  reviewRows.forEach((row) => {
+    const assignedAt = normalizeTimestamp(row.fecha_asignacion);
+    if (assignedAt) {
+      events.push({
+        id: `review_assigned_${row.review_id}`,
+        type: 'review_assigned',
+        timestamp: assignedAt,
+        title: 'Revisión asignada',
+        description: `Debes revisar a ${row.author_team_name || 'un equipo'}.`,
+        assignmentId: row.assignment_id,
+        assignmentTitle: row.assignment_title,
+        subjectId: row.subject_id,
+        subjectName: row.subject_name,
+        reviewId: row.review_id,
+        submissionId: row.submission_id
+      });
+    }
+
+    const submittedAt = normalizeTimestamp(row.fecha_envio);
+    if (submittedAt) {
+      events.push({
+        id: `review_submitted_${row.review_id}`,
+        type: 'review_submitted',
+        timestamp: submittedAt,
+        title: 'Revisión enviada',
+        description: `Enviaste revisión para ${row.author_team_name || 'un equipo'}.`,
+        assignmentId: row.assignment_id,
+        assignmentTitle: row.assignment_title,
+        subjectId: row.subject_id,
+        subjectName: row.subject_name,
+        reviewId: row.review_id,
+        submissionId: row.submission_id
+      });
+    }
+  });
+
+  metaReviews.forEach((row) => {
+    const timestamp = normalizeTimestamp(row.fecha_registro);
+    if (!timestamp) {
+      return;
+    }
+    const gradeLabel =
+      row.nota_calidad !== null && row.nota_calidad !== undefined ? ` Nota de calidad: ${row.nota_calidad}.` : '';
+    events.push({
+      id: `meta_review_${row.id}`,
+      type: 'meta_review',
+      timestamp,
+      title: 'Meta-revisión registrada',
+      description: `Se registró una meta-revisión del profesor para tu revisión.${gradeLabel}`,
+      assignmentId: row.assignment_id,
+      assignmentTitle: row.assignment_title,
+      subjectId: row.subject_id,
+      subjectName: row.subject_name,
+      reviewId: row.review_id,
+      submissionId: row.submission_id
+    });
+  });
+
+  events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  return events.slice(0, MAX_EVENTS);
+}
+
 function buildProfilePayload(userId) {
   const user = getUserById(userId);
   if (!user) {
@@ -422,9 +553,60 @@ function buildProfilePayload(userId) {
   };
 }
 
+function buildStudentProfilePayload(userId) {
+  const user = getUserById(userId);
+  if (!user) {
+    return null;
+  }
+
+  const reviewRows = listStudentReviewRows(userId);
+  const metaReviews = listStudentMetaReviews(userId);
+
+  const subjectsMap = new Map();
+  reviewRows.forEach((row) => {
+    if (row.subject_id && row.subject_name && !subjectsMap.has(row.subject_id)) {
+      subjectsMap.set(row.subject_id, { id: row.subject_id, nombre: row.subject_name });
+    }
+  });
+  metaReviews.forEach((row) => {
+    if (row.subject_id && row.subject_name && !subjectsMap.has(row.subject_id)) {
+      subjectsMap.set(row.subject_id, { id: row.subject_id, nombre: row.subject_name });
+    }
+  });
+  const subjects = Array.from(subjectsMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const reviewsAssignedCount = reviewRows.filter((row) => normalizeTimestamp(row.fecha_asignacion)).length;
+  const reviewsSubmittedCount = reviewRows.filter((row) => normalizeTimestamp(row.fecha_envio)).length;
+  const metaReviewsCount = metaReviews.length;
+
+  const events = buildStudentEvents({
+    reviewRows,
+    metaReviews
+  });
+
+  return {
+    profile: {
+      id: user.id,
+      nombre: user.nombre_completo,
+      email: user.correo,
+      rol: user.rol
+    },
+    subjects,
+    stats: {
+      assignmentsAssignedCount: 0,
+      reviewsAssignedCount,
+      reviewsSubmittedCount,
+      metaReviewsCount,
+      batchesUploadedCount: 0
+    },
+    events
+  };
+}
+
 router.get('/api/profile', requireAuth(), (req, res) => {
   try {
-    const payload = buildProfilePayload(req.user.id);
+    const payload =
+      req.user.rol === 'ALUM' ? buildStudentProfilePayload(req.user.id) : buildProfilePayload(req.user.id);
     if (!payload) {
       return sendError(res, 404, 'No encontramos el perfil.');
     }

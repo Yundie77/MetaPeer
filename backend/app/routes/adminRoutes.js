@@ -46,8 +46,8 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
 
     const selectUser = db.prepare('SELECT id FROM usuario WHERE correo = ?');
     const insertUser = db.prepare(`
-      INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado)
-      VALUES (@correo, @nombre, 'ALUM', @hash, 'activo')
+      INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado, creado_en)
+      VALUES (@correo, @nombre, 'ALUM', @hash, 'activo', @creado_en)
     `);
     const insertUserSubject = db.prepare(`
       INSERT OR IGNORE INTO usuario_asignatura (id_usuario, id_asignatura)
@@ -109,7 +109,8 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
           const result = insertUser.run({
             correo: email,
             nombre: fullName,
-            hash
+            hash,
+            creado_en: new Date().toISOString()
           });
           userId = result.lastInsertRowid;
           summary.alumnosCreados += 1;
@@ -228,11 +229,11 @@ router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
     const insert = db
       .prepare(
         `
-        INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado)
-        VALUES (?, ?, 'PROF', ?, 'activo')
+        INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado, creado_en)
+        VALUES (?, ?, 'PROF', ?, 'activo', ?)
       `
       )
-      .run(correo, nombre, hash);
+      .run(correo, nombre, hash, new Date().toISOString());
 
     res.status(201).json({
       id: insert.lastInsertRowid,

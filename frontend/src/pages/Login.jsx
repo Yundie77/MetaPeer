@@ -13,7 +13,8 @@ export default function Login({ onSuccess }) {
     { label: 'Alumno', email: 'alum@demo', password: 'alum123' },
     { label: 'ikramben', email: 'ikramben@ucm.es', password: 'alum123' },
     { label: 'romercad', email: 'romercad@ucm.es', password: 'alum123' },
-    { label: 'dportu01', email: 'dportu01@ucm.es', password: 'alum123' }
+    { label: 'dportu01', email: 'dportu01@ucm.es', password: 'alum123' },
+    { label: 'manu', email: 'manu@ucm.es', password: 'prof123' }
   ];
 
   const handleSubmit = async (event) => {

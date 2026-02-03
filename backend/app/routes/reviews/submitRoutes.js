@@ -70,13 +70,14 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       }
     }
 
+    const submittedAt = new Date().toISOString();
     db.prepare(
       `
       UPDATE revision
-      SET respuestas_json = ?, nota_numerica = ?, comentario_extra = ?, fecha_envio = datetime('now')
+      SET respuestas_json = ?, nota_numerica = ?, comentario_extra = ?, fecha_envio = ?
       WHERE id = ?
     `
-    ).run(respuestasPayload ? JSON.stringify(respuestasPayload) : null, notaNumerica, comentario || null, revision.id);
+    ).run(respuestasPayload ? JSON.stringify(respuestasPayload) : null, notaNumerica, comentario || null, submittedAt, revision.id);
 
     const updated = db
       .prepare(

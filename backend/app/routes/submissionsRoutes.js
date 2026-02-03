@@ -153,12 +153,13 @@ async function processTeamArchives({ assignmentId, uploaderId, archives }) {
     `
     ).run(assignmentId, teamId);
 
+    const uploadedAt = new Date().toISOString();
     db.prepare(
       `
-      INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes, fecha_subida)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
     `
-    ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null);
+    ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null, uploadedAt);
 
     processed.push({
       teamId,
@@ -234,12 +235,13 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
       return sendError(res, 400, 'No se procesaron entregas del ZIP.');
     }
 
+    const batchUploadedAt = new Date().toISOString();
     db.prepare(
       `
-      INSERT INTO carga_entregas (id_tarea, id_profesor, nombre_zip, ruta_zip, total_equipos)
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO carga_entregas (id_tarea, id_profesor, nombre_zip, ruta_zip, total_equipos, fecha_subida)
+      VALUES (?, ?, ?, ?, ?, ?)
     `
-    ).run(assignmentId, req.user.id, originalName, storedBatch.relativePath, processed.length);
+    ).run(assignmentId, req.user.id, originalName, storedBatch.relativePath, processed.length, batchUploadedAt);
 
     return res.status(201).json({
       ok: true,

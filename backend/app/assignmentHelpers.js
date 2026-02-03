@@ -394,12 +394,13 @@ function persistAssignmentPlan(plan) {
   }
 
   const assignmentRecordId = ensureAssignmentRecord(plan.assignmentId);
+  const assignedAt = new Date().toISOString();
   const insertRevision = db.prepare(
     `
-    INSERT INTO revision (id_asignacion, id_entrega, id_revisores)
-    VALUES (?, ?, ?)
+    INSERT INTO revision (id_asignacion, id_entrega, id_revisores, fecha_asignacion)
+    VALUES (?, ?, ?, ?)
     ON CONFLICT(id_entrega, id_revisores) DO UPDATE SET
-      fecha_asignacion = datetime('now'),
+      fecha_asignacion = ?,
       fecha_envio = NULL,
       respuestas_json = NULL,
       nota_numerica = NULL,
@@ -416,17 +417,17 @@ function persistAssignmentPlan(plan) {
             ? ensureIndividualReviewerTeam(plan.assignmentId, pair.reviewerUserId, pair.reviewerName || '')
             : reviewerTeamId;
       }
-      insertRevision.run(assignmentRecordId, pair.targetSubmissionId, reviewerTeamId);
+      insertRevision.run(assignmentRecordId, pair.targetSubmissionId, reviewerTeamId, assignedAt, assignedAt);
     });
 
     const appliedReviews = plan.appliedReviewsPerReviewer || plan.requestedReviewsPerReviewer || 1;
     db.prepare(
       `
       UPDATE asignacion
-      SET modo = ?, revisores_por_entrega = ?, bloqueada = 1, fecha_asignacion = datetime('now')
+      SET modo = ?, revisores_por_entrega = ?, bloqueada = 1, fecha_asignacion = ?
       WHERE id = ?
     `
-    ).run(plan.mode, appliedReviews, assignmentRecordId);
+    ).run(plan.mode, appliedReviews, assignedAt, assignmentRecordId);
 
     db.prepare('UPDATE tarea SET revisores_por_entrega = ? WHERE id = ?').run(appliedReviews, plan.assignmentId);
   });

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS usuario (
   rol              TEXT NOT NULL CHECK (rol IN ('ADMIN','PROF','ALUM')),
   contrasena_hash  TEXT,                    
   estado           TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','invitado','desactivado')),
-  creado_en        TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_en        TEXT NOT NULL,
   ultimo_acceso    TEXT
 );
 
@@ -93,7 +93,7 @@ CREATE TABLE IF NOT EXISTS entregas (
   nombre_zip  TEXT NOT NULL,
   ruta_archivo TEXT NOT NULL,
   tamano_bytes INTEGER,
-  fecha_subida TEXT NOT NULL DEFAULT (datetime('now')),
+  fecha_subida TEXT NOT NULL,
   UNIQUE (id_tarea, id_equipo),                             -- una entrega por equipo y tarea
   FOREIGN KEY (id_tarea)   REFERENCES tarea(id)   ON DELETE CASCADE,
   FOREIGN KEY (id_equipo)  REFERENCES equipo(id)  ON DELETE CASCADE,
@@ -107,7 +107,7 @@ CREATE TABLE IF NOT EXISTS carga_entregas (
   nombre_zip    TEXT NOT NULL,
   ruta_zip      TEXT NOT NULL,
   total_equipos INTEGER,
-  fecha_subida  TEXT NOT NULL DEFAULT (datetime('now')),
+  fecha_subida  TEXT NOT NULL,
   FOREIGN KEY (id_tarea)    REFERENCES tarea(id)    ON DELETE CASCADE,
   FOREIGN KEY (id_profesor) REFERENCES usuario(id)  ON DELETE SET NULL
 );
@@ -118,7 +118,7 @@ CREATE TABLE IF NOT EXISTS revision (
   id_asignacion    INTEGER NOT NULL,                   
   id_entrega       INTEGER NOT NULL,                      
   id_revisores     INTEGER NOT NULL,                     
-  fecha_asignacion TEXT NOT NULL DEFAULT (datetime('now')),
+  fecha_asignacion TEXT NOT NULL,
   fecha_envio      TEXT,
   respuestas_json  TEXT,                                    
   nota_numerica    REAL,
@@ -137,7 +137,7 @@ CREATE TABLE IF NOT EXISTS code_comment (
   linea         INTEGER NOT NULL,
   contenido     TEXT NOT NULL,
   autor_id      INTEGER,
-  creado_en     TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_en     TEXT NOT NULL,
   FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE,
   FOREIGN KEY (autor_id)    REFERENCES usuario(id)  ON DELETE SET NULL
 );
@@ -149,7 +149,7 @@ CREATE TABLE IF NOT EXISTS file_comment (
   ruta_archivo  TEXT NOT NULL,
   contenido     TEXT NOT NULL,
   autor_id      INTEGER,
-  creado_en     TEXT NOT NULL DEFAULT (datetime('now')),
+  creado_en     TEXT NOT NULL,
   UNIQUE (revision_id, sha1, ruta_archivo),
   FOREIGN KEY (revision_id) REFERENCES revision(id) ON DELETE CASCADE,
   FOREIGN KEY (autor_id)    REFERENCES usuario(id)  ON DELETE SET NULL
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS meta_revision (
   observacion    TEXT,
   nota_final     REAL,
   desglose_json  TEXT,
-  fecha_registro TEXT NOT NULL DEFAULT (datetime('now')),
+  fecha_registro TEXT NOT NULL,
   FOREIGN KEY (id_tarea)    REFERENCES tarea(id)      ON DELETE CASCADE,
   FOREIGN KEY (id_entrega)  REFERENCES entregas(id)   ON DELETE CASCADE,
   FOREIGN KEY (id_revision) REFERENCES revision(id)   ON DELETE CASCADE,

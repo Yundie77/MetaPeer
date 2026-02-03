@@ -88,21 +88,30 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
 
     const existing = db.prepare('SELECT id FROM meta_revision WHERE id_revision = ?').get(reviewId);
 
+    const registeredAt = new Date().toISOString();
     if (existing) {
       db.prepare(
         `
         UPDATE meta_revision
-        SET nota_calidad = ?, observacion = ?, fecha_registro = datetime('now')
+        SET nota_calidad = ?, observacion = ?, fecha_registro = ?
         WHERE id = ?
       `
-      ).run(notaCalidad, observacion || null, existing.id);
+      ).run(notaCalidad, observacion || null, registeredAt, existing.id);
     } else {
       db.prepare(
         `
-        INSERT INTO meta_revision (id_tarea, id_entrega, id_revision, id_profesor, nota_calidad, observacion)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO meta_revision (id_tarea, id_entrega, id_revision, id_profesor, nota_calidad, observacion, fecha_registro)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
-      ).run(revision.assignment_id, revision.entrega_id, reviewId, req.user.id, notaCalidad, observacion || null);
+      ).run(
+        revision.assignment_id,
+        revision.entrega_id,
+        reviewId,
+        req.user.id,
+        notaCalidad,
+        observacion || null,
+        registeredAt
+      );
     }
 
     res.json({ ok: true });

@@ -52,14 +52,15 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
 
     const sha1 = await fileHash(absolutePath, 'sha1');
 
+    const createdAt = new Date().toISOString();
     const insert = db
       .prepare(
         `
-        INSERT INTO code_comment (revision_id, sha1, ruta_archivo, linea, contenido, autor_id)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO code_comment (revision_id, sha1, ruta_archivo, linea, contenido, autor_id, creado_en)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       )
-      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, contenido, req.user.id);
+      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, contenido, req.user.id, createdAt);
 
     const created = db
       .prepare(
@@ -213,27 +214,28 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
     let commentId = null;
     let updated = false;
 
+    const createdAt = new Date().toISOString();
     if (existing?.id) {
       db.prepare(
         `
         UPDATE file_comment
         SET contenido = ?,
             autor_id = ?,
-            creado_en = datetime('now')
+            creado_en = ?
         WHERE id = ?
       `
-      ).run(contenido, req.user.id, existing.id);
+      ).run(contenido, req.user.id, createdAt, existing.id);
       commentId = existing.id;
       updated = true;
     } else {
       const insert = db
         .prepare(
           `
-          INSERT INTO file_comment (revision_id, sha1, ruta_archivo, contenido, autor_id)
-          VALUES (?, ?, ?, ?, ?)
+          INSERT INTO file_comment (revision_id, sha1, ruta_archivo, contenido, autor_id, creado_en)
+          VALUES (?, ?, ?, ?, ?, ?)
         `
         )
-        .run(revisionId, sha1, normalizedPath, contenido, req.user.id);
+        .run(revisionId, sha1, normalizedPath, contenido, req.user.id, createdAt);
       commentId = insert.lastInsertRowid;
     }
 

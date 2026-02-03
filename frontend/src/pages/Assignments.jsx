@@ -26,6 +26,7 @@ export default function Assignments() {
   const [subjectId, setSubjectId] = useState('');
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [dueSortMode, setDueSortMode] = useState('default');
 
   const [rubricTarget, setRubricTarget] = useState(null);
   const [rubricItems, setRubricItems] = useState([]);
@@ -106,6 +107,26 @@ const filteredAssignments = useMemo(() => {
   if (!subjectId) return assignments;
   return assignments.filter((assignment) => String(assignment.id_asignatura) === String(subjectId));
 }, [assignments, subjectId]);
+const sortedAssignments = useMemo(() => {
+  if (dueSortMode === 'default') {
+    return filteredAssignments;
+  }
+  const direction = dueSortMode === 'asc' ? 1 : -1;
+  const withFallback = (value) => {
+    if (!value) return null;
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return null;
+    return parsed.getTime();
+  };
+  return [...filteredAssignments].sort((a, b) => {
+    const aTime = withFallback(a.fecha_entrega);
+    const bTime = withFallback(b.fecha_entrega);
+    if (aTime === null && bTime === null) return 0;
+    if (aTime === null) return 1;
+    if (bTime === null) return -1;
+    return (aTime - bTime) * direction;
+  });
+}, [filteredAssignments, dueSortMode]);
 const selectedSubjectLabel = useMemo(() => {
   if (!subjectId) return '';
   const match = subjects.find((subject) => String(subject.id) === String(subjectId));
@@ -625,6 +646,25 @@ const selectedSubjectLabel = useMemo(() => {
             ))}
           </select>
           <span style={styles.metaStyle}>Seleccione una asignatura para ver las tareas correspondientes.</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span style={styles.metaStyle}>Ordenar por Fecha de entrega</span>
+            <button
+              type="button"
+              style={{ ...styles.smallButton, padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
+              onClick={() =>
+                setDueSortMode((prev) => (prev === 'default' ? 'asc' : prev === 'asc' ? 'desc' : 'default'))
+              }
+              title={
+                dueSortMode === 'asc'
+                  ? 'Orden ascendente por fecha de entrega'
+                  : dueSortMode === 'desc'
+                    ? 'Orden descendente por fecha de entrega'
+                    : 'Orden original por id'
+              }
+            >
+              {dueSortMode === 'asc' ? '↑' : dueSortMode === 'desc' ? '↓' : '...'}
+            </button>
+          </div>
         </label>
         <button
           type="button"
@@ -643,11 +683,11 @@ const selectedSubjectLabel = useMemo(() => {
       {uploadMessage && <p style={styles.successStyle}>{uploadMessage}</p>}
       {loadingList ? (
         <p>Cargando tareas...</p>
-      ) : filteredAssignments.length === 0 ? (
+      ) : sortedAssignments.length === 0 ? (
         <p>No hay asignaciones para esta asignatura.</p>
       ) : (
         <ul style={styles.listStyle}>
-          {filteredAssignments.map((assignment) => (
+          {sortedAssignments.map((assignment) => (
             <AssignmentCard
               key={assignment.id}
               assignment={assignment}

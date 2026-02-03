@@ -4,7 +4,7 @@ import { getJson, postJson } from '../api.js';
 
 export default function Subjects() {
   const { role } = useAuth();
-  const canEdit = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
+  const canEdit = useMemo(() => role === 'ADMIN', [role]);
 
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);

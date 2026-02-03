@@ -58,6 +58,9 @@ function renderContent(pathname, role) {
     return <Assignments />;
   }
   if (pathname === '/subjects') {
+    if (role !== 'ADMIN') {
+      return <p>Solo los administradores pueden acceder a esta sección.</p>;
+    }
     return <Subjects />;
   }
   if (pathname === '/submissions') {
@@ -70,6 +73,9 @@ function renderContent(pathname, role) {
     return <Reviews />;
   }
   if (pathname === '/admin-db') {
+    if (role !== 'ADMIN') {
+      return <p>Solo los administradores pueden acceder a esta sección.</p>;
+    }
     return <AdminDB />;
   }
   if (pathname === '/professors') {

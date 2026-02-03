@@ -17,10 +17,8 @@ export default function Nav({ onNavigate, currentPath }) {
     }
     if (role === 'PROF') {
       return [
-        { label: 'Asignaturas', path: '/subjects' },
         { label: 'Tareas', path: '/assignments' },
         { label: 'Revisiones', path: '/reviews' },
-        { label: 'Importar CSV', path: '/admin-db' },
         { label: 'Exportar', path: '/export' }
       ];
     }

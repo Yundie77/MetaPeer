@@ -857,6 +857,49 @@ export default function ReviewViewer({
     }
   };
 
+  const handleOpenInNewTab = async () => {
+    if (!revisionId || !currentFileId) {
+      setError('Selecciona un archivo antes de abrirlo.');
+      return;
+    }
+    try {
+      if (fileData.isBinary) {
+        if (!token) {
+          setError('Tu sesión expiró, inicia sesión nuevamente.');
+          return;
+        }
+        const response = await fetch(
+          `${API_BASE}/reviews/${revisionId}/file/raw?fileId=${encodeURIComponent(currentFileId)}`,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }
+        );
+        if (!response.ok) {
+          let message = 'No pudimos abrir el archivo.';
+          try {
+            const data = await response.json();
+            if (data?.error) message = data.error;
+          } catch (_err) {
+            message = response.statusText || message;
+          }
+          throw new Error(message);
+        }
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank', 'noopener,noreferrer');
+        return;
+      }
+
+      const blob = new Blob([fileData.content || ''], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError(err.message || 'No pudimos abrir el archivo.');
+    }
+  };
+
   const handleOpenFileCommentForm = () => {
     if (readOnly) return;
     setFileCommentFormOpen(true);
@@ -1160,6 +1203,13 @@ export default function ReviewViewer({
             />
             <div style={viewerContent}>
               <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumb} />
+              {currentPath && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <button type="button" style={linkButton} onClick={handleOpenInNewTab}>
+                    Abrir en pestaña nueva
+                  </button>
+                </div>
+              )}
               {commentAnchors.length > 0 && (
                 <div style={anchorBar}>
                   Comentarios:

@@ -111,6 +111,7 @@ export default function ReviewViewer({
   const [binaryPreviewType, setBinaryPreviewType] = useState('');
   const [binaryPreviewLoading, setBinaryPreviewLoading] = useState(false);
   const [binaryPreviewError, setBinaryPreviewError] = useState('');
+  const [binaryPreviewTick, setBinaryPreviewTick] = useState(0);
   const [treeLoading, setTreeLoading] = useState(false);
   const [fileLoading, setFileLoading] = useState(false);
   const [error, setError] = useState('');
@@ -458,6 +459,7 @@ export default function ReviewViewer({
         setBinaryPreviewType('');
         setBinaryPreviewLoading(false);
         setBinaryPreviewError('');
+        setBinaryPreviewTick((prev) => prev + 1); // Forzar recarga de vista previa
         const data = await getJson(`/reviews/${revisionId}/file?fileId=${encodeURIComponent(fileId)}`);
         if (!data?.path) {
           throw new Error('Archivo inválido');
@@ -666,7 +668,7 @@ export default function ReviewViewer({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [revisionId, currentPath, currentFileId, fileData.isBinary, token]);
+  }, [revisionId, currentPath, currentFileId, fileData.isBinary, token, binaryPreviewTick]);
 
   useEffect(() => {
     if (!revisionId || !currentFileId || !showFileCommentSection) {

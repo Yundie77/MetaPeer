@@ -38,7 +38,13 @@ export default function App() {
   }, [route]);
 
   if (!token || pathname === '/login') {
-    return <Login onSuccess={() => navigate('/assignments')} />;
+    return (
+      <Login
+        onSuccess={(loggedUser) =>
+          navigate(loggedUser?.rol === 'ALUM' ? '/reviews' : '/assignments')
+        }
+      />
+    );
   }
 
   const content = renderContent(pathname, role);

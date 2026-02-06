@@ -75,7 +75,7 @@ export function AuthProvider({ children }) {
         email: data.user.email,
         rol: data.user.rol
       });
-      return true;
+      return data.user;
     } catch (err) {
       console.error('Login error:', err);
       setError(err.message || 'No pudimos iniciar sesión.');
@@ -83,7 +83,7 @@ export function AuthProvider({ children }) {
       setUser(null);
       setAuthToken('');
       localStorage.removeItem('metaPeerToken');
-      return false;
+      return null;
     } finally {
       setLoading(false);
     }

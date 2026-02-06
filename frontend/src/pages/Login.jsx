@@ -27,9 +27,9 @@ export default function Login({ onSuccess }) {
       return;
     }
 
-    const ok = await login(email.trim(), password.trim());
-    if (ok && onSuccess) {
-      onSuccess();
+    const loggedUser = await login(email.trim(), password.trim());
+    if (loggedUser && onSuccess) {
+      onSuccess(loggedUser);
     }
   };
 
@@ -39,9 +39,9 @@ export default function Login({ onSuccess }) {
     setPassword(user.password);
     setLocalError('');
     setError('');
-    const ok = await login(user.email, user.password);
-    if (ok && onSuccess) {
-      onSuccess();
+    const loggedUser = await login(user.email, user.password);
+    if (loggedUser && onSuccess) {
+      onSuccess(loggedUser);
     }
   };
 

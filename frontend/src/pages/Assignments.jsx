@@ -265,7 +265,7 @@ const selectedSubjectLabel = useMemo(() => {
         clave: `item_${prev.length + 1}`,
         texto: `Criterio ${prev.length + 1}`,
         detalle: '',
-        peso: 0,
+        peso: 1,
         tipo: 'numero'
       }
     ]);
@@ -285,6 +285,11 @@ const selectedSubjectLabel = useMemo(() => {
    */
   const handleSaveRubric = async () => {
     if (!rubricTarget) {
+      return;
+    }
+    const hasZeroWeight = rubricItems.some((item) => Number(item.peso) <= 0);
+    if (hasZeroWeight) {
+      setRubricError('Cada criterio debe tener un porcentaje mayor a 0.');
       return;
     }
     const total = rubricItems.reduce((acc, item) => acc + (Number(item.peso) || 0), 0);

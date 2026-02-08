@@ -53,7 +53,6 @@ export default function Reviews() {
 
   return (
     <section>
-      <h2>Revisiones</h2>
       {isStudent && <StudentReviews user={user} />}
       {isReviewer && <MetaReviews />}
       {!isStudent && !isReviewer && <p>No tienes permisos para ver esta sección.</p>}

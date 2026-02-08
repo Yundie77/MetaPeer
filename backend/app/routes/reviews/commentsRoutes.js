@@ -92,7 +92,7 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
   }
 });
 
-router.get('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), async (req, res) => {
+router.get('/api/reviews/:revisionId/file-comments', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
     const fileId = (req.query?.fileId || req.query?.file || '').toString().trim();

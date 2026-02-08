@@ -129,6 +129,7 @@ export default function ReviewViewer({
   const [metaReviewError, setMetaReviewError] = useState('');
   const [metaReviewSuccess, setMetaReviewSuccess] = useState('');
   const [commentListMode, setCommentListMode] = useState('');
+  const canCreateComments = !readOnly && role === 'ALUM';
 
   useEffect(() => {
     if (!revisionId) {
@@ -804,7 +805,7 @@ export default function ReviewViewer({
    * Envía un comentario nuevo y recarga el archivo para reflejarlo.
    */
   const handleAddComment = async (line, text) => {
-    if (readOnly) {
+    if (!canCreateComments) {
       return;
     }
     if (!revisionId || !currentFileId) {
@@ -830,7 +831,7 @@ export default function ReviewViewer({
   };
 
   const handleAddFileComment = async () => {
-    if (readOnly) return;
+    if (!canCreateComments) return;
     if (!revisionId || !currentFileId) {
       setFileCommentsError('Selecciona un archivo antes de comentar.');
       return;
@@ -903,7 +904,7 @@ export default function ReviewViewer({
   };
 
   const handleOpenFileCommentForm = () => {
-    if (readOnly) return;
+    if (!canCreateComments) return;
     setFileCommentFormOpen(true);
     if (!fileCommentDraft && fileComments.length === 1) {
       const existing = (fileComments[0]?.contenido || '').trim();
@@ -1265,7 +1266,7 @@ export default function ReviewViewer({
                           </div>
                         </div>
                         <div style={fileCommentActions}>
-                          {!readOnly && (
+                          {canCreateComments && (
                             <button
                               type="button"
                               style={linkButton}
@@ -1280,7 +1281,7 @@ export default function ReviewViewer({
 
                       {fileCommentsError && <p style={errorStyle}>{fileCommentsError}</p>}
 
-                      {fileCommentFormOpen && !readOnly && (
+                      {fileCommentFormOpen && canCreateComments && (
                         <div style={fileCommentForm}>
                           <textarea
                             style={fileCommentInput}
@@ -1340,7 +1341,7 @@ export default function ReviewViewer({
                   onAddComment={handleAddComment}
                   revisionId={revisionId}
                   fileId={currentFileId}
-                  readOnly={readOnly}
+                  readOnly={readOnly || role !== 'ALUM'}
                 />
               )}
             </div>

@@ -11,9 +11,10 @@ export default function Login({ onSuccess }) {
     { label: 'Admin', email: 'admin@demo', password: 'admin123' },
     { label: 'Profesor', email: 'prof@demo', password: 'prof123' },
     { label: 'Alumno', email: 'alum@demo', password: 'alum123' },
-    { label: 'ikramben', email: 'ikramben@ucm.es', password: 'alum123' },
-    { label: 'romercad', email: 'romercad@ucm.es', password: 'alum123' },
-    { label: 'dportu01', email: 'dportu01@ucm.es', password: 'alum123' },
+    { label: 'ikrambenG01', email: 'ikramben@ucm.es', password: 'alum123' },
+    { label: 'clarisseG01', email: 'ccecconi@ucm.es', password: 'alum123' },
+    { label: 'romercadG02', email: 'romercad@ucm.es', password: 'alum123' },
+    { label: 'dportu01G03', email: 'dportu01@ucm.es', password: 'alum123' },
     { label: 'manu', email: 'manu@ucm.es', password: 'prof123' }
   ];
 

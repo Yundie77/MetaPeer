@@ -192,7 +192,7 @@ function listMetaReviews(userId, assignmentIds = []) {
         mr.id_tarea AS assignment_id,
         mr.id_revision AS review_id,
         mr.id_entrega AS submission_id,
-        mr.nota_calidad,
+        mr.nota_final,
         mr.observacion,
         mr.fecha_registro,
         t.titulo AS assignment_title,
@@ -250,7 +250,7 @@ function listStudentMetaReviews(userId) {
         mr.id,
         mr.id_revision AS review_id,
         mr.id_entrega AS submission_id,
-        mr.nota_calidad,
+        mr.nota_final,
         mr.observacion,
         mr.fecha_registro,
         t.id AS assignment_id,
@@ -421,7 +421,7 @@ function buildEvents({ assignmentRecords, revisionRows, batchUploads, metaReview
       return;
     }
     const gradeLabel =
-      row.nota_calidad !== null && row.nota_calidad !== undefined ? ` Nota de calidad: ${row.nota_calidad}.` : '';
+      row.nota_final !== null && row.nota_final !== undefined ? ` Nota final: ${row.nota_final}.` : '';
     events.push({
       id: `meta_review_${row.id}`,
       type: 'meta_review',
@@ -486,7 +486,7 @@ function buildStudentEvents({ reviewRows, metaReviews }) {
       return;
     }
     const gradeLabel =
-      row.nota_calidad !== null && row.nota_calidad !== undefined ? ` Nota de calidad: ${row.nota_calidad}.` : '';
+      row.nota_final !== null && row.nota_final !== undefined ? ` Nota final: ${row.nota_final}.` : '';
     events.push({
       id: `meta_review_${row.id}`,
       type: 'meta_review',

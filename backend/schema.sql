@@ -71,15 +71,9 @@ CREATE TABLE IF NOT EXISTS asignacion (
 CREATE TABLE IF NOT EXISTS rubrica_items (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
   id_asignacion INTEGER NOT NULL,
-  titulo_rubrica TEXT,                                      
-  clave_item    TEXT NOT NULL,                              -- ej. "Q1"
+  clave_item    TEXT NOT NULL,                              -- ej. "item_1"
   texto         TEXT NOT NULL,
-  tipo          TEXT NOT NULL CHECK (tipo IN ('numero','booleano','texto')),
-  peso          REAL NOT NULL DEFAULT 0.0,                  -- 0..1
-  obligatorio   INTEGER NOT NULL DEFAULT 0,
-  minimo        REAL,
-  maximo        REAL,
-  orden         INTEGER NOT NULL DEFAULT 0,
+  peso          REAL NOT NULL DEFAULT 0.0,                  -- porcentaje 0..100
   UNIQUE (id_asignacion, clave_item),
   FOREIGN KEY (id_asignacion) REFERENCES asignacion(id) ON DELETE CASCADE
 );
@@ -162,10 +156,8 @@ CREATE TABLE IF NOT EXISTS meta_revision (
   id_entrega     INTEGER,                     
   id_revision    INTEGER,                                  
   id_profesor    INTEGER NOT NULL,                          -- usuario (PROF)
-  nota_calidad   REAL,
-  observacion    TEXT,
   nota_final     REAL,
-  desglose_json  TEXT,
+  observacion    TEXT,
   fecha_registro TEXT NOT NULL,
   FOREIGN KEY (id_tarea)    REFERENCES tarea(id)      ON DELETE CASCADE,
   FOREIGN KEY (id_entrega)  REFERENCES entregas(id)   ON DELETE CASCADE,

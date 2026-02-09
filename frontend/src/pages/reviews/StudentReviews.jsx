@@ -32,13 +32,47 @@ const noteHelpStyle = {
   fontWeight: 500
 };
 
+const SCORE_MIN = 0;
+const SCORE_MAX = 10;
+
+const finalGradeInputStyle = {
+  ...inputStyle,
+  background: '#e4e7eb',
+  color: '#1f2937',
+  borderColor: '#9ca3af',
+  fontWeight: 700
+};
+
+const formulaTextStyle = {
+  fontSize: '0.85rem',
+  color: '#374151',
+  margin: 0
+};
+
+function normalizeScoreInput(rawValue) {
+  const value = String(rawValue ?? '').trim().replace(',', '.');
+  if (value === '') {
+    return '';
+  }
+  if (!/^\d+(\.\d{0,2})?$/.test(value)) {
+    return null; // hasta dos decimales
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  if (parsed < SCORE_MIN || parsed > SCORE_MAX) {
+    return null;
+  }
+  return value;
+}
+
 export default function StudentReviews({ user }) {
   const [tasks, setTasks] = useState([]);
   const [selected, setSelected] = useState(null);
   const [rubric, setRubric] = useState([]);
   const [scores, setScores] = useState({});
   const [comment, setComment] = useState('');
-  const [grade, setGrade] = useState('');
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [loadingRubric, setLoadingRubric] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -72,7 +106,6 @@ export default function StudentReviews({ user }) {
       setSelected(task);
       setScores(task.respuestas ? task.respuestas : {});
       setComment(task.comentario || '');
-      setGrade(task.nota_numerica || '');
       setSuccess('');
       const normalizedInitial = initialFile?.fileId
         ? {
@@ -120,11 +153,46 @@ export default function StudentReviews({ user }) {
   }, [tasks, deepLink, handleSelectTask]);
 
   const handleScoreChange = (clave, value) => {
+    const normalized = normalizeScoreInput(value);
+    if (normalized === null) {
+      return;
+    }
     setScores((prev) => ({
       ...prev,
-      [clave]: value
+      [clave]: normalized
     }));
   };
+
+  const formulaText = useMemo(() => {
+    if (!Array.isArray(rubric) || rubric.length === 0) {
+      return 'Nota global = sin rúbrica disponible';
+    }
+    const parts = rubric.map((item) => {
+      const label = splitLabelDetail(item.texto).label || item.texto || item.clave_item;
+      const weight = Number(item.peso) || 0;
+      return `${label} (${weight}%)`;
+    });
+    return `Nota final = ${parts.join(' + ')}`;
+  }, [rubric]);
+
+  const notaFinalCalculada = useMemo(() => {
+    if (!Array.isArray(rubric) || rubric.length === 0) {
+      return '';
+    }
+    let total = 0;
+    for (const item of rubric) {
+      const rawValue = scores[item.clave_item];
+      if (rawValue === '' || rawValue === null || rawValue === undefined) {
+        return '';
+      }
+      const parsed = Number(rawValue);
+      if (!Number.isFinite(parsed) || parsed < SCORE_MIN || parsed > SCORE_MAX) {
+        return '';
+      }
+      total += parsed * ((Number(item.peso) || 0) / 100);
+    }
+    return Number(total.toFixed(2));
+  }, [scores, rubric]);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -132,30 +200,43 @@ export default function StudentReviews({ user }) {
       setError('Selecciona una revisión primero.');
       return;
     }
-    const parsedGrade = grade !== '' ? Number(grade) : null;
-    if (parsedGrade !== null) {
-      if (!Number.isFinite(parsedGrade)) {
-        setError('La nota global no es válida.');
-        return;
-      }
-      if (parsedGrade < 0 || parsedGrade > 10) {
-        setError('La nota global debe estar entre 0 y 10.');
-        return;
-      }
+
+    if (!Array.isArray(rubric) || rubric.length === 0) {
+      setError('La rúbrica no está disponible para esta revisión.');
+      return;
     }
 
-    for (const [clave, value] of Object.entries(scores || {})) {
-      if (value === '' || value === null || value === undefined) continue;
+    const normalizedScores = {};
+    for (const item of rubric) {
+      const rawValue = scores[item.clave_item];
+      if (rawValue === '' || rawValue === null || rawValue === undefined) {
+        setError(`Falta la nota para "${splitLabelDetail(item.texto).label || item.texto}".`);
+        return;
+      }
+      const value = String(rawValue).trim().replace(',', '.');
+      if (value === '') {
+        setError(`Falta la nota para "${splitLabelDetail(item.texto).label || item.texto}".`);
+        return;
+      }
       const parsed = Number(value);
       if (!Number.isFinite(parsed)) {
-        setError(`La nota de la rúbrica (${clave}) no es válida.`);
+        setError(`La nota de "${splitLabelDetail(item.texto).label || item.texto}" no es válida.`);
         return;
       }
-      if (parsed < 0 || parsed > 10) {
-        setError(`La nota de la rúbrica (${clave}) debe estar entre 0 y 10.`);
+      if (parsed < SCORE_MIN || parsed > SCORE_MAX) {
+        setError(
+          `La nota de "${splitLabelDetail(item.texto).label || item.texto}" debe estar entre ${SCORE_MIN} y ${SCORE_MAX}.`
+        );
         return;
       }
+      normalizedScores[item.clave_item] = parsed;
     }
+
+    if (notaFinalCalculada === '') {
+      setError('No se pudo calcular la nota final con los criterios de la rúbrica.');
+      return;
+    }
+
     try {
       setSaving(true);
       setError('');
@@ -163,9 +244,9 @@ export default function StudentReviews({ user }) {
       await postJson('/reviews', {
         submissionId: selected.submissionId,
         reviewerUserId: user.id,
-        respuestasJson: scores,
+        respuestasJson: normalizedScores,
         comentario: comment,
-        notaNumerica: parsedGrade
+        notaNumerica: notaFinalCalculada
       });
       setSuccess('Revisión guardada correctamente.');
     } catch (err) {
@@ -212,42 +293,46 @@ export default function StudentReviews({ user }) {
                 {loadingRubric ? (
                   <p>Cargando rúbrica...</p>
                 ) : (
-                  rubric.map((item) => (
-                    <div key={item.id} style={rubricFieldStyle}>
-                      <label style={labelStyle}>
-                        {splitLabelDetail(item.texto).label || item.texto}
-                        {splitLabelDetail(item.texto).detail && (
-                          <small style={{ color: '#555', whiteSpace: 'pre-wrap' }}>
-                            {splitLabelDetail(item.texto).detail}
-                          </small>
-                        )}
-                        <small style={noteHelpStyle}>0-10</small>
-                        <input
-                          style={inputStyle}
-                          type="number"
-                          step="0.5"
-                          min="0"
-                          max="10"
-                          value={scores[item.clave_item] ?? ''}
-                          onChange={(event) => handleScoreChange(item.clave_item, event.target.value)}
-                        />
-                      </label>
-                    </div>
-                  ))
+                  <>
+                    {rubric.map((item) => (
+                      <div key={item.id} style={rubricFieldStyle}>
+                        <label style={labelStyle}>
+                          {splitLabelDetail(item.texto).label || item.texto}
+                          {splitLabelDetail(item.texto).detail && (
+                            <small style={{ color: '#555', whiteSpace: 'pre-wrap' }}>
+                              {splitLabelDetail(item.texto).detail}
+                            </small>
+                          )}
+                          <small style={noteHelpStyle}>{SCORE_MIN}-{SCORE_MAX}</small>
+                          <input
+                            style={inputStyle}
+                            type="number"
+                            step="0.5"
+                            min={String(SCORE_MIN)}
+                            max={String(SCORE_MAX)}
+                            value={scores[item.clave_item] ?? ''}
+                            onChange={(event) => handleScoreChange(item.clave_item, event.target.value)}
+                          />
+                        </label>
+                      </div>
+                    ))}
+                  </>
                 )}
                 <label style={labelStyle}>
-                  Nota global
-                  <small style={noteHelpStyle}>0-10</small>
+                  Nota final
+                  <small style={noteHelpStyle}>{SCORE_MIN}-{SCORE_MAX}</small>
                   <input
-                    style={inputStyle}
+                    style={finalGradeInputStyle}
                     type="number"
                     step="0.5"
-                    min="0"
-                    max="10"
-                    value={grade}
-                    onChange={(event) => setGrade(event.target.value)}
+                    min={String(SCORE_MIN)}
+                    max={String(SCORE_MAX)}
+                    value={notaFinalCalculada}
+                    readOnly
+                    disabled
                   />
                 </label>
+                <p style={formulaTextStyle}>{formulaText}</p>
                 <label style={labelStyle}>
                   Comentario
                   <textarea

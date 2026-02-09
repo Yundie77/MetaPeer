@@ -67,7 +67,7 @@ export default function Export() {
     <section>
       <h2>Exportar calificaciones</h2>
       <p style={{ color: '#555', fontSize: '0.9rem' }}>
-        El archivo incluirá la nota final, la media de revisiones y el bonus por meta-evaluaciones.
+        El archivo incluye `nota_entrega` (media de revisiones), `bonus_review` (media de meta-revisión del profesor) y `nota_final` (igual a `nota_entrega`).
       </p>
 
       <label style={labelStyle}>

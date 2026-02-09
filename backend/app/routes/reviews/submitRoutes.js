@@ -1,7 +1,13 @@
 const express = require('express');
 const { requireAuth } = require('../../../auth');
 const { db } = require('../../../db');
-const { sendError, safeNumber } = require('../../helpers');
+const {
+  sendError,
+  safeNumber,
+  fetchAssignmentRubric,
+  calculateRubricScore
+} = require('../../helpers');
+const { RUBRIC_SCORE_MIN, RUBRIC_SCORE_MAX } = require('../../constants');
 
 const router = express.Router();
 
@@ -12,7 +18,8 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
     const respuestasJson = req.body?.respuestasJson || req.body?.respuestas || null;
     const comentario = (req.body?.comentario || req.body?.comentarioExtra || '').trim();
     const rawNota = req.body?.notaNumerica;
-    const notaNumerica = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
+    const notaNumericaCliente =
+      rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
 
     if (!submissionId) {
       return sendError(res, 400, 'Debes indicar submissionId.');
@@ -22,20 +29,25 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       return sendError(res, 403, 'Solo puedes completar tus propias revisiones.');
     }
 
-    if (notaNumerica !== null) {
-      if (!Number.isFinite(notaNumerica)) {
+    if (notaNumericaCliente !== null) {
+      if (!Number.isFinite(notaNumericaCliente)) {
         return sendError(res, 400, 'La nota numérica no es válida.');
       }
-      if (notaNumerica < 0 || notaNumerica > 10) {
-        return sendError(res, 400, 'La nota numérica debe estar entre 0 y 10.');
+      if (notaNumericaCliente < RUBRIC_SCORE_MIN || notaNumericaCliente > RUBRIC_SCORE_MAX) {
+        return sendError(
+          res,
+          400,
+          `La nota numérica debe estar entre ${RUBRIC_SCORE_MIN} y ${RUBRIC_SCORE_MAX}.`
+        );
       }
     }
 
     const revision = db
       .prepare(
         `
-        SELECT rev.id
+        SELECT rev.id, ent.id_tarea AS assignment_id
         FROM revision rev
+        JOIN entregas ent ON ent.id = rev.id_entrega
         JOIN equipo eq ON eq.id = rev.id_revisores
         JOIN miembro_equipo me ON me.id_equipo = eq.id
         WHERE rev.id_entrega = ?
@@ -57,17 +69,12 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       }
     }
 
-    if (respuestasPayload && typeof respuestasPayload === 'object' && !Array.isArray(respuestasPayload)) {
-      for (const [clave, value] of Object.entries(respuestasPayload)) {
-        if (value === '' || value === null || value === undefined) continue;
-        const parsed = Number(value);
-        if (!Number.isFinite(parsed)) {
-          return sendError(res, 400, `La nota de la rúbrica (${clave}) no es válida.`);
-        }
-        if (parsed < 0 || parsed > 10) {
-          return sendError(res, 400, `La nota de la rúbrica (${clave}) debe estar entre 0 y 10.`);
-        }
-      }
+    const rubricItems = fetchAssignmentRubric(revision.assignment_id);
+    let rubricScore = null;
+    try {
+      rubricScore = calculateRubricScore(rubricItems, respuestasPayload);
+    } catch (validationError) {
+      return sendError(res, 400, validationError.message);
     }
 
     const submittedAt = new Date().toISOString();
@@ -77,7 +84,13 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       SET respuestas_json = ?, nota_numerica = ?, comentario_extra = ?, fecha_envio = ?
       WHERE id = ?
     `
-    ).run(respuestasPayload ? JSON.stringify(respuestasPayload) : null, notaNumerica, comentario || null, submittedAt, revision.id);
+    ).run(
+      JSON.stringify(rubricScore.normalizedScores),
+      rubricScore.notaFinal,
+      comentario || null,
+      submittedAt,
+      revision.id
+    );
 
     const updated = db
       .prepare(

@@ -8,6 +8,7 @@ const {
   ensureAssignmentRecord,
   getTeamMembers,
   cloneRosterTeamsToAssignment,
+  ensureDefaultRubricForAssignment,
   fetchAssignmentRubric,
   buildAssignmentPlan,
   persistAssignmentPlan,
@@ -126,6 +127,7 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
     const assignmentId = insert.lastInsertRowid;
     ensureAssignmentRecord(assignmentId);
     cloneRosterTeamsToAssignment(subjectId, assignmentId);
+    ensureDefaultRubricForAssignment(assignmentId);
 
     const created = db
       .prepare(
@@ -229,25 +231,34 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
     }
 
     const normalizedItems = items.map((item, index) => {
-      const clave = (item.clave || item.key || `item_${index + 1}`).trim();
+      const clave = String(item.clave || item.key || `item_${index + 1}`).trim();
       const texto = (item.texto || item.label || item.descripcion || '').trim();
       const pesoRaw = item.peso ?? item.weight;
       const pesoNumber = Number(pesoRaw);
       const peso = Number.isFinite(pesoNumber) ? pesoNumber : 0;
-      const tipo = item.tipo || 'numero';
-      const obligatorio = item.obligatorio ? 1 : 0;
 
       return {
         clave,
         texto: texto || `Criterio ${index + 1}`,
-        peso,
-        tipo,
-        obligatorio,
-        minimo: item.minimo ?? null,
-        maximo: item.maximo ?? null,
-        orden: index + 1
+        peso
       };
     });
+
+    const invalidWeightItem = normalizedItems.find((item) => Number(item.peso) <= 0);
+    if (invalidWeightItem) {
+      return sendError(res, 400, 'Cada criterio debe tener un porcentaje mayor que 0.');
+    }
+
+    const duplicateKeys = new Set();
+    for (const item of normalizedItems) {
+      if (!item.clave) {
+        return sendError(res, 400, 'Todos los criterios deben tener una clave válida.');
+      }
+      if (duplicateKeys.has(item.clave)) {
+        return sendError(res, 400, `La clave "${item.clave}" está repetida en la rúbrica.`);
+      }
+      duplicateKeys.add(item.clave);
+    }
 
     const totalPeso = normalizedItems.reduce((acc, item) => acc + (Number(item.peso) || 0), 0);
     if (Math.abs(totalPeso - 100) > 0.001) {
@@ -258,23 +269,17 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
     db.prepare('DELETE FROM rubrica_items WHERE id_asignacion = ?').run(assignmentRecordId);
 
     const insertItem = db.prepare(`
-      INSERT INTO rubrica_items (id_asignacion, titulo_rubrica, clave_item, texto, tipo, peso, obligatorio, minimo, maximo, orden)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO rubrica_items (id_asignacion, clave_item, texto, peso)
+      VALUES (?, ?, ?, ?)
     `);
 
     const tx = db.transaction(() => {
       normalizedItems.forEach((item) => {
         insertItem.run(
           assignmentRecordId,
-          'Rúbrica general',
           item.clave,
           item.texto,
-          item.tipo,
-          item.peso,
-          item.obligatorio,
-          item.minimo,
-          item.maximo,
-          item.orden
+          item.peso
         );
       });
     });
@@ -296,6 +301,11 @@ router.get('/api/assignments/:assignmentId/rubrica', requireAuth(), (req, res) =
     const assignmentId = safeNumber(req.params.assignmentId);
     if (!assignmentId) {
       return sendError(res, 400, 'Identificador inválido.');
+    }
+
+    const assignment = ensureAssignmentExists(assignmentId);
+    if (!assignment) {
+      return sendError(res, 404, 'La tarea no existe.');
     }
 
     const items = fetchAssignmentRubric(assignmentId);

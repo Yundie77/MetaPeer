@@ -21,7 +21,7 @@ router.get('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, 
       .prepare(
         `
         SELECT mr.id,
-               mr.nota_calidad,
+               mr.nota_final,
                mr.observacion,
                mr.fecha_registro,
                usr.nombre_completo AS profesor_nombre,
@@ -38,7 +38,7 @@ router.get('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, 
       meta: meta
         ? {
             id: meta.id,
-            nota_calidad: meta.nota_calidad,
+            nota_final: meta.nota_final,
             observacion: meta.observacion,
             fecha_registro: meta.fecha_registro,
             profesor: meta.profesor_nombre ? { nombre: meta.profesor_nombre, correo: meta.profesor_correo } : null
@@ -73,16 +73,16 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
       return sendError(res, 404, 'La revisión no existe.');
     }
 
-    const rawNota = req.body?.nota_calidad;
-    const notaCalidad = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
+    const rawNota = req.body?.nota_final ?? req.body?.nota_calidad;
+    const notaFinal = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
     const observacion = (req.body?.observacion || '').trim();
 
-    if (notaCalidad !== null) {
-      if (!Number.isFinite(notaCalidad)) {
-        return sendError(res, 400, 'La nota de calidad no es válida.');
+    if (notaFinal !== null) {
+      if (!Number.isFinite(notaFinal)) {
+        return sendError(res, 400, 'La nota final no es válida.');
       }
-      if (notaCalidad < 0 || notaCalidad > 10) {
-        return sendError(res, 400, 'La nota de calidad debe estar entre 0 y 10.');
+      if (notaFinal < 0 || notaFinal > 10) {
+        return sendError(res, 400, 'La nota final debe estar entre 0 y 10.');
       }
     }
 
@@ -93,14 +93,14 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
       db.prepare(
         `
         UPDATE meta_revision
-        SET nota_calidad = ?, observacion = ?, fecha_registro = ?
+        SET nota_final = ?, observacion = ?, fecha_registro = ?
         WHERE id = ?
       `
-      ).run(notaCalidad, observacion || null, registeredAt, existing.id);
+      ).run(notaFinal, observacion || null, registeredAt, existing.id);
     } else {
       db.prepare(
         `
-        INSERT INTO meta_revision (id_tarea, id_entrega, id_revision, id_profesor, nota_calidad, observacion, fecha_registro)
+        INSERT INTO meta_revision (id_tarea, id_entrega, id_revision, id_profesor, nota_final, observacion, fecha_registro)
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       ).run(
@@ -108,7 +108,7 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
         revision.entrega_id,
         reviewId,
         req.user.id,
-        notaCalidad,
+        notaFinal,
         observacion || null,
         registeredAt
       );

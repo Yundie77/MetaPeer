@@ -7,7 +7,6 @@ const {
   ensureAssignmentExists,
   formatGradesAsCsv
 } = require('../helpers');
-const { GRADE_WEIGHT_DELIVERY, GRADE_WEIGHT_REVIEW } = require('../constants');
 
 const router = express.Router();
 
@@ -46,13 +45,13 @@ router.get('/api/export/grades', requireAuth(['ADMIN', 'PROF']), (req, res) => {
       .prepare(
         `
         SELECT me.id_usuario AS user_id,
-               AVG(meta.nota_calidad) AS bonus
+               AVG(meta.nota_final) AS bonus
         FROM meta_revision meta
         JOIN revision rev ON rev.id = meta.id_revision
         JOIN equipo eq ON eq.id = rev.id_revisores
         JOIN miembro_equipo me ON me.id_equipo = eq.id
         WHERE meta.id_tarea = ?
-          AND meta.nota_calidad IS NOT NULL
+          AND meta.nota_final IS NOT NULL
         GROUP BY me.id_usuario
       `
       )
@@ -66,11 +65,7 @@ router.get('/api/export/grades', requireAuth(['ADMIN', 'PROF']), (req, res) => {
     const result = grades.map((row) => {
       const notaEntrega = row.promedio_nota !== null ? Number(row.promedio_nota.toFixed(2)) : null;
       const bonusReview = bonusMap.has(row.autor_id) ? Number(bonusMap.get(row.autor_id).toFixed(2)) : null;
-      const bonusForFormula = bonusReview !== null ? bonusReview : 0;
-      const finalScore =
-        notaEntrega !== null
-          ? Number((notaEntrega * GRADE_WEIGHT_DELIVERY + bonusForFormula * GRADE_WEIGHT_REVIEW).toFixed(2))
-          : null;
+      const finalScore = notaEntrega;
 
       return {
         email: row.autor_email,

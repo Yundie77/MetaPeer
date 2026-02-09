@@ -237,7 +237,7 @@ const selectedSubjectLabel = useMemo(() => {
       const rows = await getJson(`/assignments/${assignment.id}/rubrica`);
       if (!rows || rows.length === 0) {
         setRubricItems([
-          { clave: 'item_1', texto: 'Calidad general', detalle: '', peso: 100, tipo: 'numero' }
+          { clave: 'item_1', texto: 'Calidad general', detalle: '', peso: 100 }
         ]);
       } else {
         setRubricItems(
@@ -245,8 +245,7 @@ const selectedSubjectLabel = useMemo(() => {
             clave: row.clave_item,
             texto: splitLabelDetail(row.texto).label || row.texto,
             detalle: splitLabelDetail(row.texto).detail || '',
-            peso: Number(row.peso) || 0,
-            tipo: row.tipo
+            peso: Number(row.peso) || 0
           }))
         );
       }
@@ -265,8 +264,7 @@ const selectedSubjectLabel = useMemo(() => {
         clave: `item_${prev.length + 1}`,
         texto: `Criterio ${prev.length + 1}`,
         detalle: '',
-        peso: 1,
-        tipo: 'numero'
+        peso: 1
       }
     ]);
   };
@@ -304,8 +302,7 @@ const selectedSubjectLabel = useMemo(() => {
         items: rubricItems.map((item, index) => ({
           clave: item.clave || `item_${index + 1}`,
           texto: combineLabelDetail(item.texto, item.detalle),
-          peso: Number(item.peso) || 0,
-          tipo: item.tipo || 'numero'
+          peso: Number(item.peso) || 0
         }))
       });
       setRubricTarget(null);

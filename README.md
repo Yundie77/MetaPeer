@@ -77,15 +77,15 @@ Para resetear el entorno local: detén el backend y borra `backend/data.sqlite` 
 
 **2) Profesorado (PROF)**
 - Crea tareas (asociadas a una asignatura y con fecha de entrega).
-- Define la **rúbrica** (criterios con pesos; la suma debe ser 100).
+- Define la **rúbrica** (criterios con pesos; la suma debe ser 100). Si no la modifica, se crea por defecto el criterio `Calidad general` al 100%.
 - Sube un ZIP con entregas (el sistema detecta ZIPs por equipo, los almacena y los descomprime).
 - Genera una **previsualización** de asignación de revisiones (equipo o individual) y la confirma.
-- Consulta revisiones y realiza **meta-revisión** (nota/observación sobre la calidad de la revisión).
+- Consulta revisiones y realiza **meta-revisión** (nota final del profesor + observación sobre la revisión).
 - Exporta calificaciones en CSV.
 
 **3) Alumnado (ALUM)**
 - Ve sus revisiones asignadas y revisa la entrega en un visor con árbol de archivos.
-- Añade comentarios por línea sobre el código y completa la rúbrica + nota global.
+- Añade comentarios por línea sobre el código y completa la rúbrica. La nota final se calcula automáticamente según los pesos de la rúbrica (0..10).
 - Consulta el **feedback** recibido por sus entregas.
 
 ## Entregas en ZIP (cómo funciona)
@@ -100,8 +100,8 @@ Endpoint de exportación: `GET /api/export/grades?assignmentId=...&format=csv` (
 
 El CSV incluye:
 - `nota_entrega`: media de las notas recibidas (peer review) para la entrega.
-- `bonus_review`: bonus por calidad de revisión (media de meta-revisiones del profesor sobre el alumno como revisor).
-- `nota_final`: fórmula ponderada (por defecto 80% entrega, 20% bonus de revisión).
+- `bonus_review`: media de meta-revisiones del profesor (`meta_revision.nota_final`) sobre el alumno como revisor (solo informativo).
+- `nota_final`: igual a `nota_entrega` (sin ponderación fija global 80/20).
 
 ## API (resumen de endpoints)
 

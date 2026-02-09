@@ -302,7 +302,7 @@ export default function ReviewViewer({
         const meta = data?.meta || null;
         setMetaReviewInfo(meta);
         setMetaReview({
-          nota: meta?.nota_calidad ?? '',
+          nota: meta?.nota_final ?? '',
           observacion: meta?.observacion ?? ''
         });
       } catch (err) {
@@ -1020,12 +1020,12 @@ export default function ReviewViewer({
     if (!revisionId) return;
     const notaValue = metaReview.nota !== '' ? Number(metaReview.nota) : null;
     if (metaReview.nota !== '' && !Number.isFinite(notaValue)) {
-      setMetaReviewError('La nota de calidad no es válida.');
+      setMetaReviewError('La nota final no es válida.');
       return;
     }
     const notaValid = notaValue !== null && Number.isFinite(notaValue);
     if (notaValid && (notaValue < 0 || notaValue > 10)) {
-      setMetaReviewError('La nota de calidad debe estar entre 0 y 10.');
+      setMetaReviewError('La nota final debe estar entre 0 y 10.');
       return;
     }
     const observacionValue = metaReview.observacion ? metaReview.observacion.trim() : '';
@@ -1040,7 +1040,7 @@ export default function ReviewViewer({
       setMetaReviewError('');
       setMetaReviewSuccess('');
       await postJson(`/reviews/${revisionId}/meta`, {
-        nota_calidad: notaValid ? notaValue : null,
+        nota_final: notaValid ? notaValue : null,
         observacion: observacionValue
       });
       const data = await getJson(`/reviews/${revisionId}/meta`);
@@ -1378,7 +1378,7 @@ export default function ReviewViewer({
 
                   <div style={metaReviewFields}>
                     <label style={labelStyle}>
-                      Nota de calidad
+                      Nota final
                       <small style={miniMeta}>0-10</small>
                       <input
                         style={inputStyle}

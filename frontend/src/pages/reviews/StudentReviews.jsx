@@ -249,6 +249,7 @@ export default function StudentReviews({ user }) {
         notaNumerica: notaFinalCalculada
       });
       setSuccess('Revisión guardada correctamente.');
+      window.alert('Revisión guardada correctamente.');
     } catch (err) {
       setError(err.message);
     } finally {
@@ -303,13 +304,13 @@ export default function StudentReviews({ user }) {
                               {splitLabelDetail(item.texto).detail}
                             </small>
                           )}
-                          <small style={noteHelpStyle}>{SCORE_MIN}-{SCORE_MAX}</small>
                           <input
                             style={inputStyle}
                             type="number"
                             step="0.5"
                             min={String(SCORE_MIN)}
                             max={String(SCORE_MAX)}
+                            placeholder={`${SCORE_MIN}-${SCORE_MAX}`}
                             value={scores[item.clave_item] ?? ''}
                             onChange={(event) => handleScoreChange(item.clave_item, event.target.value)}
                           />
@@ -320,7 +321,6 @@ export default function StudentReviews({ user }) {
                 )}
                 <label style={labelStyle}>
                   Nota final
-                  <small style={noteHelpStyle}>{SCORE_MIN}-{SCORE_MAX}</small>
                   <input
                     style={finalGradeInputStyle}
                     type="number"

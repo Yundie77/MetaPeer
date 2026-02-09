@@ -1046,6 +1046,7 @@ export default function ReviewViewer({
       const data = await getJson(`/reviews/${revisionId}/meta`);
       setMetaReviewInfo(data?.meta || null);
       setMetaReviewSuccess('Meta-revisión guardada.');
+      window.alert('Meta-revisión guardada.');
     } catch (err) {
       setMetaReviewError(err.message);
     } finally {

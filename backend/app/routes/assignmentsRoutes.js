@@ -44,7 +44,19 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    END AS asignacion_bloqueada,
                    a.fecha_asignacion AS asignacion_fecha_asignacion,
                    (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
-                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
+                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos,
+                   (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) AS total_entregas,
+                   (
+                     (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
+                     COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                   ) AS revisiones_esperadas,
+                   (
+                     SELECT COUNT(*)
+                     FROM revision rev
+                     WHERE rev.id_asignacion = a.id
+                       AND rev.fecha_envio IS NOT NULL
+                   ) AS revisiones_realizadas,
+                   (SELECT COUNT(*) FROM meta_revision mr WHERE mr.id_tarea = t.id) AS metarevisiones_realizadas
             FROM tarea t
             LEFT JOIN asignacion a ON a.id_tarea = t.id
             JOIN usuario_asignatura ua
@@ -73,7 +85,19 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    END AS asignacion_bloqueada,
                    a.fecha_asignacion AS asignacion_fecha_asignacion,
                    (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
-                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos
+                   (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos,
+                   (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) AS total_entregas,
+                   (
+                     (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
+                     COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                   ) AS revisiones_esperadas,
+                   (
+                     SELECT COUNT(*)
+                     FROM revision rev
+                     WHERE rev.id_asignacion = a.id
+                       AND rev.fecha_envio IS NOT NULL
+                   ) AS revisiones_realizadas,
+                   (SELECT COUNT(*) FROM meta_revision mr WHERE mr.id_tarea = t.id) AS metarevisiones_realizadas
             FROM tarea t
             LEFT JOIN asignacion a ON a.id_tarea = t.id
             WHERE t.titulo NOT LIKE ?
@@ -566,6 +590,8 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
                    rev.fecha_envio AS submitted_at,
                    rev.nota_numerica AS grade,
                    rev.comentario_extra AS comment,
+                   mr.nota_final AS meta_grade,
+                   mr.fecha_registro AS meta_registered_at,
                    ent.id_equipo AS author_team_id,
                    equipo_autor.nombre AS author_team_name,
                    equipo_revisor.nombre AS reviewer_team_name
@@ -573,6 +599,7 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
             JOIN entregas ent ON ent.id = rev.id_entrega
             JOIN equipo equipo_autor ON equipo_autor.id = ent.id_equipo
             JOIN equipo equipo_revisor ON equipo_revisor.id = rev.id_revisores
+            LEFT JOIN meta_revision mr ON mr.id_revision = rev.id
             WHERE rev.id_asignacion = ?
             ORDER BY rev.id
           `
@@ -649,16 +676,34 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
         assignedAt: row.assigned_at,
         submittedAt: row.submitted_at,
         grade: row.grade,
-        comment: row.comment
+        comment: row.comment,
+        metaGrade: row.meta_grade,
+        metaRegisteredAt: row.meta_registered_at
       };
     });
+
+    const totalExpectedReviews =
+      totalSubmissions * Number(summaryAssignment?.asignacion_revisores_por_entrega || summaryAssignment?.revisores_por_entrega || 0);
+    const totalSubmittedReviews = reviews.reduce(
+      (acc, review) => acc + (review.submittedAt ? 1 : 0),
+      0
+    );
+    const totalMetaReviews = reviews.reduce(
+      (acc, review) =>
+        acc +
+        (review.metaRegisteredAt || review.metaGrade !== null && review.metaGrade !== undefined ? 1 : 0),
+      0
+    );
 
     res.json({
       assignment: summaryAssignment,
       totals: {
         totalSubmissions,
         totalReviewers,
-        totalReviews
+        totalReviews,
+        totalExpectedReviews,
+        totalSubmittedReviews,
+        totalMetaReviews
       },
       map: {
         reviewers: Array.from(reviewerMap.values()),

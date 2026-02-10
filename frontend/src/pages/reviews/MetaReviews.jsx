@@ -12,7 +12,9 @@ import {
   statusBadgeSubmitted,
   statusBadgeGraded,
   linkPill,
-  miniMeta
+  miniMeta,
+  reviewSelectorWrap,
+  reviewSelectorDetail
 } from './styles.js';
 
 const formatDate = (value) => {
@@ -23,6 +25,12 @@ const formatDate = (value) => {
 };
 
 const resolveStatus = (review) => {
+  const hasMeta =
+    Boolean(review?.metaRegisteredAt) ||
+    (review?.metaGrade !== null && review?.metaGrade !== undefined);
+  if (hasMeta) {
+    return { label: 'Meta-revisada', style: statusBadgeGraded };
+  }
   if (!review?.submittedAt) {
     return { label: 'Pendiente', style: statusBadgePending };
   }
@@ -30,6 +38,30 @@ const resolveStatus = (review) => {
     return { label: 'Con nota', style: statusBadgeGraded };
   }
   return { label: 'Enviada', style: statusBadgeSubmitted };
+};
+
+const safeCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const getAssignmentOptionLabel = (assignment) => {
+  const done = safeCount(assignment?.revisiones_realizadas);
+  const expected = safeCount(assignment?.revisiones_esperadas);
+  const metaDone = safeCount(assignment?.metarevisiones_realizadas);
+  return `${assignment?.titulo || 'Sin título'} · Revisadas: ${done}/${expected} · Meta: ${metaDone}`;
+};
+
+const getMetaSummary = (review) => {
+  const hasMeta =
+    Boolean(review?.metaRegisteredAt) ||
+    (review?.metaGrade !== null && review?.metaGrade !== undefined);
+  if (!hasMeta) {
+    return 'Meta-revisión: Sin meta-revisión';
+  }
+  const nota =
+    review.metaGrade === null || review.metaGrade === undefined ? 'Sin nota' : review.metaGrade;
+  return `Meta-revisión: Nota ${nota} · Fecha: ${formatDate(review.metaRegisteredAt)}`;
 };
 
 export default function MetaReviews() {
@@ -89,25 +121,31 @@ export default function MetaReviews() {
   };
 
   const hasAssignments = useMemo(() => assignments.length > 0, [assignments]);
+  const selectedAssignment = useMemo(
+    () => assignments.find((assignment) => String(assignment.id) === String(assignmentId)) || null,
+    [assignments, assignmentId]
+  );
 
   return (
     <div style={{ ...panelStyle, marginTop: '2rem' }}>
       <h3>Revisiones</h3>
-      <label style={labelStyle}>
-        Tarea
-        <select
-          style={inputStyle}
-          value={assignmentId}
-          onChange={(event) => setAssignmentId(event.target.value)}
-          disabled={loadingAssignments || !hasAssignments}
-        >
-          {assignments.map((assignment) => (
-            <option key={assignment.id} value={assignment.id}>
-              {assignment.titulo}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div style={reviewSelectorWrap}>
+        <label style={labelStyle}>
+          Tarea
+          <select
+            style={inputStyle}
+            value={assignmentId}
+            onChange={(event) => setAssignmentId(event.target.value)}
+            disabled={loadingAssignments || !hasAssignments}
+          >
+            {assignments.map((assignment) => (
+              <option key={assignment.id} value={assignment.id}>
+                {getAssignmentOptionLabel(assignment)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       {error && <p style={errorStyle}>{error}</p>}
 
@@ -131,6 +169,7 @@ export default function MetaReviews() {
                     Asignada: {formatDate(review.assignedAt)} · Enviada: {formatDate(review.submittedAt)}
                     {review.grade !== null && review.grade !== undefined ? ` · Nota: ${review.grade}` : ''}
                   </div>
+                  <div style={miniMeta}>{getMetaSummary(review)}</div>
                   {review.comment ? <div style={miniMeta}>Comentario: {review.comment}</div> : null}
                 </div>
                 <div style={statusActions}>

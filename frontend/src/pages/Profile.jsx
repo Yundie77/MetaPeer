@@ -2,12 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson } from '../api.js';
 
-const TYPE_LABELS = {
-  assignment_assigned: 'Asignación',
-  review_assigned: 'Revisión asignada',
-  review_submitted: 'Revisión enviada',
-  submissions_batch_uploaded: 'Carga de entregas',
-  meta_review: 'Meta-revisión'
+const EVENT_ACTION_LABELS = {
+  assignment_assigned: 'ASIGNACION',
+  submissions_batch_uploaded: 'CARGA DE ENTREGAS',
+  review_assigned: 'REVISION ASIGNADA',
+  review_submitted: 'REVISION ENVIADA',
+  meta_review: 'META-REVISION'
 };
 
 function formatDateTime(value) {
@@ -27,8 +27,51 @@ function formatDateTime(value) {
   });
 }
 
-function typeLabel(type) {
-  return TYPE_LABELS[type] || type;
+function resolveEventAction(event, role) {
+  const reviewId = Number(event?.reviewId) || 0;
+
+  if (role === 'ALUM') {
+    if (!reviewId) {
+      return null;
+    }
+    if (event.type === 'review_assigned' || event.type === 'review_submitted') {
+      return {
+        label: EVENT_ACTION_LABELS[event.type],
+        path: `/reviews?revision=${reviewId}`
+      };
+    }
+    if (event.type === 'meta_review') {
+      return {
+        label: EVENT_ACTION_LABELS.meta_review,
+        path: `/reviews?revision=${reviewId}`
+      };
+    }
+    return null;
+  }
+
+  if (role === 'ADMIN' || role === 'PROF') {
+    if (
+      event.type === 'assignment_assigned' ||
+      event.type === 'submissions_batch_uploaded' ||
+      event.type === 'review_assigned'
+    ) {
+      return {
+        label: EVENT_ACTION_LABELS[event.type],
+        path: `/assignments`
+      };
+    }
+    if (event.type === 'meta_review' || event.type === 'review_submitted') {
+      if (!reviewId) {
+        return null;
+      }
+      return {
+        label: EVENT_ACTION_LABELS[event.type],
+        path: `/reviews?revisionId=${reviewId}`
+      }; // "revisionId"
+    }
+  }
+
+  return null;
 }
 
 export default function Profile() {
@@ -89,6 +132,15 @@ export default function Profile() {
         { label: 'Meta-revisiones', value: payload?.stats?.metaReviewsCount ?? 0 },
         { label: 'Cargas ZIP', value: payload?.stats?.batchesUploadedCount ?? 0 }
       ];
+
+  const handleOpenEventAction = (event) => {
+    const action = resolveEventAction(event, role);
+    if (!action?.path) {
+      return;
+    }
+    window.history.pushState({}, '', action.path);
+    window.dispatchEvent(new PopStateEvent('popstate'));
+  };
 
   return (
     <section>
@@ -152,24 +204,34 @@ export default function Profile() {
                 <p style={emptyTextStyle}>Aún no hay eventos relevantes para mostrar.</p>
               ) : (
                 <ul style={timelineListStyle}>
-                  {payload.events.map((event) => (
-                    <li key={event.id} style={timelineItemStyle}>
-                      <div style={timelineHeaderStyle}>
-                        <span style={timelineDateStyle}>{formatDateTime(event.timestamp)}</span>
-                        <span style={timelineBadgeStyle}>{typeLabel(event.type)}</span>
-                      </div>
-                      <div style={timelineTitleStyle}>{event.title}</div>
-                      {event.description && <div style={timelineDescriptionStyle}>{event.description}</div>}
-                      <div style={timelineContextRowStyle}>
-                        {event.assignmentTitle && (
-                          <span style={contextChipStyle}>Tarea: {event.assignmentTitle}</span>
-                        )}
-                        {event.subjectName && <span style={contextChipStyle}>Asignatura: {event.subjectName}</span>}
-                        {event.reviewId && <span style={contextChipStyle}>Revisión #{event.reviewId}</span>}
-                        {event.submissionId && <span style={contextChipStyle}>Entrega #{event.submissionId}</span>}
-                      </div>
-                    </li>
-                  ))}
+                  {payload.events.map((event) => {
+                    const eventAction = resolveEventAction(event, role);
+                    return (
+                      <li key={event.id} style={timelineItemStyle}>
+                        <div style={timelineHeaderStyle}>
+                          <span style={timelineDateStyle}>{formatDateTime(event.timestamp)}</span>
+                          <button
+                            type="button"
+                            style={timelineActionButtonStyle}
+                            onClick={() => handleOpenEventAction(event)}
+                            title="Abrir"
+                          >
+                            {eventAction.label}
+                          </button>
+                        </div>
+                        <div style={timelineTitleStyle}>{event.title}</div>
+                        {event.description && <div style={timelineDescriptionStyle}>{event.description}</div>}
+                        <div style={timelineContextRowStyle}>
+                          {event.assignmentTitle && (
+                            <span style={contextChipStyle}>Tarea: {event.assignmentTitle}</span>
+                          )}
+                          {event.subjectName && <span style={contextChipStyle}>Asignatura: {event.subjectName}</span>}
+                          {event.reviewId && <span style={contextChipStyle}>Revisión #{event.reviewId}</span>}
+                          {event.submissionId && <span style={contextChipStyle}>Entrega #{event.submissionId}</span>}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>
@@ -335,16 +397,6 @@ const timelineDateStyle = {
   fontWeight: 600
 };
 
-const timelineBadgeStyle = {
-  fontSize: '0.72rem',
-  fontWeight: 800,
-  textTransform: 'uppercase',
-  background: '#20232a',
-  color: '#fff',
-  padding: '0.2rem 0.45rem',
-  borderRadius: '999px'
-};
-
 const timelineTitleStyle = {
   fontWeight: 800
 };
@@ -367,6 +419,18 @@ const contextChipStyle = {
   background: '#f1f3f5',
   border: '1px solid #e1e4e8',
   color: '#333'
+};
+
+const timelineActionButtonStyle = {
+  background: '#20232a',
+  border: '1px solid #20232a',
+  color: '#fff',
+  padding: '0.3rem 0.6rem',
+  borderRadius: '999px',
+  cursor: 'pointer',
+  fontWeight: 700,
+  fontSize: '0.75rem',
+  letterSpacing: '0.02em'
 };
 
 const errorStyle = {

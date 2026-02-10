@@ -5,9 +5,6 @@ import { normalizePath } from '../../utils/fileTreeHelpers.js';
 import { readFromURL, writeToURL } from '../../utils/permalink.js';
 import {
   panelStyle,
-  reviewsLayout,
-  taskListStyle,
-  taskButtonStyle,
   reviewFormStyle,
   reviewRightColumn,
   rubricFieldStyle,
@@ -19,7 +16,9 @@ import {
   metaReviewPanel,
   miniMeta,
   statusList,
-  statusItem
+  statusItem,
+  reviewSelectorWrap,
+  reviewSelectorDetail
 } from './styles.js';
 
 const splitLabelDetail = (texto = '') => {
@@ -58,6 +57,31 @@ const formatMetaDate = (value) => {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
   return parsed.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+};
+
+const formatTaskDate = (value) => {
+  if (!value) return 'sin fecha';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'sin fecha';
+  return parsed.toLocaleDateString('es-ES');
+};
+
+const hasDueDatePassed = (value) => {
+  if (!value) return false;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getTime() < Date.now();
+};
+
+const getTaskOptionLabel = (task) => {
+  const title = task.assignmentTitle?.trim() || 'Sin título';
+  const zip = task.submissionZip?.trim() || 'sin ZIP';
+  const parts = [title, zip, `Entrega: ${formatTaskDate(task.dueDate)}`];
+  if (hasDueDatePassed(task.dueDate)) {
+    const completedAt = task.submittedAt || task.assignedAt;
+    parts.push(`Realizada: ${formatTaskDate(completedAt)}`);
+  }
+  return parts.join(' · ');
 };
 
 function normalizeScoreInput(rawValue) {
@@ -211,6 +235,17 @@ export default function StudentReviews({ user }) {
     }));
   };
 
+  const handleTaskChange = useCallback(
+    (event) => {
+      const taskId = Number(event.target.value);
+      const task = tasks.find((item) => item.id === taskId);
+      if (task) {
+        handleSelectTask(task);
+      }
+    },
+    [tasks, handleSelectTask]
+  );
+
   const formulaText = useMemo(() => {
     if (!Array.isArray(rubric) || rubric.length === 0) {
       return 'Nota global = sin rúbrica disponible';
@@ -315,21 +350,23 @@ export default function StudentReviews({ user }) {
       ) : tasks.length === 0 ? (
         <p>No tienes revisiones pendientes.</p>
       ) : (
-        <div style={reviewsLayout}>
-          <ul style={taskListStyle}>
-            {tasks.map((task) => (
-              <li key={task.id}>
-                <button
-                  type="button"
-                  style={taskButtonStyle(selected?.id === task.id)}
-                  onClick={() => handleSelectTask(task)}
-                >
-                  {task.assignmentTitle} · {task.submissionZip}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {selected && (
+        <>
+          <div style={reviewSelectorWrap}>
+            <label style={labelStyle}>
+              Revisión asignada
+              <select style={inputStyle} value={selected?.id ?? ''} onChange={handleTaskChange}>
+                <option value="" disabled>
+                  Selecciona una revisión
+                </option>
+                {tasks.map((task) => (
+                  <option key={task.id} value={task.id}>
+                    {getTaskOptionLabel(task)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {selected ? (
             <div style={reviewRightColumn}>
               <ReviewViewer
                 revisionId={selected.id}
@@ -428,8 +465,10 @@ export default function StudentReviews({ user }) {
                 </button>
               </form>
             </div>
+          ) : (
+            <p>Selecciona una revisión para empezar.</p>
           )}
-        </div>
+        </>
       )}
     </div>
   );

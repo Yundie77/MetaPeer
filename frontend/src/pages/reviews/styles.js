@@ -16,6 +16,20 @@ export const reviewsLayout = {
   minWidth: 0,
 };
 
+export const reviewSelectorWrap = {
+  display: "flex",
+  flexDirection: "column",
+  gap: "0.35rem",
+  marginBottom: "1rem",
+  maxWidth: "100%",
+};
+
+export const reviewSelectorDetail = {
+  margin: 0,
+  fontSize: "0.85rem",
+  color: "#555",
+};
+
 export const taskListStyle = {
   listStyle: "none",
   padding: 0,

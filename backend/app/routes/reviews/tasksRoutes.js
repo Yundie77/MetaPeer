@@ -20,6 +20,7 @@ router.get('/api/my-review-tasks', requireAuth(['ALUM']), (req, res) => {
           rev.comentario_extra,
           ent.id_tarea AS assignment_id,
           tar.titulo AS assignment_title,
+          tar.fecha_entrega AS due_date,
           ent.nombre_zip AS submission_zip,
           ent.fecha_subida AS submission_date
         FROM revision rev
@@ -37,6 +38,7 @@ router.get('/api/my-review-tasks', requireAuth(['ALUM']), (req, res) => {
       id: row.id,
       assignmentId: row.assignment_id,
       assignmentTitle: row.assignment_title,
+      dueDate: row.due_date,
       submissionId: row.id_entrega,
       submissionZip: row.submission_zip,
       assignedAt: row.fecha_asignacion,

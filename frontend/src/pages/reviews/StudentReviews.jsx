@@ -15,7 +15,11 @@ import {
   inputStyle,
   buttonStyle,
   errorStyle,
-  successStyle
+  successStyle,
+  metaReviewPanel,
+  miniMeta,
+  statusList,
+  statusItem
 } from './styles.js';
 
 const splitLabelDetail = (texto = '') => {
@@ -49,6 +53,13 @@ const formulaTextStyle = {
   margin: 0
 };
 
+const formatMetaDate = (value) => {
+  if (!value) return '—';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' });
+};
+
 function normalizeScoreInput(rawValue) {
   const value = String(rawValue ?? '').trim().replace(',', '.');
   if (value === '') {
@@ -79,6 +90,9 @@ export default function StudentReviews({ user }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [pendingFile, setPendingFile] = useState(null);
+  const [metaReviewInfo, setMetaReviewInfo] = useState(null);
+  const [metaReviewLoading, setMetaReviewLoading] = useState(false);
+  const [metaReviewError, setMetaReviewError] = useState('');
   const [deepLink] = useState(() => readFromURL());
   const deepLinkHandledRef = useRef(false);
   const handleViewerOpened = useCallback(() => setPendingFile(null), []);
@@ -151,6 +165,40 @@ export default function StudentReviews({ user }) {
       : null;
     handleSelectTask(target, { initialFile, preserveUrl: true });
   }, [tasks, deepLink, handleSelectTask]);
+
+  useEffect(() => {
+    if (!selected?.id) {
+      setMetaReviewInfo(null);
+      setMetaReviewLoading(false);
+      setMetaReviewError('');
+      return;
+    }
+
+    let active = true;
+    const loadMetaReview = async () => {
+      try {
+        setMetaReviewLoading(true);
+        setMetaReviewError('');
+        const data = await getJson(`/reviews/${selected.id}/meta`);
+        if (!active) return;
+        setMetaReviewInfo(data?.meta || null);
+      } catch (err) {
+        if (!active) return;
+        setMetaReviewInfo(null);
+        setMetaReviewError(err.message);
+      } finally {
+        if (active) {
+          setMetaReviewLoading(false);
+        }
+      }
+    };
+
+    loadMetaReview();
+
+    return () => {
+      active = false;
+    };
+  }, [selected?.id]);
 
   const handleScoreChange = (clave, value) => {
     const normalized = normalizeScoreInput(value);
@@ -290,6 +338,40 @@ export default function StudentReviews({ user }) {
                 initialLine={pendingFile?.line || 0}
                 onFileOpened={handleViewerOpened}
               />
+              <section style={metaReviewPanel}>
+                <strong>Meta-revisión del profesor</strong>
+                {metaReviewLoading ? (
+                  <p style={miniMeta}>Cargando meta-revisión...</p>
+                ) : metaReviewError ? (
+                  <p style={errorStyle}>{metaReviewError}</p>
+                ) : metaReviewInfo ? (
+                  <ul style={statusList}>
+                    <li style={statusItem}>
+                      <div style={{ minWidth: '240px', flex: 1 }}>
+                        <div style={miniMeta}>
+                          Nota final:{' '}
+                          {metaReviewInfo.nota_final !== null && metaReviewInfo.nota_final !== undefined
+                            ? metaReviewInfo.nota_final
+                            : 'Sin nota'}
+                        </div>
+                        <div style={miniMeta}>
+                          Observación: {metaReviewInfo.observacion?.trim() || 'Sin observación'}
+                        </div>
+                        <div style={miniMeta}>
+                          Fecha de registro: {formatMetaDate(metaReviewInfo.fecha_registro)}
+                        </div>
+                        {(metaReviewInfo?.profesor?.nombre || metaReviewInfo?.profesor?.correo) && (
+                          <div style={miniMeta}>
+                            Profesor: {metaReviewInfo.profesor.nombre || metaReviewInfo.profesor.correo}
+                          </div>
+                        )}
+                      </div>
+                    </li>
+                  </ul>
+                ) : (
+                  <p style={miniMeta}>Sin meta-revisión del profesor</p>
+                )}
+              </section>
               <form onSubmit={handleSubmit} style={reviewFormStyle}>
                 {loadingRubric ? (
                   <p>Cargando rúbrica...</p>

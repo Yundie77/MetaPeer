@@ -334,7 +334,7 @@ export default function StudentReviews({ user }) {
                 </label>
                 <p style={formulaTextStyle}>{formulaText}</p>
                 <label style={labelStyle}>
-                  Comentario
+                  Comentario general (opcional)
                   <textarea
                     style={{ ...inputStyle, minHeight: '80px' }}
                     value={comment}

@@ -1259,7 +1259,7 @@ export default function ReviewViewer({
                     <section ref={fileCommentsRef} style={fileCommentPanel}>
                       <div style={fileCommentHeader}>
                         <div>
-                          <strong>Comentarios</strong>
+                          <strong>Comentario sobre el fichero</strong>
                           <div style={miniMeta}>
                             {fileCommentsLoading
                               ? 'Cargando...'

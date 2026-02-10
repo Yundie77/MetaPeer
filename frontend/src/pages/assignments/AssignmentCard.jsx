@@ -8,10 +8,10 @@ export default function AssignmentCard({
   onUpload,
   onTriggerUpload,
   onOpenRubric,
+  onOpenExport,
   onOpenAssign,
   onReassign,
   onOpenSummary,
-  onExport,
   styles,
   formatDateTime
 }) { 
@@ -92,8 +92,8 @@ export default function AssignmentCard({
         >
           {blocked ? 'Reasignar' : 'Asignación'}
         </button>
-        <button type="button" style={smallButton} onClick={() => onExport(assignment.id)}>
-          Exportar CSV
+        <button type="button" style={smallButton} onClick={() => onOpenExport(assignment)}>
+          Ver y exportar CSV
         </button>
       </div>
     </li>

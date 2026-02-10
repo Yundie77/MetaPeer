@@ -474,6 +474,19 @@ const selectedSubjectLabel = useMemo(() => {
   };
 
   /**
+   * Navega a Export con la tarea seleccionada y autogenera ambos CSV.
+   */
+  const openExportForAssignment = useCallback((assignment) => {
+    if (!assignment?.id) return;
+    const params = new URLSearchParams({
+      assignmentId: String(assignment.id),
+      autogen: '1'
+    });
+    window.history.pushState({}, '', `/export?${params.toString()}`);
+    window.dispatchEvent(new Event('popstate'));
+  }, []);
+
+  /**
    * Cierra el modal de resumen y limpia estados.
    */
   const closeSummaryModal = () => {
@@ -592,35 +605,6 @@ const selectedSubjectLabel = useMemo(() => {
     }
   };
 
-  /**
-   * Exporta notas a CSV para una tarea.
-   */
-  const handleExport = async (assignmentId) => {
-    try {
-      const token = localStorage.getItem('metaPeerToken');
-      const response = await fetch(`http://127.0.0.1:4000/api/export/grades?assignmentId=${assignmentId}&format=csv`, {
-        headers: {
-          Authorization: token ? `Bearer ${token}` : ''
-        }
-      });
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || 'No pudimos exportar.');
-      }
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `grades-assignment-${assignmentId}.csv`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err) {
-      setError(err.message);
-    }
-  };
-
   if (!isTeacher) {
     return <p>Solo administradores y profesores pueden gestionar asignaciones.</p>;
   }
@@ -701,10 +685,10 @@ const selectedSubjectLabel = useMemo(() => {
               onUpload={handleUploadZip}
               onTriggerUpload={triggerUploadPicker}
               onOpenRubric={handleOpenRubric}
+              onOpenExport={openExportForAssignment}
               onOpenAssign={openAssignModal}
               onReassign={openResetModal}
               onOpenSummary={openSummaryModal}
-              onExport={handleExport}
               styles={styles}
               formatDateTime={formatDateTime}
             />

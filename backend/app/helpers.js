@@ -445,14 +445,6 @@ function fetchAssignmentMap(assignmentId) {
   };
 }
 
-function formatGradesAsCsv(rows) {
-  const header = 'email;autor_nombre;nota_entrega;bonus_review;nota_final';
-  const lines = rows.map((row) =>
-    [row.email || '', row.nombre || '', row.nota_entrega ?? '', row.bonus_review ?? '', row.nota_final ?? ''].join(';')
-  );
-  return [header, ...lines].join('\n');
-}
-
 function getProfessorSubjects(professorId) {
   return db
       .prepare(
@@ -491,6 +483,5 @@ module.exports = {
   ...assignmentHelpers,
   fetchAssignmentRubric,
   fetchAssignmentMap,
-  formatGradesAsCsv,
   getProfessorSubjects
 };

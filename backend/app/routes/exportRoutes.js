@@ -5,16 +5,32 @@ const {
   sendError,
   safeNumber,
   ensureAssignmentExists,
-  formatGradesAsCsv
+  fetchAssignmentRubric
 } = require('../helpers');
 
 const router = express.Router();
 
-router.get('/api/export/grades', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+function normalizeCell(value) {
+  if (value === null || value === undefined) {
+    return '';
+  }
+  return String(value).replace(/\r?\n/g, ' ').trim();
+}
+
+function normalizeNumericCell(value) {
+  if (value === null || value === undefined || value === '') {
+    return '';
+  }
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return '';
+  }
+  return String(Number(parsed.toFixed(2)));
+}
+
+router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.query.assignmentId);
-    const format = (req.query.format || 'json').toLowerCase();
-
     if (!assignmentId) {
       return sendError(res, 400, 'Debes indicar assignmentId.');
     }
@@ -24,72 +40,109 @@ router.get('/api/export/grades', requireAuth(['ADMIN', 'PROF']), (req, res) => {
       return sendError(res, 404, 'La tarea no existe.');
     }
 
-    const grades = db
+    const rows = db
       .prepare(
         `
-        SELECT ent.id AS entrega_id,
-               ent.id_subidor AS autor_id,
-               usr.correo AS autor_email,
-               usr.nombre_completo AS autor_nombre,
-               AVG(rev.nota_numerica) AS promedio_nota
-        FROM entregas ent
-        LEFT JOIN usuario usr ON usr.id = ent.id_subidor
-        LEFT JOIN revision rev ON rev.id_entrega = ent.id AND rev.fecha_envio IS NOT NULL AND rev.nota_numerica IS NOT NULL
-        WHERE ent.id_tarea = ?
-        GROUP BY ent.id
+        SELECT usr.nombre_completo AS alumno_nombre,
+               mr.id_revision      AS review_id,
+               mr.nota_final       AS nota_meta_rev,
+               mr.observacion      AS comentario
+        FROM meta_revision mr
+        JOIN revision rev ON rev.id = mr.id_revision
+        JOIN equipo eq_revisor ON eq_revisor.id = rev.id_revisores
+        JOIN miembro_equipo me_revisor ON me_revisor.id_equipo = eq_revisor.id
+        JOIN usuario usr ON usr.id = me_revisor.id_usuario
+        WHERE mr.id_tarea = ?
+        ORDER BY usr.nombre_completo ASC, mr.id_revision ASC, usr.id ASC
       `
       )
       .all(assignmentId);
 
-    const bonusRows = db
-      .prepare(
-        `
-        SELECT me.id_usuario AS user_id,
-               AVG(meta.nota_final) AS bonus
-        FROM meta_revision meta
-        JOIN revision rev ON rev.id = meta.id_revision
-        JOIN equipo eq ON eq.id = rev.id_revisores
-        JOIN miembro_equipo me ON me.id_equipo = eq.id
-        WHERE meta.id_tarea = ?
-          AND meta.nota_final IS NOT NULL
-        GROUP BY me.id_usuario
-      `
-      )
-      .all(assignmentId);
-
-    const bonusMap = new Map();
-    bonusRows.forEach((row) => {
-      bonusMap.set(row.user_id, Number(row.bonus));
-    });
-
-    const result = grades.map((row) => {
-      const notaEntrega = row.promedio_nota !== null ? Number(row.promedio_nota.toFixed(2)) : null;
-      const bonusReview = bonusMap.has(row.autor_id) ? Number(bonusMap.get(row.autor_id).toFixed(2)) : null;
-      const finalScore = notaEntrega;
-
-      return {
-        email: row.autor_email,
-        nombre: row.autor_nombre,
-        nota_entrega: notaEntrega,
-        bonus_review: bonusReview,
-        nota_final: finalScore
-      };
-    });
-
-    if (format === 'csv') {
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="grades-assignment-${assignmentId}.csv"`);
-      res.send(formatGradesAsCsv(result));
-      return;
-    }
+    const resultRows = rows.map((row) => ({
+      alumno: normalizeCell(row.alumno_nombre),
+      id_rev_saliente: row.review_id ?? '',
+      nota_meta_rev: normalizeNumericCell(row.nota_meta_rev),
+      comentario: normalizeCell(row.comentario)
+    }));
 
     res.json({
       assignmentId,
-      rows: result
+      header: ['Alumno', 'id_rev_saliente', 'nota_meta_rev', 'comentario'],
+      rows: resultRows
     });
   } catch (error) {
-    console.error('Error al exportar notas:', error);
-    return sendError(res, 500, 'No pudimos exportar las notas.');
+    console.error('Error al exportar meta-revisión saliente:', error);
+    return sendError(res, 500, 'No pudimos exportar la meta-revisión saliente.');
+  }
+});
+
+router.get('/api/export/incoming-reviews', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  try {
+    const assignmentId = safeNumber(req.query.assignmentId);
+    if (!assignmentId) {
+      return sendError(res, 400, 'Debes indicar assignmentId.');
+    }
+
+    const assignment = ensureAssignmentExists(assignmentId);
+    if (!assignment) {
+      return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    const rubricItems = fetchAssignmentRubric(assignmentId);
+    const criteriaHeader = rubricItems.map((_, index) => `nota_criterio_rubrica_${index + 1}`);
+
+    const reviews = db
+      .prepare(
+        `
+        SELECT usr.nombre_completo AS alumno_nombre,
+               rev.id              AS review_id,
+               rev.respuestas_json,
+               rev.nota_numerica,
+               rev.comentario_extra
+        FROM revision rev
+        JOIN entregas ent ON ent.id = rev.id_entrega
+        JOIN equipo eq_autor ON eq_autor.id = ent.id_equipo
+        JOIN miembro_equipo me_autor ON me_autor.id_equipo = eq_autor.id
+        JOIN usuario usr ON usr.id = me_autor.id_usuario
+        JOIN asignacion asg ON asg.id = rev.id_asignacion
+        WHERE asg.id_tarea = ?
+        ORDER BY usr.nombre_completo ASC, rev.id ASC, usr.id ASC
+      `
+      )
+      .all(assignmentId);
+
+    const resultRows = reviews.map((row) => {
+      let respuestas = {};
+      if (row.respuestas_json) {
+        try {
+          const parsed = JSON.parse(row.respuestas_json);
+          if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+            respuestas = parsed;
+          }
+        } catch (_error) {
+          respuestas = {};
+        }
+      }
+
+      const criterios = rubricItems.map((item) => normalizeNumericCell(respuestas[item.clave_item]));
+
+      return {
+        alumno: normalizeCell(row.alumno_nombre),
+        id_rev_entrante: row.review_id ?? '',
+        criterios,
+        nota_evaluada_rubrica: normalizeNumericCell(row.nota_numerica),
+        comentario: normalizeCell(row.comentario_extra)
+      };
+    });
+
+    res.json({
+      assignmentId,
+      header: ['Alumno', 'id_rev_entrante', ...criteriaHeader, 'nota_evaluada_rubrica', 'comentario'],
+      rows: resultRows
+    });
+  } catch (error) {
+    console.error('Error al exportar revisión entrante:', error);
+    return sendError(res, 500, 'No pudimos exportar la revisión entrante.');
   }
 });
 

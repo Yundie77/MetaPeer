@@ -270,9 +270,10 @@ export default function ReviewViewer({
     [files]
   );
   const canMetaReview = role === 'ADMIN' || role === 'PROF';
+  const showStudentReviewSummary = readOnly && role === 'ALUM';
 
   useEffect(() => {
-    if (!revisionId || !canMetaReview) {
+    if (!revisionId) {
       setReviewInfo(null);
       setReviewLoading(false);
       setMetaReview({ nota: '', observacion: '' });
@@ -283,6 +284,17 @@ export default function ReviewViewer({
       setMetaReviewSuccess('');
       return;
     }
+
+    if (!canMetaReview) {
+      setMetaReview({ nota: '', observacion: '' });
+      setMetaReviewInfo(null);
+      setMetaReviewLoading(false);
+      setMetaReviewSaving(false);
+      setMetaReviewError('');
+      setMetaReviewSuccess('');
+      return;
+    }
+
     setMetaReviewError('');
     setMetaReviewSuccess('');
   }, [revisionId, canMetaReview]);
@@ -324,8 +336,9 @@ export default function ReviewViewer({
   }, [revisionId, canMetaReview]);
 
   useEffect(() => {
-    if (!revisionId || !submissionMeta?.submissionId || !canMetaReview) {
+    if (!revisionId || !submissionMeta?.submissionId) {
       setReviewInfo(null);
+      setReviewLoading(false);
       return;
     }
 
@@ -355,7 +368,7 @@ export default function ReviewViewer({
     return () => {
       active = false;
     };
-  }, [revisionId, submissionMeta?.submissionId, canMetaReview]);
+  }, [revisionId, submissionMeta?.submissionId]);
 
   const commentsByLine = useMemo(() => {
     const map = new Map();
@@ -1427,6 +1440,41 @@ export default function ReviewViewer({
                   >
                     {metaReviewSaving ? 'Guardando...' : 'Guardar meta-revisión'}
                   </button>
+                </div>
+              </li>
+            </ul>
+          )}
+        </section>
+      )}
+
+      {showStudentReviewSummary && (
+        <section style={metaReviewPanel}>
+          <strong>Resumen de la revisión recibida</strong>
+          {reviewLoading ? (
+            <p style={miniMeta}>Cargando resumen de la revisión...</p>
+          ) : (
+            <ul style={statusList}>
+              <li style={statusItem}>
+                <div style={{ minWidth: '240px', flex: 1 }}>
+                  <strong>Revisión #{revisionId}</strong>
+                  <div style={miniMeta}>
+                    Revisor: {reviewInfo?.equipo_revisor?.nombre || '—'}
+                    {submissionMeta?.zipName ? ` · Entrega: ${submissionMeta.zipName}` : ''}
+                  </div>
+                  <div style={miniMeta} title={submittedTime.absoluteText || undefined}>
+                    Enviada: {submittedTime.relativeText || reviewInfo?.fecha_envio || 'sin fecha'}
+                  </div>
+                  <div style={miniMeta}>
+                    Nota: {reviewInfo?.nota_numerica !== null && reviewInfo?.nota_numerica !== undefined
+                      ? reviewInfo.nota_numerica
+                      : 'sin nota'}
+                  </div>
+                  <div style={miniMeta}>
+                    Comentario: {reviewInfo?.comentario?.trim() || 'sin comentario'}
+                  </div>
+                </div>
+                <div style={statusActions}>
+                  <span style={reviewStatus.style}>{reviewStatus.label}</span>
                 </div>
               </li>
             </ul>

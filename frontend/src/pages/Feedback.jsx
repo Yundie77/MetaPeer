@@ -1,6 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson } from '../api.js';
+import {
+  labelStyle as sharedLabelStyle,
+  inputStyle as sharedInputStyle,
+  reviewSelectorWrap,
+  errorStyle as sharedErrorStyle
+} from './reviews/styles.js';
+
+const formatSimpleDate = (value) => {
+  if (!value) return 'sin fecha';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'sin fecha';
+  return parsed.toLocaleDateString('es-ES');
+};
+
+const safeCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const getAssignmentOptionLabel = (assignment, reviewedSubmissionsCount = 0) => {
+  const title = assignment?.titulo || 'Sin título';
+  const dueDate = formatSimpleDate(assignment?.fecha_entrega);
+  const reviewedCount = safeCount(reviewedSubmissionsCount);
+  return `${title} · Entrega: ${dueDate} · Entregas revisadas: ${reviewedCount}`;
+};
 
 export default function Feedback() {
   const { role } = useAuth();
@@ -9,6 +34,7 @@ export default function Feedback() {
   const [assignmentId, setAssignmentId] = useState('');
   const [submissions, setSubmissions] = useState([]);
   const [reviews, setReviews] = useState({});
+  const [reviewedSubmissionsByAssignment, setReviewedSubmissionsByAssignment] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -22,6 +48,31 @@ export default function Feedback() {
         if (data.length > 0) {
           setAssignmentId(String(data[0].id));
         }
+        const counts = {};
+        for (const assignment of data) {
+          const assignmentKey = String(assignment.id);
+          const subsResponse = await getJson(`/submissions?assignmentId=${assignment.id}`);
+          const subs = Array.isArray(subsResponse) ? subsResponse : subsResponse.submissions || [];
+          if (subs.length === 0) {
+            counts[assignmentKey] = 0;
+            continue;
+          }
+          const reviewLists = await Promise.all(
+            subs.map((submission) => getJson(`/reviews?submissionId=${submission.id}`))
+          );
+          const reviewedSubmissions = subs.reduce((acc, submission, index) => {
+            const reviewRows = Array.isArray(reviewLists[index]) ? reviewLists[index] : [];
+            const hasReviewFromAnotherTeam = reviewRows.some(
+              (review) =>
+                review?.fecha_envio &&
+                review?.equipo_revisor?.id &&
+                String(review.equipo_revisor.id) !== String(submission.id_equipo)
+            );
+            return acc + (hasReviewFromAnotherTeam ? 1 : 0);
+          }, 0);
+          counts[assignmentKey] = reviewedSubmissions;
+        }
+        setReviewedSubmissionsByAssignment(counts);
       } catch (err) {
         setError(err.message);
       } finally {
@@ -71,18 +122,27 @@ export default function Feedback() {
         Consulta las revisiones que han recibido tus entregas.
       </p>
 
-      <label style={labelStyle}>
-        Tarea
-        <select style={inputStyle} value={assignmentId} onChange={(event) => setAssignmentId(event.target.value)}>
-          {assignments.map((assignment) => (
-            <option key={assignment.id} value={assignment.id}>
-              {assignment.titulo}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div style={reviewSelectorWrap}>
+        <label style={sharedLabelStyle}>
+          Tarea
+          <select
+            style={sharedInputStyle}
+            value={assignmentId}
+            onChange={(event) => setAssignmentId(event.target.value)}
+          >
+            {assignments.map((assignment) => (
+              <option key={assignment.id} value={assignment.id}>
+                {getAssignmentOptionLabel(
+                  assignment,
+                  reviewedSubmissionsByAssignment[String(assignment.id)] || 0
+                )}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
-      {error && <p style={errorStyle}>{error}</p>}
+      {error && <p style={sharedErrorStyle}>{error}</p>}
       {loading ? (
         <p>Cargando feedback...</p>
       ) : submissions.length === 0 ? (
@@ -123,24 +183,6 @@ export default function Feedback() {
     </section>
   );
 }
-
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  fontWeight: 600,
-  maxWidth: '280px'
-};
-
-const inputStyle = {
-  padding: '0.5rem 0.7rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
-};
-
-const errorStyle = {
-  color: 'crimson'
-};
 
 const listStyle = {
   listStyle: 'none',

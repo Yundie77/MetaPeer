@@ -9,7 +9,7 @@ export default function Nav({ onNavigate, currentPath }) {
       return [
         { label: 'Asignaturas', path: '/subjects' },
         { label: 'Profesores', path: '/professors' },
-        { label: 'Tareas', path: '/assignments' },
+        { label: 'Asignaciones', path: '/assignments' },
         { label: 'Revisiones', path: '/reviews' },
         { label: 'BD (CSV)', path: '/admin-db' },
         { label: 'Exportar', path: '/export' }
@@ -17,7 +17,7 @@ export default function Nav({ onNavigate, currentPath }) {
     }
     if (role === 'PROF') {
       return [
-        { label: 'Tareas', path: '/assignments' },
+        { label: 'Asignaciones', path: '/assignments' },
         { label: 'Revisiones', path: '/reviews' },
         { label: 'Exportar', path: '/export' }
       ];

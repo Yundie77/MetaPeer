@@ -1,5 +1,33 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { getJson } from '../api.js';
+import {
+  labelStyle as sharedLabelStyle,
+  inputStyle as sharedInputStyle,
+  reviewSelectorWrap,
+  reviewSelectorDetail,
+  errorStyle as sharedErrorStyle
+} from './reviews/styles.js';
+
+const formatSimpleDate = (value) => {
+  if (!value) return 'sin fecha';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return 'sin fecha';
+  return parsed.toLocaleDateString('es-ES');
+};
+
+const safeCount = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
+};
+
+const getAssignmentOptionLabel = (assignment) => {
+  const title = assignment?.titulo || 'Sin título';
+  const dueDate = formatSimpleDate(assignment?.fecha_entrega);
+  const done = safeCount(assignment?.revisiones_realizadas);
+  const expected = safeCount(assignment?.revisiones_esperadas);
+  const metaDone = safeCount(assignment?.metarevisiones_realizadas);
+  return `${title} · Entrega: ${dueDate} · Revisadas: ${done}/${expected} · Meta: ${metaDone}`;
+};
 
 export default function Export() {
   const initialQueryRef = useRef(new URLSearchParams(window.location.search));
@@ -16,6 +44,10 @@ export default function Export() {
   const [incomingReviewsText, setIncomingReviewsText] = useState('');
   const [loadingMetaOutgoing, setLoadingMetaOutgoing] = useState(false);
   const [loadingIncomingReviews, setLoadingIncomingReviews] = useState(false);
+  const selectedAssignment = useMemo(
+    () => assignments.find((assignment) => String(assignment.id) === String(assignmentId)) || null,
+    [assignments, assignmentId]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -180,25 +212,27 @@ export default function Export() {
         Genera y revisa el contenido antes de descargar cada CSV.
       </p>
 
-      <label style={labelStyle}>
-        Tarea
-        <select
-          style={inputStyle}
-          value={assignmentId}
-          onChange={(event) => {
-            setAssignmentId(event.target.value);
-            setMetaOutgoingText('');
-            setIncomingReviewsText('');
-          }}
-          disabled={loading}
-        >
-          {assignments.map((assignment) => (
-            <option key={assignment.id} value={assignment.id}>
-              {assignment.titulo}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div style={reviewSelectorWrap}>
+        <label style={sharedLabelStyle}>
+          Tarea
+          <select
+            style={sharedInputStyle}
+            value={assignmentId}
+            onChange={(event) => {
+              setAssignmentId(event.target.value);
+              setMetaOutgoingText('');
+              setIncomingReviewsText('');
+            }}
+            disabled={loading}
+          >
+            {assignments.map((assignment) => (
+              <option key={assignment.id} value={assignment.id}>
+                {getAssignmentOptionLabel(assignment)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div style={actionsRowStyle}>
         <button type="button" style={buttonStyle} onClick={handleExportMetaOutgoing} disabled={loadingMetaOutgoing}>
@@ -250,25 +284,11 @@ export default function Export() {
         </>
       )}
 
-      {error && <p style={errorStyle}>{error}</p>}
+      {error && <p style={sharedErrorStyle}>{error}</p>}
       {progress && <p style={progressStyle}>{progress}</p>}
     </section>
   );
 }
-
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  fontWeight: 600,
-  maxWidth: '280px'
-};
-
-const inputStyle = {
-  padding: '0.5rem 0.7rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
-};
 
 const buttonStyle = {
   marginTop: '1rem',
@@ -278,11 +298,6 @@ const buttonStyle = {
   border: 'none',
   borderRadius: '4px',
   cursor: 'pointer'
-};
-
-const errorStyle = {
-  color: 'crimson',
-  marginTop: '1rem'
 };
 
 const actionsRowStyle = {

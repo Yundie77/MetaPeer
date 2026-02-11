@@ -21,6 +21,8 @@ export default function AssignmentCard({
   const hasZip = Boolean(meta?.hasZip);
   const hasTeams = Number(assignment.total_equipos) > 0;
   const canAssign = hasZip && !blocked;
+  const uploadDisabled = uploadingAssignmentId === assignment.id || !hasTeams || blocked;
+  const rubricDisabled = blocked;
   const assignButtonStyle = blocked
     ? dangerButton
     : {
@@ -68,15 +70,20 @@ export default function AssignmentCard({
           type="button"
           style={{
             ...smallButton,
-            opacity: uploadingAssignmentId === assignment.id || !hasTeams ? 0.6 : 1,
-            cursor: uploadingAssignmentId === assignment.id || !hasTeams ? 'not-allowed' : 'pointer'
+            opacity: uploadDisabled ? 0.6 : 1,
+            cursor: uploadDisabled ? 'not-allowed' : 'pointer'
           }}
           onClick={() => onTriggerUpload(assignment.id)}
-          disabled={uploadingAssignmentId === assignment.id || !hasTeams}
+          disabled={uploadDisabled}
         >
           {uploadingAssignmentId === assignment.id ? 'Cargando...' : 'Subir entregas (ZIP)'}
         </button>
-        <button type="button" style={smallButton} onClick={() => onOpenRubric(assignment)}>
+        <button
+          type="button"
+          style={{ ...smallButton, opacity: rubricDisabled ? 0.6 : 1, cursor: rubricDisabled ? 'not-allowed' : 'pointer' }}
+          onClick={() => onOpenRubric(assignment)}
+          disabled={rubricDisabled}
+        >
           Rúbrica
         </button>
         {blocked && (

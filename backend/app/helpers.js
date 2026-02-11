@@ -40,6 +40,26 @@ function ensureAssignmentRecord(assignmentId) {
   return result.lastInsertRowid;
 }
 
+function isAssignmentStartedOrLocked(assignmentId) {
+  const assignmentRecord = db.prepare('SELECT id, bloqueada FROM asignacion WHERE id_tarea = ?').get(assignmentId);
+  if (!assignmentRecord) {
+    return false;
+  }
+
+  const revisionsCount =
+    db
+      .prepare(
+        `
+      SELECT COUNT(*) AS total
+      FROM revision
+      WHERE id_asignacion = ?
+    `
+      )
+      .get(assignmentRecord.id)?.total || 0;
+
+  return Number(assignmentRecord.bloqueada) === 1 || Number(revisionsCount) > 0;
+}
+
 function ensureRosterAssignment(asignaturaId, creatorId) {
   const existing = db
     .prepare(
@@ -464,6 +484,7 @@ module.exports = {
   safeNumber,
   ensureAssignmentExists,
   ensureAssignmentRecord,
+  isAssignmentStartedOrLocked,
   ensureRosterAssignment,
   cloneRosterTeamsToAssignment,
   ensureUserTeam,

@@ -6,6 +6,7 @@ const {
   safeNumber,
   ensureAssignmentExists,
   ensureAssignmentRecord,
+  isAssignmentStartedOrLocked,
   getTeamMembers,
   cloneRosterTeamsToAssignment,
   ensureDefaultRubricForAssignment,
@@ -247,6 +248,10 @@ router.post('/api/assignments/:assignmentId/rubrica', requireAuth(['ADMIN', 'PRO
     const assignment = ensureAssignmentExists(assignmentId);
     if (!assignment) {
       return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    if (isAssignmentStartedOrLocked(assignmentId)) {
+      return sendError(res, 409, 'La asignación ya está iniciada/bloqueada. No se puede modificar la rúbrica.');
     }
 
     const items = Array.isArray(req.body?.items) ? req.body.items : [];

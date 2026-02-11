@@ -40,7 +40,7 @@ export default function Nav({ onNavigate, currentPath }) {
   return (
     <nav style={navStyle}>
       <div style={brandStyle}>
-        <strong>Peer Review MVP</strong>
+        <strong>MetaPeer</strong>
         <span style={roleStyle}>{role}</span>
       </div>
       <div style={linksStyle}>

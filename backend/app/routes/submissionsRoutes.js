@@ -6,7 +6,14 @@ const { db } = require('../../db');
 const {persistUploadedZip, extractSubmission, persistAssignmentZip, 
   assignmentFolder, unzipFile, clearDirectory, TEMP_DIRNAME
 } = require('../../utils/deliveries');
-const { sendError, safeNumber, ensureAssignmentExists, ensureSubmissionAccess, cloneRosterTeamsToAssignment } = require('../helpers');
+const {
+  sendError,
+  safeNumber,
+  ensureAssignmentExists,
+  ensureSubmissionAccess,
+  cloneRosterTeamsToAssignment,
+  isAssignmentStartedOrLocked
+} = require('../helpers');
 const { WORKSPACE_ROOT, BACKEND_ROOT } = require('../constants');
 const { uploadZip } = require('../upload');
 
@@ -178,6 +185,10 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
   let extractionDir = '';
 
   try {
+    if (req.file?.path) {
+      tempPathToClean = req.file.path;
+    }
+
     const assignmentId = safeNumber(req.body?.assignmentId);
     if (!assignmentId) {
       return sendError(res, 400, 'Debes indicar la tarea.');
@@ -186,6 +197,10 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     const assignment = ensureAssignmentExists(assignmentId);
     if (!assignment) {
       return sendError(res, 404, 'La tarea no existe.');
+    }
+
+    if (isAssignmentStartedOrLocked(assignmentId)) {
+      return sendError(res, 409, 'La asignación ya está iniciada/bloqueada. No se pueden subir entregas ZIP.');
     }
 
     const existingTeams = db
@@ -207,7 +222,6 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     }
 
     const originalName = req.file.originalname || 'entregas.zip';
-    tempPathToClean = req.file.path;
 
     if (!originalName.toLowerCase().endsWith('.zip')) {
       return sendError(res, 400, 'El archivo debe tener extensión .zip.');

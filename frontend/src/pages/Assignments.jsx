@@ -5,6 +5,7 @@ import AssignModal from './assignments/AssignModal.jsx';
 import ReassignConfirmModal from './assignments/ReassignConfirmModal.jsx';
 import AssignmentSummaryModal from './assignments/AssignmentSummaryModal.jsx';
 import RubricModal from './assignments/RubricModal.jsx';
+import RubricWarningModal from './assignments/RubricWarningModal.jsx';
 import CreateAssignmentModal from './assignments/CreateAssignmentModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
 import * as styles from './assignments/styles.js';
@@ -42,6 +43,7 @@ export default function Assignments() {
   const [assignModalError, setAssignModalError] = useState('');
   const [assignModalLoading, setAssignModalLoading] = useState(false);
   const [assignConfirming, setAssignConfirming] = useState(false);
+  const [rubricWarningOpen, setRubricWarningOpen] = useState(false);
 const [assignSeed, setAssignSeed] = useState('');
 const [assignInfo, setAssignInfo] = useState('');
 const [resetModalOpen, setResetModalOpen] = useState(false);
@@ -230,6 +232,11 @@ const selectedSubjectLabel = useMemo(() => {
    * Abre el modal de rúbrica y carga ítems existentes.
    */
   const handleOpenRubric = async (assignment) => {
+    const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
+    if (blocked) {
+      setError('La asignación ya está iniciada/bloqueada. No se puede modificar la rúbrica.');
+      return;
+    }
     try {
       setRubricTarget(assignment);
       setRubricItems([]);
@@ -319,6 +326,12 @@ const selectedSubjectLabel = useMemo(() => {
    */
   const triggerUploadPicker = (assignmentId) => {
     setUploadMessage('');
+    const assignment = assignments.find((item) => item.id === assignmentId);
+    const blocked = assignment?.asignacion_bloqueada || (assignment?.asignacion_total_revisiones ?? 0) > 0;
+    if (blocked) {
+      setError('La asignación ya está iniciada/bloqueada. No se pueden subir entregas ZIP.');
+      return;
+    }
     const meta = submissionsMeta.get(assignmentId);
     if (meta?.hasZip) {
       const proceed = window.confirm(
@@ -399,6 +412,7 @@ const selectedSubjectLabel = useMemo(() => {
     setAssignModalError('');
     setAssignSeed('');
     setAssignInfo('');
+    setRubricWarningOpen(false);
     setAssignModalOpen(true);
   };
 
@@ -501,7 +515,11 @@ const selectedSubjectLabel = useMemo(() => {
    * Cierra el modal de asignación y limpia estados.
    */
   const closeAssignModal = () => {
+    if (assignConfirming) {
+      return;
+    }
     setAssignModalOpen(false);
+    setRubricWarningOpen(false);
     setAssignTarget(null);
     setAssignPreview(null);
     setAssignWarnings([]);
@@ -543,6 +561,24 @@ const selectedSubjectLabel = useMemo(() => {
   };
 
   /**
+   * Valida datos mínimos y abre el aviso previo a la confirmación real.
+   */
+  const handleOpenRubricWarning = () => {
+    if (!assignTarget) return;
+    if (assignModalLoading || assignConfirming) return;
+    const requested = Math.floor(Number(assignReviews) || 0);
+    if (!requested || requested < 1) {
+      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
+      return;
+    }
+    if (!assignPreview) {
+      setAssignModalError('Primero genera una previsualización.');
+      return;
+    }
+    setRubricWarningOpen(true);
+  };
+
+  /**
    * Confirma y persiste la asignación usando la previsualización actual.
    */
   const handleConfirmAssignment = async () => {
@@ -557,6 +593,7 @@ const selectedSubjectLabel = useMemo(() => {
       return;
     }
     try {
+      setRubricWarningOpen(false);
       setAssignConfirming(true);
       setAssignModalError('');
       const confirmed = await postJson(`/assignments/${assignTarget.id}/assign`, {
@@ -752,11 +789,12 @@ const selectedSubjectLabel = useMemo(() => {
         onClose={closeAssignModal}
         onPreview={() => handlePreviewAssignment()}
         onReassign={() => handlePreviewAssignment({ freshSeed: true })}
-        onConfirm={handleConfirmAssignment}
+        onConfirm={handleOpenRubricWarning}
         onModeChange={(value) => {
           setAssignMode(value);
           setAssignPreview(null);
           setAssignWarnings([]);
+          setRubricWarningOpen(false);
           setAssignSeed('');
           setAssignInfo('');
           setAssignModalError('');
@@ -765,9 +803,18 @@ const selectedSubjectLabel = useMemo(() => {
           setAssignReviews(value);
           setAssignPreview(null);
           setAssignWarnings([]);
+          setRubricWarningOpen(false);
           setAssignInfo('');
           setAssignModalError('');
         }}
+        styles={styles}
+      />
+
+      <RubricWarningModal
+        isOpen={rubricWarningOpen}
+        loading={assignConfirming}
+        onBack={() => setRubricWarningOpen(false)}
+        onConfirm={handleConfirmAssignment}
         styles={styles}
       />
 

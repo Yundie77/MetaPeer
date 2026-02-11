@@ -431,6 +431,7 @@ export default function ReviewViewer({
         .filter(Boolean),
     [fileComments]
   );
+  const hasFileComment = fileCommentItems.length > 0;
 
   const showFileCommentSection = fileData.isBinary && !!binaryPreviewType;
   const codeCommentPaths = useMemo(
@@ -1287,7 +1288,7 @@ export default function ReviewViewer({
                               onClick={handleOpenFileCommentForm}
                               disabled={fileCommentSaving}
                             >
-                              Añadir comentario
+                              {hasFileComment ? 'Modificar comentario' : 'Añadir comentario'}
                             </button>
                           )}
                         </div>

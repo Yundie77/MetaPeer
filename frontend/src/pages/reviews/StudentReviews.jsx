@@ -60,9 +60,9 @@ const formatMetaDate = (value) => {
 };
 
 const formatTaskDate = (value) => {
-  if (!value) return 'sin fecha';
+  if (!value) return 'No';
   const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return 'sin fecha';
+  if (Number.isNaN(parsed.getTime())) return 'No';
   return parsed.toLocaleDateString('es-ES');
 };
 
@@ -78,8 +78,7 @@ const getTaskOptionLabel = (task) => {
   const zip = task.submissionZip?.trim() || 'sin ZIP';
   const parts = [title, zip, `Entrega: ${formatTaskDate(task.dueDate)}`];
   if (hasDueDatePassed(task.dueDate)) {
-    const completedAt = task.submittedAt || task.assignedAt;
-    parts.push(`Realizada: ${formatTaskDate(completedAt)}`);
+    parts.push(`Realizada: ${formatTaskDate(task.submittedAt)}`);
   }
   return parts.join(' · ');
 };

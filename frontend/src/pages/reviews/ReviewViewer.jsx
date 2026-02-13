@@ -67,6 +67,7 @@ function getPreviewType(pathValue) {
   const ext = getFileExtension(pathValue);
   if (!ext) return '';
   if (ext === 'pdf') return 'pdf';
+  if (ext === 'html') return 'html';
   if (PREVIEWABLE_IMAGE_EXTENSIONS.has(ext)) return 'image';
   return '';
 }
@@ -433,7 +434,9 @@ export default function ReviewViewer({
   );
   const hasFileComment = fileCommentItems.length > 0;
 
-  const showFileCommentSection = fileData.isBinary && !!binaryPreviewType;
+  const requestedPreviewType = getPreviewType(currentPath);
+  const shouldRenderPreview = !!requestedPreviewType && (fileData.isBinary || requestedPreviewType === 'html');
+  const showFileCommentSection = shouldRenderPreview;
   const codeCommentPaths = useMemo(
     () => fileNames.filter((pathValue) => (Number(codeCommentCounts[pathValue]) || 0) > 0),
     [fileNames, codeCommentCounts]
@@ -591,7 +594,7 @@ export default function ReviewViewer({
     const controller = new AbortController();
     let objectUrl = '';
 
-    if (!revisionId || !currentPath || !currentFileId || !fileData.isBinary) {
+    if (!revisionId || !currentPath || !currentFileId || !shouldRenderPreview) {
       setBinaryPreviewLoading(false);
       setBinaryPreviewError('');
       setBinaryPreviewType('');
@@ -604,7 +607,7 @@ export default function ReviewViewer({
       };
     }
 
-    const previewType = getPreviewType(currentPath);
+    const previewType = requestedPreviewType;
     if (!previewType) {
       setBinaryPreviewLoading(false);
       setBinaryPreviewError('');
@@ -683,7 +686,7 @@ export default function ReviewViewer({
         URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [revisionId, currentPath, currentFileId, fileData.isBinary, token, binaryPreviewTick]);
+  }, [revisionId, currentPath, currentFileId, shouldRenderPreview, requestedPreviewType, token, binaryPreviewTick]);
 
   useEffect(() => {
     if (!revisionId || !currentFileId || !showFileCommentSection) {
@@ -880,7 +883,7 @@ export default function ReviewViewer({
       return;
     }
     try {
-      if (fileData.isBinary) {
+      if (shouldRenderPreview) {
         if (!token) {
           setError('Tu sesión expiró, inicia sesión nuevamente.');
           return;
@@ -1097,10 +1100,10 @@ export default function ReviewViewer({
     };
   }, [dragging]);
 
-  const showBinaryPreview = fileData.isBinary && !!binaryPreviewUrl && !binaryPreviewLoading && !binaryPreviewError;
-  const showBinaryLoading = fileData.isBinary && binaryPreviewLoading;
-  const showBinaryError = fileData.isBinary && !!binaryPreviewError;
-  const previewLabel = binaryPreviewType === 'pdf' ? 'PDF' : 'imagen';
+  const showBinaryPreview = shouldRenderPreview && !!binaryPreviewUrl && !binaryPreviewLoading && !binaryPreviewError;
+  const showBinaryLoading = shouldRenderPreview && binaryPreviewLoading;
+  const showBinaryError = shouldRenderPreview && !!binaryPreviewError;
+  const previewLabel = binaryPreviewType === 'pdf' ? 'PDF' : binaryPreviewType === 'html' ? 'HTML' : 'imagen';
   const showMetaReview = canMetaReview && !readOnly;
 
   return (
@@ -1251,7 +1254,7 @@ export default function ReviewViewer({
                 <p>Cargando archivo...</p>
               ) : !currentPath ? (
                 <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
-              ) : fileData.isBinary ? (
+              ) : shouldRenderPreview ? (
                 <>
                   {showBinaryPreview ? (
                     <div style={previewWrapper}>
@@ -1259,6 +1262,7 @@ export default function ReviewViewer({
                         title={`Vista previa de ${previewLabel}`}
                         src={binaryPreviewUrl}
                         style={previewFrame}
+                        sandbox={binaryPreviewType === 'html' ? 'allow-scripts' : undefined}
                       />
                     </div>
                   ) : showBinaryLoading ? (
@@ -1266,7 +1270,7 @@ export default function ReviewViewer({
                   ) : showBinaryError ? (
                     <div style={binaryWarning}>{binaryPreviewError}</div>
                   ) : (
-                    <div style={binaryWarning}>Este archivo es binario. Descárgalo para revisarlo por fuera.</div>
+                    <div style={binaryWarning}>No pudimos mostrar la vista previa de este archivo.</div>
                   )}
 
                   {showFileCommentSection && (

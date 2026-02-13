@@ -18,7 +18,8 @@ const PREVIEW_MIME_TYPES = {
   jpeg: 'image/jpeg',
   gif: 'image/gif',
   webp: 'image/webp',
-  svg: 'image/svg+xml'
+  svg: 'image/svg+xml',
+  html: 'text/html; charset=utf-8'
 };
 
 /**

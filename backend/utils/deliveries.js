@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
+const { splitIpynbFile } = require("./ipynbSplit");
 
 const fsp = fs.promises;
 
@@ -139,11 +140,69 @@ async function expandNestedZips(dirPath) {
   }
 }
 
+async function findIpynbFiles(rootDir) {
+  const notebooks = [];
+
+  async function walk(currentDir) {
+    const entries = await fsp.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name.endsWith("__split")) {
+          continue;
+        }
+        await walk(fullPath);
+        continue;
+      }
+
+      if (entry.isFile() && entry.name.toLowerCase().endsWith(".ipynb")) {
+        notebooks.push(fullPath);
+      }
+    }
+  }
+
+  await walk(rootDir);
+  return notebooks;
+}
+
+async function splitNotebooksInDirectory(rootDir) {
+  const notebooks = await findIpynbFiles(rootDir);
+  let processed = 0;
+  let skipped = 0;
+  let failed = 0;
+
+  for (const notebookPath of notebooks) {
+    const parsed = path.parse(notebookPath);
+    const outputDir = path.join(parsed.dir, `${parsed.name}__split`);
+
+    try {
+      const result = await splitIpynbFile(notebookPath, outputDir);
+      if (result.skipped) {
+        skipped += 1;
+      } else {
+        processed += 1;
+      }
+    } catch (error) {
+      failed += 1;
+      console.warn(
+        `[deliveries] No se pudo dividir notebook ${notebookPath}: ${error?.message || error}`
+      );
+    }
+  }
+
+  if (notebooks.length > 0) {
+    console.info(
+      `[deliveries] Split notebooks: total=${notebooks.length}, procesados=${processed}, omitidos=${skipped}, fallidos=${failed}`
+    );
+  }
+}
+
 async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   const targetDir = contentFolder(assignmentId, teamId);
   await clearDirectory(targetDir);
   await unzipFile(zipAbsolutePath, targetDir);
   await expandNestedZips(targetDir);
+  await splitNotebooksInDirectory(targetDir);
   return targetDir;
 }
 

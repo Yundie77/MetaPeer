@@ -112,6 +112,7 @@ CREATE TABLE IF NOT EXISTS revision (
   id_asignacion    INTEGER NOT NULL,                   
   id_entrega       INTEGER NOT NULL,                      
   id_revisores     INTEGER NOT NULL,                     
+  ultimo_revisor   INTEGER,
   fecha_asignacion TEXT NOT NULL,
   fecha_envio      TEXT,
   respuestas_json  TEXT,                                    
@@ -120,7 +121,8 @@ CREATE TABLE IF NOT EXISTS revision (
   UNIQUE (id_entrega, id_revisores),                        -- una revisión por (entrega, equipo revisor)
   FOREIGN KEY (id_asignacion) REFERENCES asignacion(id) ON DELETE CASCADE,
   FOREIGN KEY (id_entrega)    REFERENCES entregas(id)  ON DELETE CASCADE,
-  FOREIGN KEY (id_revisores)  REFERENCES equipo(id)    ON DELETE CASCADE
+  FOREIGN KEY (id_revisores)  REFERENCES equipo(id)    ON DELETE CASCADE,
+  FOREIGN KEY (ultimo_revisor) REFERENCES usuario(id)  ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS code_comment (

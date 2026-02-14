@@ -19,6 +19,147 @@ const { ROSTER_PREFIX } = require('../constants');
 
 const router = express.Router();
 
+function buildAssignmentSummaryRevisionRowsQuery() {
+  return `
+    SELECT rev.id AS revision_id,
+           rev.id_entrega AS submission_id,
+           rev.id_revisores AS reviewer_team_id,
+           rev.fecha_asignacion AS assigned_at,
+           rev.fecha_envio AS submitted_at,
+           rev.nota_numerica AS grade,
+           rev.comentario_extra AS comment,
+           mr.nota_final AS meta_grade,
+           mr.fecha_registro AS meta_registered_at,
+           ent.id_equipo AS author_team_id,
+           equipo_autor.nombre AS author_team_name,
+           equipo_revisor.nombre AS reviewer_team_name,
+           COALESCE(a.modo, 'equipo') AS assignment_mode,
+           rev.ultimo_revisor AS ultimo_revisor_id,
+           ur.nombre_completo AS ultimo_revisor_nombre,
+           (
+             SELECT eq_user.nombre
+             FROM equipo eq_user
+             JOIN miembro_equipo me_user ON me_user.id_equipo = eq_user.id
+             WHERE eq_user.id_tarea = ?
+               AND me_user.id_usuario = rev.ultimo_revisor
+             ORDER BY
+               CASE
+                 WHEN eq_user.nombre LIKE ('[REV ' || ? || ']%') THEN 1
+                 ELSE 0
+               END,
+               eq_user.id
+             LIMIT 1
+           ) AS ultimo_revisor_team_name
+    FROM revision rev
+    JOIN asignacion a ON a.id = rev.id_asignacion
+    JOIN entregas ent ON ent.id = rev.id_entrega
+    JOIN equipo equipo_autor ON equipo_autor.id = ent.id_equipo
+    JOIN equipo equipo_revisor ON equipo_revisor.id = rev.id_revisores
+    LEFT JOIN usuario ur ON ur.id = rev.ultimo_revisor
+    LEFT JOIN meta_revision mr ON mr.id_revision = rev.id
+    WHERE rev.id_asignacion = ?
+    ORDER BY rev.id
+  `;
+}
+
+function fetchAssignmentSummaryRevisionRows(assignmentId, assignmentRecordId) {
+  if (!assignmentRecordId) {
+    return [];
+  }
+
+  return db
+    .prepare(buildAssignmentSummaryRevisionRowsQuery())
+    .all(assignmentId, assignmentId, assignmentRecordId);
+}
+
+function mapAssignmentSummaryReviews(assignmentId, revisionRows) {
+  const reviewerMap = new Map(); // clave: reviewer_team_id, valor: { id, type, name, teamName, members, targets }
+  const reviewedMap = new Map(); // clave: author_team_id, valor: { teamId, teamName, submissionId, members, reviewers }
+  const reviewerMembersCache = new Map();
+  const authorMembersCache = new Map();
+
+  // Evitar usar varias veces getTeamMembers
+  const getCachedMembers = (teamId, cache) => {
+    if (!cache.has(teamId)) {
+      cache.set(teamId, getTeamMembers(teamId));
+    }
+    return cache.get(teamId);
+  };
+
+  const reviews = revisionRows.map((row) => {
+    const reviewerMembers = getCachedMembers(row.reviewer_team_id, reviewerMembersCache);
+    const authorMembers = getCachedMembers(row.author_team_id, authorMembersCache);
+    const reviewerPrefix = `[REV ${assignmentId}]`;
+    const isIndividual = (row.reviewer_team_name || '').startsWith(reviewerPrefix);
+    const assignmentMode = row.assignment_mode === 'individual' ? 'individual' : 'equipo';
+    const reviewerName = isIndividual
+      ? reviewerMembers?.[0]?.nombre_completo || reviewerMembers?.[0]?.nombre || row.reviewer_team_name
+      : row.reviewer_team_name;
+
+    if (!reviewerMap.has(row.reviewer_team_id)) {
+      reviewerMap.set(row.reviewer_team_id, {
+        id: row.reviewer_team_id,
+        type: isIndividual ? 'usuario' : 'equipo',
+        name: reviewerName,
+        teamName: isIndividual ? null : row.reviewer_team_name,
+        members: reviewerMembers || [],
+        targets: []
+      });
+    }
+
+    reviewerMap.get(row.reviewer_team_id).targets.push({
+      teamId: row.author_team_id,
+      teamName: row.author_team_name,
+      submissionId: row.submission_id
+    });
+
+    if (!reviewedMap.has(row.author_team_id)) {
+      reviewedMap.set(row.author_team_id, {
+        teamId: row.author_team_id,
+        teamName: row.author_team_name,
+        submissionId: row.submission_id,
+        members: authorMembers || [],
+        reviewers: []
+      });
+    }
+
+    reviewedMap.get(row.author_team_id).reviewers.push({
+      id: row.reviewer_team_id,
+      type: isIndividual ? 'usuario' : 'equipo',
+      name: reviewerName,
+      teamName: row.reviewer_team_name,
+      members: reviewerMembers || []
+    });
+
+    return {
+      revisionId: row.revision_id,
+      submissionId: row.submission_id,
+      reviewerTeamId: row.reviewer_team_id,
+      reviewerName,
+      reviewerType: isIndividual ? 'usuario' : 'equipo',
+      reviewerTeamName: row.reviewer_team_name,
+      assignmentMode,
+      ultimoRevisorId: row.ultimo_revisor_id || null,
+      ultimoRevisorNombre: row.ultimo_revisor_nombre || null,
+      ultimoRevisorTeamName: row.ultimo_revisor_team_name || null,
+      authorTeamId: row.author_team_id,
+      authorTeamName: row.author_team_name,
+      assignedAt: row.assigned_at,
+      submittedAt: row.submitted_at,
+      grade: row.grade,
+      comment: row.comment,
+      metaGrade: row.meta_grade,
+      metaRegisteredAt: row.meta_registered_at
+    };
+  });
+
+  return {
+    reviews,
+    reviewerMap,
+    reviewedMap
+  };
+}
+
 /**
  * Lista todas las tareas (excepto roster) con metadatos de asignación.
  */
@@ -47,10 +188,17 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
                    (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos,
                    (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) AS total_entregas,
-                   (
-                     (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
-                     COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
-                   ) AS revisiones_esperadas,
+                   CASE
+                     WHEN COALESCE(a.modo, 'equipo') = 'individual' THEN (
+                       SELECT COUNT(*)
+                       FROM revision rev
+                       WHERE rev.id_asignacion = a.id
+                     )
+                     ELSE (
+                       (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
+                       COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                     )
+                   END AS revisiones_esperadas,
                    (
                      SELECT COUNT(*)
                      FROM revision rev
@@ -88,10 +236,17 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    (SELECT COUNT(*) FROM revision rev WHERE rev.id_asignacion = a.id) AS asignacion_total_revisiones,
                    (SELECT COUNT(*) FROM equipo eq WHERE eq.id_tarea = t.id) AS total_equipos,
                    (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) AS total_entregas,
-                   (
-                     (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
-                     COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
-                   ) AS revisiones_esperadas,
+                   CASE
+                     WHEN COALESCE(a.modo, 'equipo') = 'individual' THEN (
+                       SELECT COUNT(*)
+                       FROM revision rev
+                       WHERE rev.id_asignacion = a.id
+                     )
+                     ELSE (
+                       (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
+                       COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                     )
+                   END AS revisiones_esperadas,
                    (
                      SELECT COUNT(*)
                      FROM revision rev
@@ -584,108 +739,8 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
         : 0;
     
     // Detalles de cada revisión realizada (mapa de revisiones)
-    const revisionRows = assignmentRecordId
-      ? db
-          .prepare(
-            `
-            SELECT rev.id AS revision_id,
-                   rev.id_entrega AS submission_id,
-                   rev.id_revisores AS reviewer_team_id,
-                   rev.fecha_asignacion AS assigned_at,
-                   rev.fecha_envio AS submitted_at,
-                   rev.nota_numerica AS grade,
-                   rev.comentario_extra AS comment,
-                   mr.nota_final AS meta_grade,
-                   mr.fecha_registro AS meta_registered_at,
-                   ent.id_equipo AS author_team_id,
-                   equipo_autor.nombre AS author_team_name,
-                   equipo_revisor.nombre AS reviewer_team_name
-            FROM revision rev
-            JOIN entregas ent ON ent.id = rev.id_entrega
-            JOIN equipo equipo_autor ON equipo_autor.id = ent.id_equipo
-            JOIN equipo equipo_revisor ON equipo_revisor.id = rev.id_revisores
-            LEFT JOIN meta_revision mr ON mr.id_revision = rev.id
-            WHERE rev.id_asignacion = ?
-            ORDER BY rev.id
-          `
-          )
-          .all(assignmentRecordId)
-      : [];
-
-    const reviewerMap = new Map(); // clave: reviewer_team_id, valor: { id, type, name, teamName, members, targets }
-    const reviewedMap = new Map(); // clave: author_team_id, valor: { teamId, teamName, submissionId, members, reviewers }
-    const reviewerMembersCache = new Map(); 
-    const authorMembersCache = new Map();
-    
-    // Evitar usar varias veces getTeamMembers
-    const getCachedMembers = (teamId, cache) => {
-      if (!cache.has(teamId)) {
-        cache.set(teamId, getTeamMembers(teamId));
-      }
-      return cache.get(teamId);
-    };
-
-    const reviews = revisionRows.map((row) => {
-      const reviewerMembers = getCachedMembers(row.reviewer_team_id, reviewerMembersCache); 
-      const authorMembers = getCachedMembers(row.author_team_id, authorMembersCache);
-      const reviewerPrefix = `[REV ${assignmentId}]`;
-      const isIndividual = (row.reviewer_team_name || '').startsWith(reviewerPrefix);
-      const reviewerName = isIndividual
-        ? reviewerMembers?.[0]?.nombre_completo || reviewerMembers?.[0]?.nombre || row.reviewer_team_name
-        : row.reviewer_team_name;
-
-      if (!reviewerMap.has(row.reviewer_team_id)) {
-        reviewerMap.set(row.reviewer_team_id, {
-          id: row.reviewer_team_id,
-          type: isIndividual ? 'usuario' : 'equipo',
-          name: reviewerName,
-          teamName: isIndividual ? null : row.reviewer_team_name,
-          members: reviewerMembers || [],
-          targets: []
-        });
-      }
-
-      reviewerMap.get(row.reviewer_team_id).targets.push({
-        teamId: row.author_team_id,
-        teamName: row.author_team_name,
-        submissionId: row.submission_id
-      });
-
-      if (!reviewedMap.has(row.author_team_id)) {
-        reviewedMap.set(row.author_team_id, {
-          teamId: row.author_team_id,
-          teamName: row.author_team_name,
-          submissionId: row.submission_id,
-          members: authorMembers || [],
-          reviewers: []
-        });
-      }
-
-      reviewedMap.get(row.author_team_id).reviewers.push({
-        id: row.reviewer_team_id,
-        type: isIndividual ? 'usuario' : 'equipo',
-        name: reviewerName,
-        teamName: row.reviewer_team_name,
-        members: reviewerMembers || []
-      });
-
-      return {
-        revisionId: row.revision_id,
-        submissionId: row.submission_id,
-        reviewerTeamId: row.reviewer_team_id,
-        reviewerName,
-        reviewerType: isIndividual ? 'usuario' : 'equipo',
-        reviewerTeamName: row.reviewer_team_name,
-        authorTeamId: row.author_team_id,
-        authorTeamName: row.author_team_name,
-        assignedAt: row.assigned_at,
-        submittedAt: row.submitted_at,
-        grade: row.grade,
-        comment: row.comment,
-        metaGrade: row.meta_grade,
-        metaRegisteredAt: row.meta_registered_at
-      };
-    });
+    const revisionRows = fetchAssignmentSummaryRevisionRows(assignmentId, assignmentRecordId);
+    const { reviews, reviewerMap, reviewedMap } = mapAssignmentSummaryReviews(assignmentId, revisionRows);
 
     const totalExpectedReviews =
       totalSubmissions * Number(summaryAssignment?.asignacion_revisores_por_entrega || summaryAssignment?.revisores_por_entrega || 0);

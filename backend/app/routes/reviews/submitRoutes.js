@@ -81,7 +81,11 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
     db.prepare(
       `
       UPDATE revision
-      SET respuestas_json = ?, nota_numerica = ?, comentario_extra = ?, fecha_envio = ?
+      SET respuestas_json = ?,
+          nota_numerica = ?,
+          comentario_extra = ?,
+          fecha_envio = ?,
+          ultimo_revisor = ?
       WHERE id = ?
     `
     ).run(
@@ -89,6 +93,7 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
       rubricScore.notaFinal,
       comentario || null,
       submittedAt,
+      req.user.id,
       revision.id
     );
 

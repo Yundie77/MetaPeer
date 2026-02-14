@@ -13,8 +13,7 @@ import {
   statusBadgeGraded,
   linkPill,
   miniMeta,
-  reviewSelectorWrap,
-  reviewSelectorDetail
+  reviewSelectorWrap
 } from './styles.js';
 
 const formatDate = (value) => {
@@ -62,6 +61,22 @@ const getMetaSummary = (review) => {
   const nota =
     review.metaGrade === null || review.metaGrade === undefined ? 'Sin nota' : review.metaGrade;
   return `Meta-revisión: Nota ${nota} · Fecha: ${formatDate(review.metaRegisteredAt)}`;
+};
+
+const readText = (value, fallback = '') =>
+  typeof value === 'string' && value.trim() ? value.trim() : fallback;
+
+const buildReviewerLine = (review) => {
+  const assignmentMode = review?.assignmentMode === 'individual' ? 'individual' : 'equipo';
+  const reviewerTeamName = readText(review?.reviewerTeamName, assignmentMode === 'individual' ? '[REV ?]' : '—');
+  const ultimoRevisorNombre = readText(review?.ultimoRevisorNombre, '?');
+  const authorTeamName = readText(review?.authorTeamName, '—');
+
+  if (assignmentMode === 'equipo') {
+    return `Revisor: ${reviewerTeamName} (último revisor: ${ultimoRevisorNombre}) revisa a Equipo: ${authorTeamName}`;
+  }
+
+  return `Revisor: ${reviewerTeamName} revisa a Equipo: ${authorTeamName}`;
 };
 
 export default function MetaReviews() {
@@ -121,11 +136,6 @@ export default function MetaReviews() {
   };
 
   const hasAssignments = useMemo(() => assignments.length > 0, [assignments]);
-  const selectedAssignment = useMemo(
-    () => assignments.find((assignment) => String(assignment.id) === String(assignmentId)) || null,
-    [assignments, assignmentId]
-  );
-
   return (
     <div style={{ ...panelStyle, marginTop: '2rem' }}>
       <h3>Revisiones</h3>
@@ -161,10 +171,7 @@ export default function MetaReviews() {
               <li key={review.revisionId} style={statusItem}>
                 <div>
                   <strong>Revisión #{review.revisionId}</strong>
-                  <div style={miniMeta}>
-                    Revisor: {review.reviewerName || review.reviewerTeamName || '—'} · Equipo:{' '}
-                    {review.authorTeamName || '—'}
-                  </div>
+                  <div style={miniMeta}>{buildReviewerLine(review)}</div>
                   <div style={miniMeta}>
                     Asignada: {formatDate(review.assignedAt)} · Enviada: {formatDate(review.submittedAt)}
                     {review.grade !== null && review.grade !== undefined ? ` · Nota: ${review.grade}` : ''}

@@ -53,7 +53,7 @@ export default function AssignmentCard({
         {blocked ? (
           <div style={{ ...metaStyle, color: '#b45309' }}>
             Asignación guardada ({assignment.asignacion_modo || 'equipo'} ·{' '}
-            {assignment.asignacion_revisores_por_entrega || assignment.revisores_por_entrega || 1} revisiones){' '}
+            {assignment.asignacion_revisores_por_entrega || 1} revisiones){' '}
             {assignment.asignacion_fecha_asignacion ? `· ${formatDateTime(assignment.asignacion_fecha_asignacion)}` : ''}
           </div>
         ) : null}

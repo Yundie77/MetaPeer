@@ -9,9 +9,13 @@ function ensureAssignmentExists(assignmentId) {
   return db
     .prepare(
       `
-      SELECT id, id_asignatura, titulo, revisores_por_entrega
-      FROM tarea
-      WHERE id = ?
+      SELECT t.id,
+             t.id_asignatura,
+             t.titulo,
+             COALESCE(asg.revisores_por_entrega, 1) AS revisores_por_entrega
+      FROM tarea t
+      LEFT JOIN asignacion asg ON asg.id_tarea = t.id
+      WHERE t.id = ?
     `
     )
     .get(assignmentId);
@@ -428,8 +432,6 @@ function persistAssignmentPlan(plan) {
       WHERE id = ?
     `
     ).run(plan.mode, appliedReviews, assignedAt, assignmentRecordId);
-
-    db.prepare('UPDATE tarea SET revisores_por_entrega = ? WHERE id = ?').run(appliedReviews, plan.assignmentId);
   });
 
   tx();

@@ -54,7 +54,7 @@ export default function AssignmentSummaryModal({
             <h3 style={{ margin: 0 }}>Resumen de asignación · {assignmentInfo?.titulo || '—'}</h3>
             <p style={{ ...styles.metaStyle, margin: '0.2rem 0 0' }}>
               Modo: {assignmentInfo?.asignacion_modo || 'equipo'} · Revisiones por entrega:{' '}
-              {formatValue(assignmentInfo?.asignacion_revisores_por_entrega || assignmentInfo?.revisores_por_entrega)}
+              {formatValue(assignmentInfo?.asignacion_revisores_por_entrega)}
             </p>
           </div>
           <button type="button" style={styles.plainLinkButton} onClick={onClose}>
@@ -111,9 +111,7 @@ export default function AssignmentSummaryModal({
             <div style={styles.summaryCard}>
               <div style={styles.summaryLabel}>Revisiones por entrega</div>
               <strong>
-                {formatValue(
-                  assignmentInfo?.asignacion_revisores_por_entrega || assignmentInfo?.revisores_por_entrega
-                )}
+                {formatValue(assignmentInfo?.asignacion_revisores_por_entrega)}
               </strong>
             </div>
             <div style={styles.summaryCard}>

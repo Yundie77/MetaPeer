@@ -177,7 +177,7 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    t.descripcion,
                    t.fecha_entrega,
                    t.estado,
-                   t.revisores_por_entrega,
+                   COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                    COALESCE(a.modo, 'equipo') AS asignacion_modo,
                    a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                    CASE
@@ -196,7 +196,7 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                      )
                      ELSE (
                        (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
-                       COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                       COALESCE(a.revisores_por_entrega, 1)
                      )
                    END AS revisiones_esperadas,
                    (
@@ -225,7 +225,7 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                    t.descripcion,
                    t.fecha_entrega,
                    t.estado,
-                   t.revisores_por_entrega,
+                   COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                    COALESCE(a.modo, 'equipo') AS asignacion_modo,
                    a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                    CASE
@@ -244,7 +244,7 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
                      )
                      ELSE (
                        (SELECT COUNT(*) FROM entregas ent WHERE ent.id_tarea = t.id) *
-                       COALESCE(a.revisores_por_entrega, t.revisores_por_entrega, 0)
+                       COALESCE(a.revisores_por_entrega, 1)
                      )
                    END AS revisiones_esperadas,
                    (
@@ -318,7 +318,7 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
                t.descripcion,
                t.fecha_entrega,
                t.estado,
-               t.revisores_por_entrega,
+               COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                COALESCE(a.modo, 'equipo') AS asignacion_modo,
                a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                CASE
@@ -366,7 +366,7 @@ router.get('/api/assignments/:assignmentId', requireAuth(), (req, res) => {
                t.descripcion,
                t.fecha_entrega,
                t.estado,
-               t.revisores_por_entrega,
+               COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                COALESCE(a.modo, 'equipo') AS asignacion_modo,
                a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                CASE
@@ -651,7 +651,7 @@ router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF'
                t.descripcion,
                t.fecha_entrega,
                t.estado,
-               t.revisores_por_entrega,
+               COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                COALESCE(a.modo, 'equipo') AS asignacion_modo,
                a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                CASE
@@ -703,7 +703,7 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
                t.descripcion,
                t.fecha_entrega,
                t.estado,
-               t.revisores_por_entrega,
+               COALESCE(a.revisores_por_entrega, 1) AS revisores_por_entrega,
                COALESCE(a.modo, 'equipo') AS asignacion_modo,
                a.revisores_por_entrega AS asignacion_revisores_por_entrega,
                /* 
@@ -743,7 +743,7 @@ router.get('/api/assignments/:assignmentId/assignment-summary', requireAuth(['AD
     const { reviews, reviewerMap, reviewedMap } = mapAssignmentSummaryReviews(assignmentId, revisionRows);
 
     const totalExpectedReviews =
-      totalSubmissions * Number(summaryAssignment?.asignacion_revisores_por_entrega || summaryAssignment?.revisores_por_entrega || 0);
+      totalSubmissions * Number(summaryAssignment?.asignacion_revisores_por_entrega || 0);
     const totalSubmittedReviews = reviews.reduce(
       (acc, review) => acc + (review.submittedAt ? 1 : 0),
       0

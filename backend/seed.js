@@ -36,8 +36,8 @@ function seedDatabase() {
 
   let createdUsers = 0;
   const insertUser = db.prepare(`
-    INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado)
-    VALUES (@correo, @nombre, @rol, @contrasena_hash, 'activo')
+    INSERT INTO usuario (correo, nombre_completo, rol, contrasena_hash, estado, creado_en)
+    VALUES (@correo, @nombre, @rol, @contrasena_hash, 'activo', @creado_en)
   `);
 
   const transaction = db.transaction(() => {
@@ -50,7 +50,8 @@ function seedDatabase() {
         correo: user.correo,
         nombre: user.nombre,
         rol: user.rol,
-        contrasena_hash
+        contrasena_hash,
+        creado_en: new Date().toISOString()
       });
       createdUsers += 1;
     });

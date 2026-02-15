@@ -32,8 +32,6 @@ CREATE TABLE IF NOT EXISTS tarea (
   titulo                TEXT NOT NULL,
   descripcion           TEXT,
   fecha_entrega         TEXT,
-  fecha_revision        TEXT,
-  revisores_por_entrega INTEGER,
   estado                TEXT NOT NULL DEFAULT 'abierta' CHECK (estado IN ('borrador','abierta','cerrada','archivada')),
   creado_por            INTEGER NOT NULL,                   -- usuario (PROF)
   FOREIGN KEY (id_asignatura) REFERENCES asignatura(id) ON DELETE SET NULL,

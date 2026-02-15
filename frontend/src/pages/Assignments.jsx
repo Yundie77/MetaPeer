@@ -404,8 +404,7 @@ const selectedSubjectLabel = useMemo(() => {
     }
     setAssignTarget(assignment);
     setAssignMode(assignment.asignacion_modo || 'equipo');
-    const defaultReviews =
-      Number(assignment.asignacion_revisores_por_entrega || assignment.revisores_por_entrega || 1) || 1;
+    const defaultReviews = Number(assignment.asignacion_revisores_por_entrega || 1) || 1;
     setAssignReviews(defaultReviews);
     setAssignPreview(null);
     setAssignWarnings([]);

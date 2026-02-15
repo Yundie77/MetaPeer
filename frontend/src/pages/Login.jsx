@@ -15,6 +15,9 @@ export default function Login({ onSuccess }) {
     { label: 'clarisseG01', email: 'ccecconi@ucm.es', password: 'alum123' },
     { label: 'romercadG02', email: 'romercad@ucm.es', password: 'alum123' },
     { label: 'dportu01G03', email: 'dportu01@ucm.es', password: 'alum123' },
+    { label: 'lauraG04', email: 'laura@ucm.es', password: 'alum123' },
+    { label: 'pabloG05', email: 'pablo@ucm.es', password: 'alum123' },
+    { label: 'nereaG06', email: 'nerea@ucm.es', password: 'alum123' },
     { label: 'manu', email: 'manu@ucm.es', password: 'prof123' }
   ];
 

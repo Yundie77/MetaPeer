@@ -38,7 +38,10 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         alumnosCreados: 0,
         equiposCreados: 0,
         membresiasInsertadas: 0,
-        ignoradas: 0
+        ignoradas: 0,
+        tareasSincronizadas: 0,
+        equiposCopiadosTotal: 0,
+        membresiasCopiadasTotal: 0
       });
     }
 
@@ -73,7 +76,10 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
       alumnosCreados: 0,
       equiposCreados: 0,
       membresiasInsertadas: 0,
-      ignoradas: 0
+      ignoradas: 0,
+      tareasSincronizadas: 0,
+      equiposCopiadosTotal: 0,
+      membresiasCopiadasTotal: 0
     };
 
     const tx = db.transaction(() => {
@@ -164,12 +170,11 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
       )
       .all(asignaturaId, rosterLike);
 
-    const selectTeamCount = db.prepare('SELECT COUNT(*) AS total FROM equipo WHERE id_tarea = ?');
     candidateTasks.forEach((task) => {
-      const teamCount = selectTeamCount.get(task.id)?.total || 0;
-      if (teamCount === 0) {
-        cloneRosterTeamsToAssignment(asignaturaId, task.id);
-      }
+      const syncSummary = cloneRosterTeamsToAssignment(asignaturaId, task.id);
+      summary.tareasSincronizadas += 1;
+      summary.equiposCopiadosTotal += syncSummary.equiposCopiados || 0;
+      summary.membresiasCopiadasTotal += syncSummary.miembrosCopiados || 0;
     });
 
     res.json(summary);

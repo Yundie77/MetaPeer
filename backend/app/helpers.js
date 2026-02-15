@@ -127,10 +127,11 @@ function cloneRosterTeamsToAssignment(asignaturaId, assignmentId) {
 
   const tx = db.transaction(() => {
     rosterTeams.forEach((team) => {
-      const found = selectTeam.get(assignmentId, team.nombre);
+      const teamName = team.nombre || `Equipo ${team.id}`;
+      const found = selectTeam.get(assignmentId, teamName);
       const targetTeamId = found
         ? found.id
-        : insertTeam.run(assignmentId, team.nombre || `Equipo ${team.id}`).lastInsertRowid;
+        : insertTeam.run(assignmentId, teamName).lastInsertRowid;
 
       if (!found) {
         equiposCopiados += 1;

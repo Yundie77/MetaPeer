@@ -203,17 +203,7 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
       return sendError(res, 409, 'La asignación ya está iniciada/bloqueada. No se pueden subir entregas ZIP.');
     }
 
-    const existingTeams = db
-      .prepare(
-        `
-        SELECT COUNT(*) AS total
-        FROM equipo
-        WHERE id_tarea = ?
-      `
-      )
-      .get(assignmentId)?.total || 0;
-
-    if (existingTeams === 0 && assignment.id_asignatura) {
+    if (assignment.id_asignatura) {
       cloneRosterTeamsToAssignment(assignment.id_asignatura, assignmentId);
     }
 

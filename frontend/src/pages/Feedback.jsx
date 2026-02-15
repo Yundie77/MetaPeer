@@ -5,7 +5,9 @@ import {
   labelStyle as sharedLabelStyle,
   inputStyle as sharedInputStyle,
   reviewSelectorWrap,
-  errorStyle as sharedErrorStyle
+  errorStyle as sharedErrorStyle,
+  statusBadgePending,
+  statusBadgeGraded
 } from './reviews/styles.js';
 
 const formatSimpleDate = (value) => {
@@ -25,6 +27,14 @@ const getAssignmentOptionLabel = (assignment, reviewedSubmissionsCount = 0) => {
   const dueDate = formatSimpleDate(assignment?.fecha_entrega);
   const reviewedCount = safeCount(reviewedSubmissionsCount);
   return `${title} · Entrega: ${dueDate} · Entregas revisadas: ${reviewedCount}`;
+};
+
+const resolveReviewStatus = (review) => {
+  const hasGrade = review?.nota_numerica !== null && review?.nota_numerica !== undefined;
+  if (hasGrade) {
+    return { label: 'Con nota', style: statusBadgeGraded };
+  }
+  return { label: 'Pendiente', style: statusBadgePending };
 };
 
 export default function Feedback() {
@@ -156,24 +166,30 @@ export default function Feedback() {
                 <div style={metaStyle}>Subida: {submission.fecha_subida || 'sin fecha'}</div>
               </div>
               <ul style={innerListStyle}>
-                {(reviews[submission.id] || []).map((review) => (
-                  <li key={review.id} style={innerCardStyle}>
-                    <div>
-                      <div>Nota: {review.nota_numerica ?? 'sin nota'}</div>
-                      {review.equipo_revisor?.nombre && (
-                        <div style={metaStyle}>Revisor: {review.equipo_revisor.nombre}</div>
-                      )}
-                      {review.comentario && <div style={metaStyle}>{review.comentario}</div>}
-                    </div>
-                    <button
-                      type="button"
-                      style={viewButtonStyle}
-                      onClick={() => openReview(review.id)}
-                    >
-                      Ver revisión
-                    </button>
-                  </li>
-                ))}
+                {(reviews[submission.id] || []).map((review) => {
+                  const status = resolveReviewStatus(review);
+                  return (
+                    <li key={review.id} style={innerCardStyle}>
+                      <div>
+                        <div>Nota: {review.nota_numerica ?? 'sin nota'}</div>
+                        {review.equipo_revisor?.nombre && (
+                          <div style={metaStyle}>Revisor: {review.equipo_revisor.nombre}</div>
+                        )}
+                        {review.comentario && <div style={metaStyle}>{review.comentario}</div>}
+                      </div>
+                      <div style={reviewActionsStyle}>
+                        <span style={status.style}>{status.label}</span>
+                        <button
+                          type="button"
+                          style={viewButtonStyle}
+                          onClick={() => openReview(review.id)}
+                        >
+                          Ver revisión
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
                 {(reviews[submission.id] || []).length === 0 && <li style={metaStyle}>Sin revisiones aún.</li>}
               </ul>
             </li>
@@ -229,6 +245,12 @@ const viewButtonStyle = {
   borderRadius: '999px',
   cursor: 'pointer',
   fontWeight: 600
+};
+
+const reviewActionsStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem'
 };
 
 const metaStyle = {

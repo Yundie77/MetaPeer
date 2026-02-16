@@ -4,15 +4,28 @@ const { sendError } = require('../helpers');
 
 const router = express.Router();
 
+function isProductionEnvironment() {
+  return String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+}
+
+function isDemoEmail(email) {
+  return String(email || '').trim().toLowerCase().endsWith('@demo');
+}
+
 router.post('/api/login', (req, res) => {
   try {
     const { email, password } = req.body || {};
+    const normalizedEmail = String(email || '').trim().toLowerCase();
 
-    if (!email || !password) {
+    if (!normalizedEmail || !password) {
       return sendError(res, 400, 'Email y contraseña son obligatorios.');
     }
 
-    const user = verifyCredentials(email, password);
+    if (isProductionEnvironment() && isDemoEmail(normalizedEmail)) {
+      return sendError(res, 401, 'Credenciales inválidas.');
+    }
+
+    const user = verifyCredentials(normalizedEmail, password);
     if (!user) {
       return sendError(res, 401, 'Credenciales inválidas.');
     }

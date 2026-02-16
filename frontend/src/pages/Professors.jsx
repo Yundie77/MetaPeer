@@ -16,11 +16,10 @@ export default function Professors() {
 
   const [profName, setProfName] = useState('');
   const [profEmail, setProfEmail] = useState('');
-  const [profPassword, setProfPassword] = useState('');
-  const [profPasswordConfirm, setProfPasswordConfirm] = useState('');
   const [creatingProfessor, setCreatingProfessor] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createModalError, setCreateModalError] = useState('');
+  const [createdProfessorCredential, setCreatedProfessorCredential] = useState(null);
 
   const [selectedProfessorId, setSelectedProfessorId] = useState('');
   const [selectedSubjects, setSelectedSubjects] = useState([]);
@@ -77,15 +76,9 @@ export default function Professors() {
     setCreateModalError('');
     const name = profName.trim();
     const email = profEmail.trim();
-    const password = profPassword.trim();
-    const passwordConfirm = profPasswordConfirm.trim();
 
     if (!name || !email) {
       setCreateModalError('Nombre y correo son obligatorios.');
-      return;
-    }
-    if (password !== passwordConfirm) {
-      setCreateModalError('Las contraseñas no coinciden.');
       return;
     }
 
@@ -94,17 +87,24 @@ export default function Professors() {
       setProfessorsError('');
       const created = await postJson('/admin/professors', {
         nombre: name,
-        correo: email,
-        password: password || undefined
+        correo: email
       });
       setProfessors((prev) => [created, ...prev]);
       setProfName('');
       setProfEmail('');
-      setProfPassword('');
-      setProfPasswordConfirm('');
       setSelectedProfessorId(String(created.id));
       setSelectedSubjects([]);
       setAssignSuccess('');
+      if (created?.credencial?.email && created?.credencial?.password) {
+        setCreatedProfessorCredential(created.credencial);
+      } else if (created?.correo && created?.passwordInicial) {
+        setCreatedProfessorCredential({
+          email: created.correo,
+          password: created.passwordInicial
+        });
+      } else {
+        setCreatedProfessorCredential(null);
+      }
       setShowCreateModal(false);
     } catch (err) {
       setCreateModalError(err.message);
@@ -172,8 +172,6 @@ export default function Professors() {
         onClick={() => {
           setProfName('');
           setProfEmail('');
-          setProfPassword('');
-          setProfPasswordConfirm('');
           setCreateModalError('');
           setShowCreateModal(true);
         }}
@@ -182,6 +180,24 @@ export default function Professors() {
       </button>
 
       {professorsError && <p style={errorStyle}>{professorsError}</p>}
+      {createdProfessorCredential && (
+        <div style={credentialNoticeStyle}>
+          <strong>Credencial inicial creada. Anótala ahora:</strong>
+          <div style={{ marginTop: '0.45rem' }}>
+            Usuario: <code>{createdProfessorCredential.email}</code>
+          </div>
+          <div>
+            Contraseña: <code>{createdProfessorCredential.password}</code>
+          </div>
+          <button
+            type="button"
+            style={dismissCredentialButtonStyle}
+            onClick={() => setCreatedProfessorCredential(null)}
+          >
+            Entendido
+          </button>
+        </div>
+      )}
 
       <div style={assignmentLayout}>
         <div style={professorListStyle}>
@@ -237,7 +253,9 @@ export default function Professors() {
         <div style={modalOverlayStyle}>
           <div style={modalStyle}>
             <h3>Crear profesor</h3>
-            <p style={{ color: '#555', marginTop: 0 }}>Completa los datos y confirma la contraseña.</p>
+            <p style={{ color: '#555', marginTop: 0 }}>
+              Completa nombre y correo. El sistema generará la contraseña inicial automáticamente.
+            </p>
             <form onSubmit={handleCreateProfessor} style={modalFormStyle}>
               <label style={labelStyle}>
                 Nombre
@@ -255,28 +273,6 @@ export default function Professors() {
                   type="email"
                   value={profEmail}
                   onChange={(event) => setProfEmail(event.target.value)}
-                  disabled={creatingProfessor}
-                />
-              </label>
-              <label style={labelStyle}>
-                Contraseña
-                <input
-                  style={inputStyle}
-                  type="password"
-                  value={profPassword}
-                  onChange={(event) => setProfPassword(event.target.value)}
-                  placeholder="prof123 si la dejas vacía"
-                  disabled={creatingProfessor}
-                />
-              </label>
-              <label style={labelStyle}>
-                Confirmar contraseña
-                <input
-                  style={inputStyle}
-                  type="password"
-                  value={profPasswordConfirm}
-                  onChange={(event) => setProfPasswordConfirm(event.target.value)}
-                  placeholder="Repite la contraseña"
                   disabled={creatingProfessor}
                 />
               </label>
@@ -336,6 +332,26 @@ const errorStyle = {
 const successStyle = {
   color: '#1f7a1f',
   marginTop: '0.75rem'
+};
+
+const credentialNoticeStyle = {
+  marginTop: '0.75rem',
+  marginBottom: '1rem',
+  padding: '0.85rem 1rem',
+  border: '1px solid #f4d28a',
+  background: '#fffbe8',
+  borderRadius: '8px',
+  color: '#5b4300'
+};
+
+const dismissCredentialButtonStyle = {
+  marginTop: '0.65rem',
+  padding: '0.35rem 0.65rem',
+  background: '#8a6d1f',
+  color: '#fff',
+  border: 'none',
+  borderRadius: '4px',
+  cursor: 'pointer'
 };
 
 const profFormStyle = {

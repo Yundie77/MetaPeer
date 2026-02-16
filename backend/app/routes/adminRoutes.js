@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { requireAuth } = require('../../auth');
 const { db } = require('../../db');
 const { parseCsvToObjects, toLowercaseIdentifier } = require('../../utils/csv');
+const { generateReadablePassword } = require('../../utils/passwords');
 const {
   sendError,
   safeNumber,
@@ -10,9 +11,29 @@ const {
   cloneRosterTeamsToAssignment,
   getProfessorSubjects
 } = require('../helpers');
-const { DEFAULT_PROFESSOR_PASSWORD, ROSTER_PREFIX } = require('../constants');
+const { ROSTER_PREFIX } = require('../constants');
 
 const router = express.Router();
+
+function escapeCsvValue(value) {
+  const text = value === undefined || value === null ? '' : String(value);
+  if (!/[;"\n\r]/.test(text)) {
+    return text;
+  }
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function buildCredentialsCsv(credentials = []) {
+  if (!Array.isArray(credentials) || credentials.length === 0) {
+    return '';
+  }
+
+  const lines = ['email;password'];
+  credentials.forEach((credential) => {
+    lines.push([escapeCsvValue(credential.email), escapeCsvValue(credential.password)].join(';'));
+  });
+  return lines.join('\n');
+}
 
 router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
@@ -41,7 +62,9 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         ignoradas: 0,
         tareasSincronizadas: 0,
         equiposCopiadosTotal: 0,
-        membresiasCopiadasTotal: 0
+        membresiasCopiadasTotal: 0,
+        credencialesCreadas: [],
+        credencialesCsv: ''
       });
     }
 
@@ -79,7 +102,9 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
       ignoradas: 0,
       tareasSincronizadas: 0,
       equiposCopiadosTotal: 0,
-      membresiasCopiadasTotal: 0
+      membresiasCopiadasTotal: 0,
+      credencialesCreadas: [],
+      credencialesCsv: ''
     };
 
     const tx = db.transaction(() => {
@@ -111,7 +136,8 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         let user = selectUser.get(email);
         let userId;
         if (!user) {
-          const hash = bcrypt.hashSync('alum123', 10);
+          const plainPassword = generateReadablePassword(10);
+          const hash = bcrypt.hashSync(plainPassword, 10);
           const result = insertUser.run({
             correo: email,
             nombre: fullName,
@@ -120,6 +146,10 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
           });
           userId = result.lastInsertRowid;
           summary.alumnosCreados += 1;
+          summary.credencialesCreadas.push({
+            email,
+            password: plainPassword
+          });
         } else {
           userId = user.id;
         }
@@ -177,6 +207,8 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
       summary.membresiasCopiadasTotal += syncSummary.miembrosCopiados || 0;
     });
 
+    summary.credencialesCsv = buildCredentialsCsv(summary.credencialesCreadas);
+
     res.json(summary);
   } catch (error) {
     console.error('Error al importar CSV:', error);
@@ -215,14 +247,9 @@ router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
   try {
     const nombre = (req.body?.nombre || '').trim();
     const correo = (req.body?.correo || '').trim().toLowerCase();
-    const password = (req.body?.password || DEFAULT_PROFESSOR_PASSWORD).trim();
 
     if (!nombre || !correo) {
       return sendError(res, 400, 'Nombre y correo son obligatorios.');
-    }
-
-    if (!password) {
-      return sendError(res, 400, 'La contraseña no puede estar vacía.');
     }
 
     const existing = db.prepare('SELECT id FROM usuario WHERE correo = ?').get(correo);
@@ -230,7 +257,8 @@ router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
       return sendError(res, 409, 'Ya existe un usuario con ese correo.');
     }
 
-    const hash = bcrypt.hashSync(password, 10);
+    const passwordInicial = generateReadablePassword(10);
+    const hash = bcrypt.hashSync(passwordInicial, 10);
     const insert = db
       .prepare(
         `
@@ -244,7 +272,12 @@ router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
       id: insert.lastInsertRowid,
       nombre,
       correo,
-      asignaturas: []
+      asignaturas: [],
+      passwordInicial,
+      credencial: {
+        email: correo,
+        password: passwordInicial
+      }
     });
   } catch (error) {
     console.error('Error al crear profesor:', error);

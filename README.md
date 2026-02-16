@@ -31,6 +31,8 @@ Backend (`backend/.env`):
 - Es opcional. Si no existe, el backend usa valores por defecto.
 - `backend/.env.example` solo define:
   - `PORT` (por defecto `4000`)
+  - `NODE_ENV` (`development` o `production`)
+  - `SEED_DEMO_USERS` (`1` habilita seed demo en no-producción, `0` lo desactiva)
 - Variables opcionales adicionales (no están en el `.env.example`):
   - `JWT_SECRET` (si no existe se usa `demo-secret-key`)
 
@@ -58,13 +60,29 @@ npm run dev:frontend
 
 - La base de datos es **SQLite** y se guarda en `backend/data.sqlite`.
 - El esquema se aplica automáticamente desde `backend/schema.sql`.
-- Al arrancar el backend se ejecuta un *seed* que crea usuarios demo si no existen:
+- Al arrancar el backend se ejecuta un *seed*. Los usuarios demo se crean según:
+  - `SEED_DEMO_USERS=1`: se crean si no existen (solo fuera de producción).
+  - `SEED_DEMO_USERS=0`: no se crean.
+  - si no defines `SEED_DEMO_USERS`, por defecto se crean en no-producción.
+- En `NODE_ENV=production`:
+  - nunca se crean usuarios demo.
+  - si no existe ningún `ADMIN`, se crea `admin@ucm` con contraseña aleatoria.
+  - la credencial inicial se deja en `backend/tmp/bootstrap-admin.txt` y también se imprime en consola.
+  - elimina ese archivo tras el primer acceso por seguridad.
 
 | Rol | Email | Password |
 |---|---|---|
 | Admin | `admin@demo` | `admin123` |
 | Profesor | `prof@demo` | `prof123` |
 | Alumno | `alum@demo` | `alum123` |
+
+Scripts útiles de seed:
+
+```powershell
+npm run seed       # respeta NODE_ENV/SEED_DEMO_USERS
+npm run seed:demo  # fuerza entorno de demo local
+npm run seed:prod  # fuerza entorno de produccion (sin demo users)
+```
 
 Para resetear el entorno local: detén el backend y borra `backend/data.sqlite` (y si existen `backend/data.sqlite-wal`, `backend/data.sqlite-shm`), luego vuelve a iniciar.
 

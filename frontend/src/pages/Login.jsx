@@ -1,25 +1,61 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
+
+const OWNER_DEBUG_ENABLED = import.meta.env.DEV && import.meta.env.VITE_OWNER_DEBUG === '1';
 
 export default function Login({ onSuccess }) {
   const { login, loading, error, setError } = useAuth();
   const [email, setEmail] = useState('admin@demo');
   const [password, setPassword] = useState('admin123');
   const [localError, setLocalError] = useState('');
+  const [quickUsers, setQuickUsers] = useState([]);
 
-  const quickUsers = [
-    { label: 'Admin', email: 'admin@demo', password: 'admin123' },
-    { label: 'Profesor', email: 'prof@demo', password: 'prof123' },
-    { label: 'Alumno', email: 'alum@demo', password: 'alum123' },
-    { label: 'ikrambenG01', email: 'ikramben@ucm.es', password: 'alum123' },
-    { label: 'clarisseG01', email: 'ccecconi@ucm.es', password: 'alum123' },
-    { label: 'romercadG02', email: 'romercad@ucm.es', password: 'alum123' },
-    { label: 'dportu01G03', email: 'dportu01@ucm.es', password: 'alum123' },
-    { label: 'lauraG04', email: 'laura@ucm.es', password: 'alum123' },
-    { label: 'pabloG05', email: 'pablo@ucm.es', password: 'alum123' },
-    { label: 'nereaG06', email: 'nerea@ucm.es', password: 'alum123' },
-    { label: 'manu', email: 'manu@ucm.es', password: 'prof123' }
-  ];
+  useEffect(() => {
+    if (!OWNER_DEBUG_ENABLED) return undefined;
+
+    let cancelled = false;
+
+    async function loadQuickUsers() {
+      try {
+        const response = await fetch('/quick-users.local.json', { cache: 'no-store' });
+        if (!response.ok) return;
+
+        const payload = await response.json();
+        const rawUsers = Array.isArray(payload) ? payload : Array.isArray(payload?.users) ? payload.users : [];
+        const parsedUsers = rawUsers
+          .map((user, index) => {
+            const emailValue = String(user?.email || '').trim();
+            const passwordValue = String(user?.password || '').trim();
+            const labelValue = String(user?.label || emailValue || `Usuario ${index + 1}`).trim();
+
+            if (!emailValue || !passwordValue) {
+              return null;
+            }
+
+            return {
+              label: labelValue,
+              email: emailValue,
+              password: passwordValue
+            };
+          })
+          .filter(Boolean);
+
+        if (!cancelled) {
+          setQuickUsers(parsedUsers);
+        }
+      } catch (_error) {
+        if (!cancelled) {
+          setQuickUsers([]);
+        }
+      }
+    }
+
+    loadQuickUsers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -52,23 +88,29 @@ export default function Login({ onSuccess }) {
   return (
     <section style={containerStyle}>
       <h2>Iniciar sesión</h2>
-      <p style={infoStyle}>
-        Usa las cuentas demo: <strong>admin@demo / admin123</strong>, <strong>prof@demo / prof123</strong>,{' '}
-        <strong>alum@demo / alum123</strong>.
-      </p>
-      <div style={quickRowStyle}>
-        {quickUsers.map((user) => (
-          <button
-            key={user.email}
-            type="button"
-            style={quickButtonStyle}
-            onClick={() => handleQuickLogin(user)}
-            disabled={loading}
-          >
-            Entrar como {user.label}
-          </button>
-        ))}
-      </div>
+      {OWNER_DEBUG_ENABLED && (
+        <div style={quickPanelStyle}>
+          {quickUsers.length > 0 ? (
+            <div style={quickRowStyle}>
+              {quickUsers.map((user) => (
+                <button
+                  key={user.email}
+                  type="button"
+                  style={quickButtonStyle}
+                  onClick={() => handleQuickLogin(user)}
+                  disabled={loading}
+                >
+                  Entrar como {user.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p style={quickHintStyle}>
+              Owner debug activo sin usuarios. Crea <code>frontend/public/quick-users.local.json</code>.
+            </p>
+          )}
+        </div>
+      )}
       <form onSubmit={handleSubmit} style={formStyle}>
         <label style={labelStyle}>
           Correo
@@ -152,6 +194,16 @@ const quickRowStyle = {
   gap: '0.5rem',
   flexWrap: 'wrap',
   margin: '0.5rem 0 1rem'
+};
+
+const quickPanelStyle = {
+  margin: '0.5rem 0 1rem'
+};
+
+const quickHintStyle = {
+  margin: '0.5rem 0 0',
+  fontSize: '0.85rem',
+  color: '#6b7280'
 };
 
 const quickButtonStyle = {

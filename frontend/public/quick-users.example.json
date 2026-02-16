@@ -1,0 +1,19 @@
+{
+  "users": [
+    {
+      "label": "Admin demo",
+      "email": "admin@demo",
+      "password": "admin123"
+    },
+    {
+      "label": "Profesor demo",
+      "email": "prof@demo",
+      "password": "prof123"
+    },
+    {
+      "label": "Alumno demo",
+      "email": "alum@demo",
+      "password": "alum123"
+    }
+  ]
+}

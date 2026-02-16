@@ -15,7 +15,14 @@ const exportRoutes = require('./app/routes/exportRoutes');
 const profileRoutes = require('./app/routes/profileRoutes');
 
 dotenv.config({ path: path.join(__dirname, '.env') });
-seedDatabase();
+const seedResult = seedDatabase();
+if (seedResult?.bootstrapAdmin?.created) {
+  console.log('Bootstrap admin de produccion creado.');
+  console.log(`Email: ${seedResult.bootstrapAdmin.email}`);
+  console.log(`Password temporal: ${seedResult.bootstrapAdmin.password}`);
+  console.log(`Archivo local: ${seedResult.bootstrapAdmin.reportPath}`);
+  console.log('IMPORTANTE: guarda la credencial y elimina el archivo local despues del primer acceso.');
+}
 
 const app = express();
 app.use(cors());

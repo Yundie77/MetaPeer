@@ -5,7 +5,10 @@
   "main": "server.js",
   "scripts": {
     "dev": "nodemon server.js",
-    "start": "node server.js"
+    "start": "node server.js",
+    "seed": "node seed.js",
+    "seed:demo": "node -e \"process.env.NODE_ENV='development'; process.env.SEED_DEMO_USERS='1'; const { seedDatabase } = require('./seed'); const result = seedDatabase(); console.log('Seed demo completado. Usuarios demo creados: ' + result.createdUsers);\"",
+    "seed:prod": "node -e \"process.env.NODE_ENV='production'; process.env.SEED_DEMO_USERS='0'; require('./seed').seedDatabase(); console.log('Seed prod completado. Usuarios demo deshabilitados y bootstrap admin evaluado.');\""
   },
   "dependencies": {
     "adm-zip": "^0.5.16",

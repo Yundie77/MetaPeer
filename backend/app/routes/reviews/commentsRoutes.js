@@ -6,16 +6,23 @@ const { db } = require('../../../db');
 const { contentFolder, ensureInside, listAllFiles } = require('../../../utils/deliveries');
 const { findFileById, normalizeRelativePath } = require('../../../utils/reviewFileIds');
 const { fileHash } = require('../../../utils/fileHash');
-const { sendError, safeNumber, ensureRevisionPermission } = require('../../helpers');
+const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require('../../helpers');
 
 const router = express.Router();
+const REVIEW_COMMENT_MAX_LENGTH = 5000;
 
 router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
     const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
     const linea = safeNumber(req.body?.line || req.body?.linea);
-    const contenido = (req.body?.contenido || req.body?.text || '').toString().trim();
+    const contenidoRaw = req.body?.contenido ?? req.body?.text ?? '';
+
+    if (contenidoRaw !== null && contenidoRaw !== undefined && typeof contenidoRaw !== 'string') {
+      return sendError(res, 400, 'El comentario debe ser texto.');
+    }
+
+    const contenido = String(contenidoRaw).trim();
 
     if (!revisionId || !fileId) {
       return sendError(res, 400, 'Falta indicar el archivo.');
@@ -26,6 +33,11 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
     if (!contenido) {
       return sendError(res, 400, 'El comentario no puede estar vacío.');
     }
+    if (contenido.length > REVIEW_COMMENT_MAX_LENGTH) {
+      return sendError(res, 400, `El comentario no puede superar ${REVIEW_COMMENT_MAX_LENGTH} caracteres.`);
+    }
+
+    const escapedContenido = escapeHtml(contenido);
 
     const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
     if (!revision) {
@@ -60,7 +72,7 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       )
-      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, contenido, req.user.id, createdAt);
+      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, escapedContenido, req.user.id, createdAt);
 
     const created = db
       .prepare(
@@ -164,7 +176,13 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
   try {
     const revisionId = safeNumber(req.params.revisionId);
     const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
-    const contenido = (req.body?.contenido || req.body?.text || '').toString().trim();
+    const contenidoRaw = req.body?.contenido ?? req.body?.text ?? '';
+
+    if (contenidoRaw !== null && contenidoRaw !== undefined && typeof contenidoRaw !== 'string') {
+      return sendError(res, 400, 'El comentario debe ser texto.');
+    }
+
+    const contenido = String(contenidoRaw).trim();
 
     if (!revisionId || !fileId) {
       return sendError(res, 400, 'Falta indicar el archivo.');
@@ -172,6 +190,11 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
     if (!contenido) {
       return sendError(res, 400, 'El comentario no puede estar vacío.');
     }
+    if (contenido.length > REVIEW_COMMENT_MAX_LENGTH) {
+      return sendError(res, 400, `El comentario no puede superar ${REVIEW_COMMENT_MAX_LENGTH} caracteres.`);
+    }
+
+    const escapedContenido = escapeHtml(contenido);
 
     const revision = ensureRevisionPermission(revisionId, req.user, { allowOwners: true });
     if (!revision) {
@@ -224,7 +247,7 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
             creado_en = ?
         WHERE id = ?
       `
-      ).run(contenido, req.user.id, createdAt, existing.id);
+      ).run(escapedContenido, req.user.id, createdAt, existing.id);
       commentId = existing.id;
       updated = true;
     } else {
@@ -235,7 +258,7 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
           VALUES (?, ?, ?, ?, ?, ?)
         `
         )
-        .run(revisionId, sha1, normalizedPath, contenido, req.user.id, createdAt);
+        .run(revisionId, sha1, normalizedPath, escapedContenido, req.user.id, createdAt);
       commentId = insert.lastInsertRowid;
     }
 

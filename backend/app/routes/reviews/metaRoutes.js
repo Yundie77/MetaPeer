@@ -1,9 +1,10 @@
 const express = require('express');
 const { requireAuth } = require('../../../auth');
 const { db } = require('../../../db');
-const { sendError, safeNumber, ensureRevisionPermission } = require('../../helpers');
+const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require('../../helpers');
 
 const router = express.Router();
+const META_OBSERVATION_MAX_LENGTH = 5000;
 
 router.get('/api/reviews/:reviewId/meta', requireAuth(), (req, res) => {
   try {
@@ -79,7 +80,18 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
 
     const rawNota = req.body?.nota_final ?? req.body?.nota_calidad;
     const notaFinal = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
-    const observacion = (req.body?.observacion || '').trim();
+    const observacionRaw = req.body?.observacion ?? '';
+
+    if (observacionRaw !== null && observacionRaw !== undefined && typeof observacionRaw !== 'string') {
+      return sendError(res, 400, 'La observación debe ser texto.');
+    }
+
+    const observacion = String(observacionRaw).trim();
+    if (observacion.length > META_OBSERVATION_MAX_LENGTH) {
+      return sendError(res, 400, `La observación no puede superar ${META_OBSERVATION_MAX_LENGTH} caracteres.`);
+    }
+
+    const escapedObservacion = observacion ? escapeHtml(observacion) : null;
 
     if (notaFinal !== null) {
       if (!Number.isFinite(notaFinal)) {
@@ -100,7 +112,7 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
         SET nota_final = ?, observacion = ?, fecha_registro = ?
         WHERE id = ?
       `
-      ).run(notaFinal, observacion || null, registeredAt, existing.id);
+      ).run(notaFinal, escapedObservacion, registeredAt, existing.id);
     } else {
       db.prepare(
         `
@@ -113,7 +125,7 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
         reviewId,
         req.user.id,
         notaFinal,
-        observacion || null,
+        escapedObservacion,
         registeredAt
       );
     }

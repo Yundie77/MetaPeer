@@ -4,22 +4,33 @@ const { db } = require('../../../db');
 const {
   sendError,
   safeNumber,
+  escapeHtml,
   fetchAssignmentRubric,
   calculateRubricScore
 } = require('../../helpers');
 const { RUBRIC_SCORE_MIN, RUBRIC_SCORE_MAX } = require('../../constants');
 
 const router = express.Router();
+const REVIEW_COMMENT_MAX_LENGTH = 5000;
 
 router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
   try {
     const submissionId = safeNumber(req.body?.submissionId);
     const reviewerUserId = safeNumber(req.body?.reviewerUserId) || req.user.id;
     const respuestasJson = req.body?.respuestasJson || req.body?.respuestas || null;
-    const comentario = (req.body?.comentario || req.body?.comentarioExtra || '').trim();
+    const comentarioRaw = req.body?.comentario ?? req.body?.comentarioExtra ?? '';
     const rawNota = req.body?.notaNumerica;
     const notaNumericaCliente =
       rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
+
+    if (comentarioRaw !== null && comentarioRaw !== undefined && typeof comentarioRaw !== 'string') {
+      return sendError(res, 400, 'El comentario debe ser texto.');
+    }
+
+    const comentario = String(comentarioRaw).trim();
+    if (comentario.length > REVIEW_COMMENT_MAX_LENGTH) {
+      return sendError(res, 400, `El comentario no puede superar ${REVIEW_COMMENT_MAX_LENGTH} caracteres.`);
+    }
 
     if (!submissionId) {
       return sendError(res, 400, 'Debes indicar submissionId.');
@@ -91,7 +102,7 @@ router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
     ).run(
       JSON.stringify(rubricScore.normalizedScores),
       rubricScore.notaFinal,
-      comentario || null,
+      comentario ? escapeHtml(comentario) : null,
       submittedAt,
       req.user.id,
       revision.id

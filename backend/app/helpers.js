@@ -19,6 +19,15 @@ function safeNumber(value) {
   return Number.isFinite(number) ? number : null;
 }
 
+function escapeHtml(unsafe) {
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;"); // "&apos;" no siempre existe
+}
+
 function ensureAssignmentExists(assignmentId) {
   return db
     .prepare(
@@ -487,6 +496,7 @@ function getProfessorSubjects(professorId) {
 module.exports = {
   sendError,
   safeNumber,
+  escapeHtml,
   ensureAssignmentExists,
   ensureAssignmentRecord,
   isAssignmentStartedOrLocked,

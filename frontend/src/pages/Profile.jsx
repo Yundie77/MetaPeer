@@ -10,6 +10,20 @@ const EVENT_ACTION_LABELS = {
   meta_review: 'META-REVISION'
 };
 
+const ADMIN_PROF_EVENT_TYPES = [
+  'assignment_assigned',
+  'meta_review',
+  'review_assigned',
+  'submissions_batch_uploaded',
+  'review_submitted'
+];
+
+const STUDENT_EVENT_TYPES = [
+  'meta_review',
+  'review_assigned',
+  'review_submitted'
+];
+
 function formatDateTime(value) {
   if (!value) {
     return 'sin fecha';
@@ -82,6 +96,7 @@ export default function Profile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [payload, setPayload] = useState(null);
+  const [selectedEventType, setSelectedEventType] = useState('all');
 
   useEffect(() => {
     if (!canView) {
@@ -118,6 +133,19 @@ export default function Profile() {
       cancelled = true;
     };
   }, [canView]);
+
+  const availableEventTypes = useMemo(
+    () => (isStudent ? STUDENT_EVENT_TYPES : ADMIN_PROF_EVENT_TYPES),
+    [isStudent]
+  );
+
+  const filteredEvents = useMemo(() => {
+    const allEvents = Array.isArray(payload?.events) ? payload.events : [];
+    if (selectedEventType === 'all') {
+      return allEvents;
+    }
+    return allEvents.filter((event) => event?.type === selectedEventType);
+  }, [payload?.events, selectedEventType]);
 
   const statItems = isStudent
     ? [
@@ -200,24 +228,45 @@ export default function Profile() {
           <div style={timelineColumnStyle}>
             <div style={cardStyle}>
               <h3 style={sectionTitleStyle}>Actividad reciente</h3>
-              {!payload.events || payload.events.length === 0 ? (
+              <div style={filterRowStyle}>
+                <button
+                  type="button"
+                  style={selectedEventType === 'all' ? filterBadgeActiveStyle : filterBadgeStyle}
+                  onClick={() => setSelectedEventType('all')}
+                >
+                  TODAS
+                </button>
+                {availableEventTypes.map((eventType) => (
+                  <button
+                    key={eventType}
+                    type="button"
+                    style={selectedEventType === eventType ? filterBadgeActiveStyle : filterBadgeStyle}
+                    onClick={() => setSelectedEventType(eventType)}
+                  >
+                    {EVENT_ACTION_LABELS[eventType]}
+                  </button>
+                ))}
+              </div>
+              {!filteredEvents || filteredEvents.length === 0 ? (
                 <p style={emptyTextStyle}>Aún no hay eventos relevantes para mostrar.</p>
               ) : (
                 <ul style={timelineListStyle}>
-                  {payload.events.map((event) => {
+                  {filteredEvents.map((event) => {
                     const eventAction = resolveEventAction(event, role);
                     return (
                       <li key={event.id} style={timelineItemStyle}>
                         <div style={timelineHeaderStyle}>
                           <span style={timelineDateStyle}>{formatDateTime(event.timestamp)}</span>
-                          <button
-                            type="button"
-                            style={timelineActionButtonStyle}
-                            onClick={() => handleOpenEventAction(event)}
-                            title="Abrir"
-                          >
-                            {eventAction.label}
-                          </button>
+                          {eventAction?.label ? (
+                            <button
+                              type="button"
+                              style={timelineActionButtonStyle}
+                              onClick={() => handleOpenEventAction(event)}
+                              title="Abrir"
+                            >
+                              {eventAction.label}
+                            </button>
+                          ) : null}
                         </div>
                         <div style={timelineTitleStyle}>{event.title}</div>
                         {event.description && <div style={timelineDescriptionStyle}>{event.description}</div>}
@@ -431,6 +480,32 @@ const timelineActionButtonStyle = {
   fontWeight: 700,
   fontSize: '0.75rem',
   letterSpacing: '0.02em'
+};
+
+const filterRowStyle = {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '0.45rem',
+  marginBottom: '0.85rem'
+};
+
+const filterBadgeStyle = {
+  border: '1px solid #d0d7de',
+  background: '#fff',
+  color: '#1f2328',
+  padding: '0.3rem 0.6rem',
+  borderRadius: '999px',
+  cursor: 'pointer',
+  fontWeight: 700,
+  fontSize: '0.74rem',
+  letterSpacing: '0.015em'
+};
+
+const filterBadgeActiveStyle = {
+  ...filterBadgeStyle,
+  background: '#20232a',
+  borderColor: '#20232a',
+  color: '#fff'
 };
 
 const errorStyle = {

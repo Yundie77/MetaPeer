@@ -7,8 +7,7 @@ CREATE TABLE IF NOT EXISTS usuario (
   rol              TEXT NOT NULL CHECK (rol IN ('ADMIN','PROF','ALUM')),
   contrasena_hash  TEXT,                    
   estado           TEXT NOT NULL DEFAULT 'activo' CHECK (estado IN ('activo','invitado','desactivado')),
-  creado_en        TEXT NOT NULL,
-  ultimo_acceso    TEXT
+  creado_en        TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS asignatura (

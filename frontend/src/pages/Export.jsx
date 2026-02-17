@@ -29,6 +29,55 @@ const getAssignmentOptionLabel = (assignment) => {
   return `${title} · Entrega: ${dueDate} · Revisadas: ${done}/${expected} · Meta: ${metaDone}`;
 };
 
+const parseCsvTextToTable = (text) => {
+  const lines = String(text || '')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return { header: [], rows: [] };
+  }
+
+  const rows = lines.map((line) => line.split(';').map((cell) => cell.trim()));
+  const [header, ...body] = rows;
+  return { header, rows: body };
+};
+
+const CsvPreviewTable = ({ csvText }) => {
+  const table = parseCsvTextToTable(csvText);
+  if (table.header.length === 0) {
+    return null;
+  }
+
+  return (
+    <div style={tableWrapStyle}>
+      <table style={tableStyle}>
+        <thead>
+          <tr>
+            {table.header.map((cell, index) => (
+              <th key={`header-${index}`} style={headerCellStyle}>
+                {cell}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {table.rows.map((row, rowIndex) => (
+            <tr key={`row-${rowIndex}`}>
+              {table.header.map((_, colIndex) => (
+                <td key={`cell-${rowIndex}-${colIndex}`} style={bodyCellStyle}>
+                  {row[colIndex] ?? ''}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
 export default function Export() {
   const initialQueryRef = useRef(new URLSearchParams(window.location.search));
   const autoGenerateTriggeredRef = useRef(false);
@@ -236,7 +285,7 @@ export default function Export() {
 
       <div style={actionsRowStyle}>
         <button type="button" style={buttonStyle} onClick={handleExportMetaOutgoing} disabled={loadingMetaOutgoing}>
-          {loadingMetaOutgoing ? 'Generando...' : 'Generar meta-revision saliente'}
+          {loadingMetaOutgoing ? 'Generando...' : 'Generar CSV meta-revision saliente'}
         </button>
         <button
           type="button"
@@ -244,7 +293,7 @@ export default function Export() {
           onClick={handleExportIncomingReviews}
           disabled={loadingIncomingReviews}
         >
-          {loadingIncomingReviews ? 'Generando...' : 'Generar revision entrante'}
+          {loadingIncomingReviews ? 'Generando...' : 'Generar CSV revision entrante'}
         </button>
       </div>
 
@@ -262,7 +311,7 @@ export default function Export() {
               Descargar CSV
             </button>
           </div>
-          <pre style={preStyle}>{metaOutgoingText}</pre>
+          <CsvPreviewTable csvText={metaOutgoingText} />
         </>
       )}
 
@@ -280,7 +329,7 @@ export default function Export() {
               Descargar CSV
             </button>
           </div>
-          <pre style={preStyle}>{incomingReviewsText}</pre>
+          <CsvPreviewTable csvText={incomingReviewsText} />
         </>
       )}
 
@@ -310,14 +359,31 @@ const previewTitleStyle = {
   margin: 0
 };
 
-const preStyle = {
-  margin: 0,
-  padding: '0.75rem',
+const tableWrapStyle = {
+  overflowX: 'auto',
   border: '1px solid #d1d5db',
   borderRadius: '6px',
-  background: '#f9fafb',
-  overflowX: 'auto',
-  whiteSpace: 'pre'
+  background: '#fff'
+};
+
+const tableStyle = {
+  width: '100%',
+  borderCollapse: 'collapse'
+};
+
+const headerCellStyle = {
+  textAlign: 'left',
+  padding: '0.55rem 0.65rem',
+  borderBottom: '1px solid #d1d5db',
+  background: '#f3f4f6',
+  fontSize: '0.9rem'
+};
+
+const bodyCellStyle = {
+  padding: '0.5rem 0.65rem',
+  borderBottom: '1px solid #eef2f7',
+  fontSize: '0.88rem',
+  whiteSpace: 'nowrap'
 };
 
 const previewHeaderStyle = {

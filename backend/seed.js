@@ -4,8 +4,8 @@ const bcrypt = require('bcryptjs');
 const { applySchema, db } = require('./db');
 const { generateReadablePassword } = require('./utils/passwords');
 
-// Usuarios iniciales que ayudan a probar el MVP rápidamente.
-// Usamos contraseñas sencillas porque el objetivo es mostrar el flujo completo.
+// Usuarios iniciales que ayudan a probar el MVP.
+// En producción no se crean por defecto, pero se pueden habilitar con la variable de entorno SEED_DEMO_USERS=true
 const DEFAULT_USERS = [
   {
     correo: 'admin@demo',

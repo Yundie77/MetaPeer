@@ -73,7 +73,3 @@ export function getJson(path, options = {}) {
 export function postJson(path, body, options = {}) {
   return fetchJson(path, { ...options, method: 'POST', body });
 }
-
-// Compatibilidad temporal con el código anterior.
-export const get = getJson;
-export const post = (path, body, options = {}) => postJson(path, body, options);

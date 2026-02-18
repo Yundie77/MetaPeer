@@ -56,6 +56,87 @@ npm run dev:frontend
 - Backend: `http://127.0.0.1:4000`
 - Frontend: Vite mostrará la URL en consola (habitualmente `http://127.0.0.1:5173`)
 
+## Despliegue en servidor (producción)
+
+`npm run dev` es solo para desarrollo. En producción:
+
+1. **Instala dependencias** (raíz):
+```bash
+npm install
+```
+
+2. **Configura backend** (`backend/.env`), mínimo:
+```env
+NODE_ENV=production
+SEED_DEMO_USERS=0
+PORT=4000
+JWT_SECRET=pon_aqui_una_clave_larga_y_unica
+```
+
+3. **Configura la URL del backend en frontend**:
+- Edita `frontend/src/api.js` y ajusta `API_BASE` a tu host real (`https://tu-dominio/api` o `http://tu-ip:4000/api`).
+
+4. **Compila frontend**:
+```bash
+npm --prefix frontend run build
+```
+
+5. **Arranca backend en modo producción**:
+```bash
+npm --prefix backend run start
+```
+- Recomendado: ejecutar con **PM2** o **systemd** para reinicio automático.
+
+6. **Sirve `frontend/dist`**:
+- Recomendado: **Nginx** o **Caddy**.
+- Temporal: `npm --prefix frontend run preview` (no recomendado para producción real).
+
+### Ejemplo rápido con Nginx
+
+Config de servidor:
+```nginx
+server {
+    listen 80;
+    server_name tu-dominio-o-ip;
+
+    root /ruta/a/MetaPeer/frontend/dist;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://127.0.0.1:4000/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Ejemplo rápido con Caddy
+
+`Caddyfile`:
+```caddy
+tu-dominio-o-ip {
+    root * /ruta/a/MetaPeer/frontend/dist
+    file_server
+
+    handle /api/* {
+        reverse_proxy 127.0.0.1:4000
+    }
+
+    try_files {path} /index.html
+}
+```
+
+### Notas operativas importantes
+
+- El backend usa SQLite en `backend/data.sqlite` y también crea `data.sqlite-wal` y `data.sqlite-shm`.
+- El usuario del proceso backend debe tener permisos de escritura en `backend/`.
+- Si cambias `JWT_SECRET`, invalida tokens activos (los usuarios deberán volver a iniciar sesión).
+
 ## Base de datos y datos de demo
 
 - La base de datos es **SQLite** y se guarda en `backend/data.sqlite`.

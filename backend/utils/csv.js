@@ -1,5 +1,3 @@
-// Para convertir texto CSV en objetos.
-
 /**
  * Convierte textos como "Dirección de correo" en llaves amigables "direccion_correo".
  * Esto simplifica el acceso a las columnas desde JavaScript.

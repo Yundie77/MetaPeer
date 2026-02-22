@@ -148,7 +148,7 @@ tu-dominio-o-ip {
 - En `NODE_ENV=production`:
   - nunca se crean usuarios demo.
   - si no existe ningún `ADMIN`, se crea `admin@ucm` con contraseña aleatoria.
-  - la credencial inicial se deja en `backend/tmp/bootstrap-admin.txt` y también se imprime en consola.
+  - la credencial inicial se deja en `backend/tmp/pass-admin.txt` y también se imprime en consola.
   - elimina ese archivo tras el primer acceso por seguridad.
 
 | Rol | Email | Password |

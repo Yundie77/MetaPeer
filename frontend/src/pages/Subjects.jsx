@@ -71,7 +71,7 @@ export default function Subjects() {
             value={name}
             onChange={(event) => setName(event.target.value)}
             disabled={saving}
-            placeholder="Introducción a la programación"
+            placeholder="Ej: Tecnología de Programación"
           />
         </label>
         <button type="submit" style={buttonStyle} disabled={saving}>

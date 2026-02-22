@@ -169,7 +169,7 @@ if (require.main === module) {
     if (result.bootstrapAdmin?.created) {
       console.log('Bootstrap admin de produccion creado.');
       console.log(`Email: ${result.bootstrapAdmin.email}`);
-      console.log(`Password temporal: ${result.bootstrapAdmin.password}`);
+      console.log(`Password: ${result.bootstrapAdmin.password}`);
       console.log(`Archivo local: ${result.bootstrapAdmin.reportPath}`);
       console.log('IMPORTANTE: guarda la credencial y elimina el archivo local despues del primer acceso por seguridad.');
     }

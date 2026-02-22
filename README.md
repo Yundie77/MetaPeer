@@ -4,7 +4,7 @@ MetaPeer es una plataforma web para la **evaluación peer-to-peer** de práctica
 
 ## Stack y arquitectura
 
-- **Backend**: Node.js + Express, autenticación **JWT**, base de datos **SQLite** (`better-sqlite3`), subida de ficheros con `multer`.
+- **Backend**: Node.js + Express, autenticación por **credenciales (email/contraseña)** con emisión de **JWT** para las peticiones autenticadas, base de datos **SQLite** (`better-sqlite3`), subida de ficheros con `multer`.
 - **Frontend**: React + Vite, visor de entregas y revisión de código con **CodeMirror** (comentarios por línea, enlaces permanentes).
 - **Estructura del repo**
   - `backend/`: API + BD + gestión de entregas (ZIP).
@@ -36,7 +36,7 @@ Backend (`backend/.env`):
 - Variables opcionales adicionales (no están en el `.env.example`):
   - `JWT_SECRET` (si no existe se usa `demo-secret-key`)
 
-> Nota: el frontend llama al backend en `http://127.0.0.1:4000/api`. Si cambias el puerto, actualiza `frontend/src/api.js` (y `frontend/src/pages/Export.jsx`).
+> Nota: el frontend llama al backend en `http://127.0.0.1:4000/api`. Si cambias host/puerto, actualiza `frontend/src/api.js` (`API_BASE`).
 
 ## Ejecutar en desarrollo
 
@@ -148,7 +148,7 @@ tu-dominio-o-ip {
 - En `NODE_ENV=production`:
   - nunca se crean usuarios demo.
   - si no existe ningún `ADMIN`, se crea `admin@ucm` con contraseña aleatoria.
-  - la credencial inicial se deja en `backend/tmp/bootstrap-admin.txt` y también se imprime en consola.
+  - la credencial inicial se deja en `backend/tmp/pass-admin.txt` y también se imprime en consola.
   - elimina ese archivo tras el primer acceso por seguridad.
 
 | Rol | Email | Password |
@@ -195,12 +195,14 @@ Para resetear el entorno local: detén el backend y borra `backend/data.sqlite` 
 
 ## Calificaciones y exportación
 
-Endpoint de exportación: `GET /api/export/grades?assignmentId=...&format=csv` (roles `ADMIN`/`PROF`).
+La UI de exportación genera dos CSV (roles `ADMIN`/`PROF`) a partir de estos endpoints:
 
-El CSV incluye:
-- `nota_entrega`: media de las notas recibidas (peer review) para la entrega.
-- `bonus_review`: media de meta-revisiones del profesor (`meta_revision.nota_final`) sobre el alumno como revisor (solo informativo).
-- `nota_final`: igual a `nota_entrega` (sin ponderación fija global 80/20).
+- `GET /api/export/meta-outgoing?assignmentId=...`
+- `GET /api/export/incoming-reviews?assignmentId=...`
+
+Contenido (resumen):
+- **Meta-revisión saliente**: alumno revisor, id de revisión, nota de meta-revisión, comentario.
+- **Revisión entrante**: alumno autor, id de revisión, notas por criterio de rúbrica, nota global de rúbrica, comentario.
 
 ## API (resumen de endpoints)
 
@@ -242,12 +244,14 @@ Revisiones:
 - `GET /api/reviews/:revisionId/file?fileId=...`
 - `GET /api/reviews/:revisionId/file/raw?fileId=...`
 - `POST /api/reviews/:revisionId/comments` (ALUM) (comentarios por línea)
+- `GET /api/reviews/:revisionId/file-comments`
+- `POST /api/reviews/:revisionId/file-comments` (ALUM) (comentario general por fichero)
 - `GET /api/reviews/:reviewId/meta` (ADMIN/PROF)
 - `POST /api/reviews/:reviewId/meta` (ADMIN/PROF)
 
 Otros:
 - `GET /api/health`
-- `GET /api/profile` (ADMIN/PROF)
+- `GET /api/profile` (autenticado: ADMIN/PROF/ALUM)
 - `GET /api/profiles/:userId/events` (ADMIN)
 
 

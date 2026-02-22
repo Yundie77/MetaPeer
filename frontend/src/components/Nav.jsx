@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
+import metaPeerLogo from '../../logo.svg';
 
 export default function Nav({ onNavigate, currentPath }) {
   const { role, user, logout } = useAuth();
@@ -31,6 +32,13 @@ export default function Nav({ onNavigate, currentPath }) {
     return [];
   }, [role]);
 
+  const defaultHomePath = useMemo(() => {
+    if (role === 'ADMIN') return '/subjects';
+    if (role === 'PROF') return '/assignments';
+    if (role === 'ALUM') return '/reviews';
+    return '/';
+  }, [role]);
+
   const handleClick = (path) => {
     if (onNavigate) {
       onNavigate(path);
@@ -40,8 +48,15 @@ export default function Nav({ onNavigate, currentPath }) {
   return (
     <nav style={navStyle}>
       <div style={brandStyle}>
-        <strong>MetaPeer</strong>
-        <span style={roleStyle}>{role}</span>
+        <button
+          type="button"
+          style={brandButtonStyle}
+          onClick={() => handleClick(defaultHomePath)}
+          title="Ir al inicio"
+          aria-label="Ir a la página principal"
+        >
+          <img src={metaPeerLogo} alt="MetaPeer" style={logoStyle} />
+        </button>
       </div>
       <div style={linksStyle}>
         {links.map((link) => (
@@ -79,7 +94,7 @@ const navStyle = {
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '1rem',
-  background: '#20232a',
+  background: 'rgb(14, 15, 18)',
   color: '#fff',
   padding: '0.75rem 1rem',
   borderRadius: '8px'
@@ -88,6 +103,27 @@ const navStyle = {
 const brandStyle = {
   display: 'flex',
   flexDirection: 'column'
+};
+
+const brandTitleStyle = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: '0.5rem'
+};
+
+const brandButtonStyle = {
+  ...brandTitleStyle,
+  background: 'transparent',
+  border: 'none',
+  padding: 0,
+  cursor: 'pointer'
+};
+
+const logoStyle = {
+  width: '200px',
+  height: '50px',
+  objectFit: 'contain',
+  display: 'block'
 };
 
 const roleStyle = {

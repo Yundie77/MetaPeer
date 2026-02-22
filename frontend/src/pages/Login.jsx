@@ -5,8 +5,8 @@ const OWNER_DEBUG_ENABLED = import.meta.env.DEV && import.meta.env.VITE_OWNER_DE
 
 export default function Login({ onSuccess }) {
   const { login, loading, error, setError } = useAuth();
-  const [email, setEmail] = useState('admin@demo');
-  const [password, setPassword] = useState('admin123');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
   const [quickUsers, setQuickUsers] = useState([]);
 
@@ -87,6 +87,10 @@ export default function Login({ onSuccess }) {
 
   return (
     <section style={containerStyle}>
+      <div style={heroStyle}>
+        <img src="/logo.svg" alt="MetaPeer" style={logoStyle} />
+        <p style={taglineStyle}>Sistema para la evaluación peer-to-peer de prácticas</p>
+      </div>
       <h2>Iniciar sesión</h2>
       {OWNER_DEBUG_ENABLED && (
         <div style={quickPanelStyle}>
@@ -115,6 +119,7 @@ export default function Login({ onSuccess }) {
         <label style={labelStyle}>
           Correo
           <input
+            placeholder={`Ej: alumno@ucm.es`}
             style={inputStyle}
             type="email"
             value={email}
@@ -125,6 +130,7 @@ export default function Login({ onSuccess }) {
         <label style={labelStyle}>
           Contraseña
           <input
+            placeholder="Tu contraseña"
             style={inputStyle}
             type="password"
             value={password}
@@ -149,6 +155,28 @@ const containerStyle = {
   borderRadius: '8px',
   background: '#fff',
   boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
+};
+
+const heroStyle = {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  textAlign: 'center',
+  marginBottom: '1rem'
+};
+
+const logoStyle = {
+  width: '320px',
+  maxWidth: '100%',
+  height: 'auto',
+  marginBottom: '0.75rem'
+};
+
+const taglineStyle = {
+  margin: 0,
+  color: '#4b5563',
+  fontSize: '0.95rem',
+  lineHeight: 1.35
 };
 
 const formStyle = {

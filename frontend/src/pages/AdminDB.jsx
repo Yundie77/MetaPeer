@@ -264,7 +264,7 @@ export default function AdminDB() {
     <section>
       <h2>Importar alumnos (CSV)</h2>
       <p style={{ color: '#555', fontSize: '0.9rem' }}>
-        Pega el CSV exportado desde la plataforma. Se crearán usuarios y grupos automáticamente.
+        Importa el CSV exportado desde el campus virtual. Se crearán usuarios y grupos automáticamente.
       </p>
 
       <form onSubmit={handleSubmit} style={formStyle}>

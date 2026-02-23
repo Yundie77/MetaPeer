@@ -60,7 +60,13 @@ export default function App() {
 }
 
 function renderContent(pathname, role) {
-  if (pathname === '/' || pathname === '/assignments') {
+  if (pathname === '/') {
+    if (role === 'ALUM') {
+      return <Reviews />;
+    }
+    return <Assignments />;
+  }
+  if (pathname === '/assignments') {
     return <Assignments />;
   }
   if (pathname === '/subjects') {

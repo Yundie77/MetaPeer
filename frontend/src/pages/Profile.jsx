@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson } from '../api.js';
+import { helpers, lists, surfaces, text } from '../styles/ui.js';
 
 const EVENT_ACTION_LABELS = {
   assignment_assigned: 'ASIGNACION',
@@ -292,7 +293,7 @@ export default function Profile() {
 }
 
 const introStyle = {
-  color: '#555',
+  ...text.muted,
   fontSize: '0.95rem',
   marginTop: '-0.25rem'
 };
@@ -304,29 +305,22 @@ const layoutStyle = {
   alignItems: 'start'
 };
 
-const columnStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem'
-};
+const columnStyle = helpers.column('1rem');
 
 const timelineColumnStyle = {
   minWidth: 0
 };
 
 const cardStyle = {
+  ...surfaces.modalContent,
+  width: 'auto',
+  maxHeight: 'none',
+  overflowY: 'visible',
   border: '1px solid #e3e3e3',
-  borderRadius: '10px',
-  padding: '1rem',
-  background: '#fff',
   boxShadow: '0 1px 2px rgba(0,0,0,0.04)'
 };
 
-const profileHeaderStyle = {
-  display: 'flex',
-  gap: '0.9rem',
-  alignItems: 'center'
-};
+const profileHeaderStyle = helpers.row('0.9rem', 'center');
 
 const avatarStyle = {
   width: '56px',
@@ -347,7 +341,7 @@ const nameStyle = {
 
 const metaTextStyle = {
   fontSize: '0.9rem',
-  color: '#666',
+  color: text.meta.color,
   marginTop: '0.15rem'
 };
 
@@ -369,11 +363,8 @@ const sectionTitleStyle = {
 };
 
 const listStyle = {
-  listStyle: 'none',
-  padding: 0,
+  ...lists.denseList,
   margin: 0,
-  display: 'flex',
-  flexDirection: 'column',
   gap: '0.4rem'
 };
 
@@ -386,7 +377,7 @@ const listItemStyle = {
 
 const emptyTextStyle = {
   margin: 0,
-  color: '#666'
+  color: text.meta.color
 };
 
 const statsGridStyle = {
@@ -404,7 +395,7 @@ const statBoxStyle = {
 
 const statLabelStyle = {
   fontSize: '0.8rem',
-  color: '#666'
+  color: text.meta.color
 };
 
 const statValueStyle = {
@@ -414,11 +405,8 @@ const statValueStyle = {
 };
 
 const timelineListStyle = {
-  listStyle: 'none',
-  padding: 0,
+  ...lists.denseList,
   margin: 0,
-  display: 'flex',
-  flexDirection: 'column',
   gap: '0.8rem'
 };
 
@@ -433,16 +421,13 @@ const timelineItemStyle = {
 };
 
 const timelineHeaderStyle = {
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  gap: '0.5rem',
-  flexWrap: 'wrap'
+  ...helpers.rowWrap('0.5rem', 'center'),
+  justifyContent: 'space-between'
 };
 
 const timelineDateStyle = {
   fontSize: '0.85rem',
-  color: '#555',
+  color: text.muted.color,
   fontWeight: 600
 };
 
@@ -455,9 +440,7 @@ const timelineDescriptionStyle = {
 };
 
 const timelineContextRowStyle = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '0.35rem',
+  ...helpers.rowWrap('0.35rem'),
   marginTop: '0.15rem'
 };
 
@@ -483,9 +466,7 @@ const timelineActionButtonStyle = {
 };
 
 const filterRowStyle = {
-  display: 'flex',
-  flexWrap: 'wrap',
-  gap: '0.45rem',
+  ...helpers.rowWrap('0.45rem'),
   marginBottom: '0.85rem'
 };
 
@@ -509,6 +490,6 @@ const filterBadgeActiveStyle = {
 };
 
 const errorStyle = {
-  color: 'crimson',
+  color: text.error.color,
   fontWeight: 700
 };

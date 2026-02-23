@@ -1,11 +1,6 @@
-export const panelStyle = {
-  border: "1px solid #dadada",
-  borderRadius: "8px",
-  padding: "1rem",
-  background: "#fff",
-  width: "100%",
-  boxSizing: "border-box",
-};
+import { badges, buttons, feedback, forms, helpers, lists, surfaces } from "../../styles/ui.js";
+
+export const panelStyle = surfaces.panel;
 
 export const reviewsLayout = {
   display: "flex",
@@ -75,45 +70,17 @@ export const rubricFieldStyle = {
   flexDirection: "column",
 };
 
-export const labelStyle = {
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.35rem",
-  fontWeight: 600,
-};
+export const labelStyle = forms.label;
 
-export const inputStyle = {
-  padding: "0.5rem 0.65rem",
-  borderRadius: "4px",
-  border: "1px solid #ccc",
-};
+export const inputStyle = forms.input;
 
-export const buttonStyle = {
-  padding: "0.6rem 0.9rem",
-  background: "#0b74de",
-  color: "#fff",
-  border: "none",
-  borderRadius: "4px",
-  cursor: "pointer",
-  fontWeight: 600,
-};
+export const buttonStyle = buttons.primary;
 
-export const errorStyle = {
-  color: "crimson",
-};
+export const errorStyle = feedback.errorText;
 
-export const successStyle = {
-  color: "#1f7a1f",
-};
+export const successStyle = feedback.successTextAlt;
 
-export const listStyle = {
-  listStyle: "none",
-  padding: 0,
-  margin: "1.5rem 0",
-  display: "flex",
-  flexDirection: "column",
-  gap: "1rem",
-};
+export const listStyle = lists.stackList;
 
 export const metaCardStyle = {
   border: "1px solid #e0e0e0",
@@ -162,27 +129,9 @@ export const commentSummaryRow = {
   flexWrap: "wrap",
 };
 
-export const commentSummaryPill = {
-  border: "1px solid #2563eb",
-  background: "#eff6ff",
-  color: "#1e3a8a",
-  borderRadius: "999px",
-  padding: "0.2rem 0.6rem",
-  fontSize: "0.78rem",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+export const commentSummaryPill = buttons.pill;
 
-export const commentSummaryPillActive = {
-  border: "1px solid #1d4ed8",
-  background: "#dbeafe",
-  color: "#1e3a8a",
-  borderRadius: "999px",
-  padding: "0.2rem 0.6rem",
-  fontSize: "0.78rem",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+export const commentSummaryPillActive = buttons.pillActive;
 
 export const commentSummaryPanel = {
   border: "1px solid #e5e7eb",
@@ -394,61 +343,30 @@ export const metaReviewPanel = {
   boxSizing: "border-box",
 };
 
-export const miniMeta = {
-  fontSize: "0.85rem",
-  color: "#555",
-};
+export const miniMeta = feedback.miniMeta;
 
 export const statusList = {
-  listStyle: "none",
-  padding: 0,
+  ...lists.statusListBase,
   margin: "0.75rem 0 0",
-  display: "flex",
-  flexDirection: "column",
-  gap: "0.75rem",
 };
 
-export const statusItem = {
-  padding: "0.75rem",
-  borderRadius: "8px",
-  border: "1px solid #e5e7eb",
-  background: "#fff",
-  display: "flex",
-  gap: "1rem",
-  justifyContent: "space-between",
-  alignItems: "center",
-  flexWrap: "wrap",
-};
+export const statusItem = lists.statusItem;
 
-export const statusBadge = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: "0.3rem",
-  borderRadius: "999px",
-  padding: "0.2rem 0.6rem",
-  fontSize: "0.78rem",
-  fontWeight: 700,
-};
+export const statusBadge = badges.statusBase;
 
 export const statusBadgePending = {
   ...statusBadge,
-  background: "#fef3c7",
-  color: "#92400e",
-  border: "1px solid #f59e0b",
+  ...badges.pending,
 };
 
 export const statusBadgeSubmitted = {
   ...statusBadge,
-  background: "#dbeafe",
-  color: "#1e40af",
-  border: "1px solid #60a5fa",
+  ...badges.submitted,
 };
 
 export const statusBadgeGraded = {
   ...statusBadge,
-  background: "#dcfce7",
-  color: "#166534",
-  border: "1px solid #22c55e",
+  ...badges.graded,
 };
 
 export const statusActions = {
@@ -459,20 +377,11 @@ export const statusActions = {
 };
 
 export const linkPill = {
-  background: "#eef2ff",
-  color: "#1e3a8a",
-  padding: "0.2rem 0.6rem",
-  borderRadius: "999px",
-  fontSize: "0.8rem",
-  border: "1px solid #c7d2fe",
-  textDecoration: "none",
-  fontWeight: 600,
+  ...buttons.linkPill,
   cursor: "pointer",
 };
 
 export const metaReviewFields = {
-  display: "grid",
-  gap: "0.75rem",
-  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+  ...helpers.gridAutoFit(220, "0.75rem"),
   marginTop: "0.75rem",
 };

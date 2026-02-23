@@ -6,7 +6,9 @@ import {
   reviewSelectorWrap,
   reviewSelectorDetail,
   errorStyle as sharedErrorStyle
-} from './reviews/styles.js';
+} from './reviews/stylesReview.js';
+import { buttons, tables, text } from '../styles/ui.js';
+import { actionsRow, panelHeaderRow, panelTitle, sectionIntroText } from '../styles/pagePatterns.js';
 
 const formatSimpleDate = (value) => {
   if (!value) return 'sin fecha';
@@ -257,7 +259,7 @@ export default function Export() {
   return (
     <section>
       <h2>Exportar calificaciones</h2>
-      <p style={{ color: '#555', fontSize: '0.9rem' }}>
+      <p style={sectionIntroText}>
         Genera y revisa el contenido antes de descargar cada CSV.
       </p>
 
@@ -340,72 +342,39 @@ export default function Export() {
 }
 
 const buttonStyle = {
+  ...buttons.primary,
   marginTop: '1rem',
-  padding: '0.6rem 0.9rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
 };
 
-const actionsRowStyle = {
-  display: 'flex',
-  gap: '0.75rem',
-  flexWrap: 'wrap'
-};
+const actionsRowStyle = actionsRow;
 
-const previewTitleStyle = {
-  margin: 0
-};
+const previewTitleStyle = panelTitle;
 
-const tableWrapStyle = {
-  overflowX: 'auto',
-  border: '1px solid #d1d5db',
-  borderRadius: '6px',
-  background: '#fff'
-};
+const tableWrapStyle = tables.wrap;
 
-const tableStyle = {
-  width: '100%',
-  borderCollapse: 'collapse'
-};
+const tableStyle = tables.table;
 
 const headerCellStyle = {
-  textAlign: 'left',
+  ...tables.headerCell,
   padding: '0.55rem 0.65rem',
-  borderBottom: '1px solid #d1d5db',
   background: '#f3f4f6',
-  fontSize: '0.9rem'
 };
 
 const bodyCellStyle = {
-  padding: '0.5rem 0.65rem',
-  borderBottom: '1px solid #eef2f7',
+  ...tables.bodyCell,
   fontSize: '0.88rem',
   whiteSpace: 'nowrap'
 };
 
 const previewHeaderStyle = {
+  ...panelHeaderRow,
   marginTop: '1.25rem',
-  marginBottom: '0.5rem',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  flexWrap: 'wrap'
+  marginBottom: '0.5rem'
 };
 
-const downloadButtonStyle = {
-  padding: '0.4rem 0.75rem',
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
-};
+const downloadButtonStyle = buttons.secondary;
 
 const progressStyle = {
-  color: '#1f7a1f',
+  ...text.successAlt,
   marginTop: '1rem'
 };

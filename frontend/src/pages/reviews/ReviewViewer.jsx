@@ -50,7 +50,7 @@ import {
   labelStyle,
   inputStyle,
   successStyle
-} from './styles.js';
+} from './stylesReview.js';
 import { findBestPath } from './helpers.js';
 import { buildAlias, formatRelativeTime } from '../../utils/reviewCommentFormat.js';
 

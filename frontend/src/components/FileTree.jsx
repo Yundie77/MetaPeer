@@ -1,7 +1,16 @@
 import React from 'react';
 import { useEffect, useRef } from 'react';
+import {
+  fileTreeCommentBadge,
+  fileTreeDirButtonAtDepth,
+  fileTreeFileButtonAtDepth,
+  fileTreeItem,
+  fileTreeList,
+  fileTreeRow,
+  iconGap6,
+  viewerTextFileName
+} from './stylesFileViewer.js';
 
-// Árbol de archivos estilo GitHub con carpetas desplegables.
 // node: { name, path, isFile, children: node[] }
 
 export default function FileTree({
@@ -16,7 +25,7 @@ export default function FileTree({
   onCodeCommentBadgeClick
 }) {
   return (
-    <ul style={ulStyle}>
+    <ul style={fileTreeList}>
       {nodes.map((node) => (
         <TreeNode
           key={node.path || node.name}
@@ -63,44 +72,36 @@ function TreeNode({
   }, [isSelected]);
 
   return (
-    <li style={liStyle}>
+    <li style={fileTreeItem}>
       {isDir ? (
         <button
           type="button"
           onClick={() => onToggleDir && onToggleDir(node.path)}
-          style={{
-            ...dirButtonStyle,
-            paddingLeft,
-          }}
+          style={fileTreeDirButtonAtDepth(paddingLeft)}
           title={node.path || node.name}
         >
-          <span style={{ marginRight: 6 }}>{isExpanded ? '▾' : '▸'}</span>
-          <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📁</span>
+          <span style={iconGap6}>{isExpanded ? '▾' : '▸'}</span>
+          <span role="img" aria-hidden="true" style={iconGap6}>📁</span>
           {node.name}
         </button>
       ) : (
-        <div style={fileRowStyle}>
+        <div style={fileTreeRow}>
           <button
             type="button"
             ref={nodeRef}
             onClick={() => onOpenFile && onOpenFile(node.path)}
-            style={{
-              ...fileButtonStyle,
-              paddingLeft,
-              backgroundColor: isSelected ? '#d9ecff' : 'transparent',
-              borderColor: isSelected ? '#8cc4ff' : 'transparent'
-            }}
+            style={fileTreeFileButtonAtDepth(paddingLeft, isSelected)}
             title={node.path}
           >
-            <span role="img" aria-hidden="true" style={{ marginRight: 6 }}>📄</span>
-            <span style={{ fontFamily: 'Consolas, SFMono-Regular, Menlo, monospace', fontSize: '0.88rem' }}>
+            <span role="img" aria-hidden="true" style={iconGap6}>📄</span>
+            <span style={viewerTextFileName}>
               {node.name}
             </span>
           </button>
           {codeCommentCount > 0 && (
             <button
               type="button"
-              style={commentBadgeStyle}
+              style={fileTreeCommentBadge}
               onClick={() => onCodeCommentBadgeClick && onCodeCommentBadgeClick(node.path)}
               title="Ver comentarios de código"
             >
@@ -110,7 +111,7 @@ function TreeNode({
           {commentCount > 0 && (
             <button
               type="button"
-              style={commentBadgeStyle}
+              style={fileTreeCommentBadge}
               onClick={() => onCommentBadgeClick && onCommentBadgeClick(node.path)}
               title="Ver comentarios generales"
             >
@@ -121,7 +122,7 @@ function TreeNode({
       )}
 
       {isDir && isExpanded && node.children && node.children.length > 0 && (
-        <ul style={ulStyle}>
+        <ul style={fileTreeList}>
           {node.children.map((child) => (
             <TreeNode
               key={child.path || child.name}
@@ -142,65 +143,6 @@ function TreeNode({
     </li>
   );
 }
-
-const ulStyle = {
-  listStyle: 'none',
-  margin: 0,
-  padding: 0,
-  whiteSpace: 'nowrap',
-  minWidth: '100%',
-  width: 'max-content'
-};
-
-const liStyle = {
-  listStyle: 'none'
-};
-
-const fileRowStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.4rem'
-};
-
-const dirButtonStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  width: 'max-content',
-  textAlign: 'left',
-  padding: '0.35rem 0.4rem',
-  borderRadius: 4,
-  border: '1px solid transparent',
-  background: 'transparent',
-  cursor: 'pointer',
-  fontSize: '0.92rem',
-  fontWeight: 600,
-  color: '#1f2328'
-};
-
-const fileButtonStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  width: 'max-content',
-  textAlign: 'left',
-  padding: '0.35rem 0.4rem',
-  borderRadius: 4,
-  border: '1px solid transparent',
-  background: 'transparent',
-  cursor: 'pointer',
-  fontSize: '0.9rem',
-  color: '#24292f'
-};
-
-const commentBadgeStyle = {
-  border: '1px solid #2563eb',
-  background: '#eff6ff',
-  color: '#1e3a8a',
-  borderRadius: '999px',
-  padding: '0.1rem 0.5rem',
-  fontSize: '0.72rem',
-  fontWeight: 600,
-  cursor: 'pointer'
-};
 
 function getCommentCount(commentCounts, path) {
   if (!commentCounts || !path) return 0;

@@ -8,7 +8,9 @@ import {
   errorStyle as sharedErrorStyle,
   statusBadgePending,
   statusBadgeGraded
-} from './reviews/styles.js';
+} from './reviews/stylesReview.js';
+import { buttons, helpers, lists, surfaces, text } from '../styles/ui.js';
+import { sectionIntroText } from '../styles/pagePatterns.js';
 
 const formatSimpleDate = (value) => {
   if (!value) return 'sin fecha';
@@ -128,7 +130,7 @@ export default function Feedback() {
   return (
     <section>
       <h2>Feedback recibido</h2>
-      <p style={{ color: '#555', fontSize: '0.9rem' }}>
+      <p style={sectionIntroText}>
         Consulta las revisiones que han recibido tus entregas.
       </p>
 
@@ -200,36 +202,17 @@ export default function Feedback() {
   );
 }
 
-const listStyle = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '1.5rem 0',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem'
-};
+const listStyle = lists.stackList;
 
-const cardStyle = {
-  border: '1px solid #e0e0e0',
-  borderRadius: '8px',
-  padding: '1rem',
-  background: '#fff'
-};
+const cardStyle = surfaces.card;
 
 const innerListStyle = {
-  listStyle: 'none',
-  padding: 0,
+  ...lists.denseList,
   marginTop: '0.75rem',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem'
 };
 
 const innerCardStyle = {
-  border: '1px solid #d0d0d0',
-  borderRadius: '6px',
-  padding: '0.6rem',
-  background: '#fafafa',
+  ...surfaces.cardMuted,
   display: 'flex',
   gap: '0.75rem',
   justifyContent: 'space-between',
@@ -238,22 +221,11 @@ const innerCardStyle = {
 };
 
 const viewButtonStyle = {
-  background: '#eef2ff',
-  border: '1px solid #c7d2fe',
-  color: '#1e3a8a',
+  ...buttons.linkPill,
   padding: '0.35rem 0.7rem',
-  borderRadius: '999px',
   cursor: 'pointer',
-  fontWeight: 600
 };
 
-const reviewActionsStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem'
-};
+const reviewActionsStyle = helpers.row('0.5rem', 'center');
 
-const metaStyle = {
-  fontSize: '0.85rem',
-  color: '#666'
-};
+const metaStyle = text.meta;

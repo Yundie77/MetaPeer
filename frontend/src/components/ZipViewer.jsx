@@ -3,34 +3,44 @@ import JSZip from 'jszip';
 import FileTree from './FileTree.jsx';
 import Breadcrumbs from './Breadcrumbs.jsx';
 import EditorPane from './EditorPane.jsx';
+import {
+  zipViewerContainer,
+  zipViewerErrorText,
+  zipViewerFileInput,
+  zipViewerLabel,
+  zipViewerLeftHeader,
+  zipViewerLeftPane,
+  zipViewerLeftScroll,
+  zipViewerPlaceholder,
+  zipViewerRightContent,
+  zipViewerRightPane,
+  zipViewerStatusText,
+  zipViewerViewerArea
+} from './stylesFileViewer.js';
 import { isTextFile } from '../utils/textFileTypes.js';
 import { readFromURL, writeToURL } from '../utils/permalink.js';
 import { ancestors, buildTreeFromPaths, collectDirPaths, normalizePath } from '../utils/fileTreeHelpers.js';
 
-// Visor ZIP dividido en dos columnas tipo GitHub:
-// - Izquierda: árbol completo con carpetas desplegables.
-// - Derecha: breadcrumb + editor con resaltado y comentarios.
+// Visor ZIP: árbol + editor
 
 export default function ZipViewer() {
   const [zipEntries, setZipEntries] = useState([]);
   const [errorMessage, setErrorMessage] = useState('');
   const [isBusy, setIsBusy] = useState(false);
 
-  // Archivo abierto actualmente y línea inicial (permalink)
   const [currentPath, setCurrentPath] = useState('');
   const [initialLine, setInitialLine] = useState(0);
 
-  // Contenido del archivo + flag para archivos no texto
   const [fileContents, setFileContents] = useState('');
   const [notText, setNotText] = useState(false);
 
-  // Comentarios en memoria (clave `${path}:${line}` => array de comentarios)
+  // clave `${path}:${line}` => array de comentarios
   const [comments, setComments] = useState(new Map());
 
-  // Carpetas desplegadas (Set de rutas tipo "folder" o "folder/sub")
+  // Set de rutas tipo "folder" o "folder/sub"
   const [expandedPaths, setExpandedPaths] = useState(new Set());
 
-  // Leer ?path&line al cargar la página (permite recargar con enlaces directos)
+  // Leer ?path&line
   useEffect(() => {
     const { path, line } = readFromURL();
     if (path) setCurrentPath(path);
@@ -163,22 +173,22 @@ export default function ZipViewer() {
   };
 
   return (
-    <div style={container}>
-      <label htmlFor="zip-input" style={{ fontWeight: 600 }}>Selecciona una entrega (.zip):</label>
-      <input id="zip-input" type="file" accept=".zip" onChange={handleZipUpload} style={fileInput} />
+    <div style={zipViewerContainer}>
+      <label htmlFor="zip-input" style={zipViewerLabel}>Selecciona una entrega (.zip):</label>
+      <input id="zip-input" type="file" accept=".zip" onChange={handleZipUpload} style={zipViewerFileInput} />
 
-      {isBusy && <p style={{ color: '#555' }}>Procesando archivo…</p>}
-      {errorMessage && <p style={{ color: 'crimson' }}>{errorMessage}</p>}
+      {isBusy && <p style={zipViewerStatusText}>Procesando archivo…</p>}
+      {errorMessage && <p style={zipViewerErrorText}>{errorMessage}</p>}
 
       {!zipEntries.length && !errorMessage && (
-        <p style={{ color: '#555' }}>Sube un ZIP para ver su contenido.</p>
+        <p style={zipViewerStatusText}>Sube un ZIP para ver su contenido.</p>
       )}
 
       {!!zipEntries.length && (
-        <div style={viewerArea}>
-          <aside style={leftPane}>
-            <div style={leftHeader}>Estructura</div>
-            <div style={leftScroll}>
+        <div style={zipViewerViewerArea}>
+          <aside style={zipViewerLeftPane}>
+            <div style={zipViewerLeftHeader}>Estructura</div>
+            <div style={zipViewerLeftScroll}>
               <FileTree
                 nodes={treeData}
                 selectedPath={currentPath}
@@ -189,12 +199,12 @@ export default function ZipViewer() {
             </div>
           </aside>
 
-          <div style={rightPane}>
+          <div style={zipViewerRightPane}>
             <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumbNav} />
-            <div style={{ flex: 1, display: 'flex' }}>
+            <div style={zipViewerRightContent}>
               {currentPath ? (
                 notText ? (
-                  <div style={placeholder}>Este fichero no es de texto</div>
+                  <div style={zipViewerPlaceholder}>Este fichero no es de texto</div>
                 ) : (
                   <EditorPane
                     path={currentPath}
@@ -206,7 +216,7 @@ export default function ZipViewer() {
                   />
                 )
               ) : (
-                <div style={placeholder}>Selecciona un fichero para previsualizarlo</div>
+                <div style={zipViewerPlaceholder}>Selecciona un fichero para previsualizarlo</div>
               )}
             </div>
           </div>
@@ -216,53 +226,3 @@ export default function ZipViewer() {
   );
 }
 
-// Estilos: layout fijo a dos columnas con scroll independiente a la izquierda
-const container = { display: 'flex', flexDirection: 'column', gap: '1rem' };
-const fileInput = { border: '1px solid #ccc', padding: '0.5rem', borderRadius: 4 };
-
-const viewerArea = {
-  display: 'grid',
-  gridTemplateColumns: '340px 1fr',
-  gap: '1rem',
-  minHeight: 'calc(100vh - 200px)'
-};
-
-const leftPane = {
-  display: 'flex',
-  flexDirection: 'column',
-  border: '1px solid #ddd',
-  borderRadius: 6,
-  background: '#fdfdfd',
-  height: 'calc(100vh - 200px)',
-  position: 'sticky',
-  top: 96
-};
-
-const leftHeader = {
-  padding: '0.5rem 0.75rem',
-  fontWeight: 600,
-  borderBottom: '1px solid #ececec',
-  background: '#f5f7fb'
-};
-
-const leftScroll = {
-  flex: 1,
-  overflowY: 'auto',
-  padding: '0.5rem'
-};
-
-const rightPane = {
-  display: 'flex',
-  flexDirection: 'column',
-  minHeight: 'calc(100vh - 200px)'
-};
-
-const placeholder = {
-  margin: 'auto',
-  color: '#555',
-  border: '1px dashed #ddd',
-  borderRadius: 6,
-  padding: '1rem',
-  width: '100%',
-  textAlign: 'center'
-};

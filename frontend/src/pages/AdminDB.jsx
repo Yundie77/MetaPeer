@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson, postJson } from '../api.js';
+import { buttons, forms, surfaces, tables, text } from '../styles/ui.js';
+import { formStack, panelHeaderRow, panelTitle, sectionIntroText } from '../styles/pagePatterns.js';
 
 const CREDENTIALS_HISTORY_STORAGE_KEY = 'metaPeer:adminDbCredentialsHistory';
 const CREDENTIALS_HISTORY_TTL_MS = 15 * 60 * 1000; // 15 min
@@ -263,7 +265,7 @@ export default function AdminDB() {
   return (
     <section>
       <h2>Importar alumnos (CSV)</h2>
-      <p style={{ color: '#555', fontSize: '0.9rem' }}>
+      <p style={sectionIntroText}>
         Importa el CSV exportado desde el campus virtual. Se crearán usuarios y grupos automáticamente.
       </p>
 
@@ -406,61 +408,36 @@ export default function AdminDB() {
   );
 }
 
-const formStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem',
-  margin: '1.5rem 0'
-};
+const formStyle = formStack;
 
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  fontWeight: 600
-};
+const labelStyle = forms.label;
 
 const inputStyle = {
+  ...forms.input,
   padding: '0.6rem 0.75rem',
-  border: '1px solid #ccc',
-  borderRadius: '4px',
   fontFamily: 'inherit'
 };
 
 const buttonStyle = {
-  padding: '0.6rem 0.9rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer',
+  ...buttons.primary,
   maxWidth: '180px'
 };
 
-const errorStyle = {
-  color: 'crimson'
-};
+const errorStyle = text.error;
 
 const fileInfoStyle = {
-  fontSize: '0.85rem',
-  color: '#555',
+  ...text.meta,
   marginTop: '0.35rem'
 };
 
 const summaryStyle = {
+  ...surfaces.panelMuted,
   marginTop: '1.5rem',
-  padding: '1rem',
-  borderRadius: '8px',
-  border: '1px solid #d0d0d0',
-  background: '#fafafa'
 };
 
 const historyStyle = {
+  ...surfaces.panel,
   marginTop: '1rem',
-  padding: '1rem',
-  borderRadius: '8px',
-  border: '1px solid #d0d0d0',
-  background: '#fff'
 };
 
 const historyItemStyle = {
@@ -471,14 +448,13 @@ const historyItemStyle = {
 
 const historyMetaStyle = {
   margin: '0.35rem 0 0.65rem',
-  color: '#555',
-  fontSize: '0.9rem'
+  ...text.caption
 };
 
 const historyHintStyle = {
   marginTop: '0.5rem',
   marginBottom: 0,
-  color: '#555',
+  color: text.caption.color,
   fontSize: '0.88rem'
 };
 
@@ -488,39 +464,17 @@ const credentialsBlockStyle = {
   paddingTop: '1rem'
 };
 
-const previewHeaderStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '0.75rem',
-  flexWrap: 'wrap'
-};
+const previewHeaderStyle = panelHeaderRow;
 
-const previewTitleStyle = {
-  margin: 0
-};
+const previewTitleStyle = panelTitle;
 
-const downloadButtonStyle = {
-  padding: '0.4rem 0.75rem',
-  background: '#2563eb',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
-};
+const downloadButtonStyle = buttons.secondary;
 
-const clearHistoryButtonStyle = {
-  padding: '0.4rem 0.75rem',
-  background: '#4b5563',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
-};
+const clearHistoryButtonStyle = buttons.muted;
 
 const emptyCredentialsStyle = {
   marginTop: '0.75rem',
-  color: '#555'
+  color: text.caption.color
 };
 
 const credentialsTableWrapStyle = {
@@ -529,20 +483,10 @@ const credentialsTableWrapStyle = {
 };
 
 const credentialsTableStyle = {
-  width: '100%',
-  borderCollapse: 'collapse',
+  ...tables.table,
   background: '#fff'
 };
 
-const tableHeaderCellStyle = {
-  textAlign: 'left',
-  padding: '0.5rem 0.6rem',
-  borderBottom: '1px solid #d1d5db',
-  fontSize: '0.9rem'
-};
+const tableHeaderCellStyle = tables.headerCell;
 
-const tableCellStyle = {
-  padding: '0.5rem 0.6rem',
-  borderBottom: '1px solid #eef2f7',
-  fontSize: '0.9rem'
-};
+const tableCellStyle = tables.bodyCell;

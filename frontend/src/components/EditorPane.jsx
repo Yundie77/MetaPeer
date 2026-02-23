@@ -4,6 +4,19 @@ import { EditorView, lineNumbers, Decoration, WidgetType } from '@codemirror/vie
 import { Compartment, StateField } from '@codemirror/state';
 import { javascript } from '@codemirror/lang-javascript';
 import LineMenu from './LineMenu.jsx';
+import {
+  commentWidgetAliasStyle,
+  commentWidgetDashStyle,
+  commentWidgetRowStyle,
+  commentWidgetTextStyle,
+  commentWidgetTimeStyle,
+  commentWidgetWrapCssText,
+  editorBoundaryErrorBanner,
+  editorBoundaryRetryButton,
+  editorPaneContainerWithHeight,
+  editorPaneLineActionButton,
+  editorPaneRenderErrorBanner
+} from './stylesEditorPane.js';
 import { buildPermalink } from '../utils/permalink.js';
 
 const baseTheme = EditorView.theme({
@@ -242,21 +255,10 @@ export default function EditorPane({
     <EditorErrorBoundary onReset={() => setRenderError('')}>
       <div
         ref={containerRef}
-        style={{
-          position: 'relative',
-          height,
-          width: '100%',
-          boxSizing: 'border-box',
-          minWidth: 0,
-          border: '1px solid #ddd',
-          borderTop: 'none',
-          borderRadius: '0 0 6px 6px',
-          overflow: 'hidden',
-          background: '#fafafa'
-        }}
+        style={editorPaneContainerWithHeight(height)}
       >
         {renderError && (
-          <div style={{ padding: '0.5rem 0.75rem', color: 'crimson', background: '#fff2f2' }}>
+          <div style={editorPaneRenderErrorBanner}>
             Error al renderizar el editor. {renderError}{' '}
             <button type="button" onClick={() => setRenderError('')}>
               Reintentar
@@ -308,20 +310,7 @@ export default function EditorPane({
               <button
                 type="button"
                 onClick={() => openMenuForLine(selectedLine)}
-                style={{
-                  position: 'absolute',
-                  left,
-                  top,
-                  zIndex: 20,
-                  background: '#f6f8fa',
-                  border: '1px solid #d0d7de',
-                  borderRadius: '6px',
-                  padding: '2px 6px',
-                  cursor: 'pointer',
-                  color: '#0969da',
-                  fontSize: '16px',
-                  lineHeight: 1.2
-                }}
+                style={editorPaneLineActionButton(left, top)}
                 title="Acciones de línea"
               >
                 …
@@ -532,24 +521,12 @@ class CommentWidget extends WidgetType {
 
   toDOM() {
     const wrap = document.createElement('div');
-    wrap.style.cssText = `
-      margin: 6px 0 10px 0;
-      padding: 8px 12px;
-      background: #fff8dc;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      font-size: 13px;
-      color: #333;
-      word-break: break-word;
-    `;
+    wrap.style.cssText = commentWidgetWrapCssText;
 
     const list = Array.isArray(this.comments) ? this.comments : [];
     list.forEach((item, idx) => {
       const comment = document.createElement('div');
-      comment.style.display = 'flex';
-      comment.style.alignItems = 'center';
-      comment.style.flexWrap = 'wrap';
-      comment.style.gap = '6px';
+      Object.assign(comment.style, commentWidgetRowStyle);
       comment.style.marginBottom = idx === list.length - 1 ? '0' : '6px';
 
       const icon = document.createElement('span');
@@ -564,8 +541,7 @@ class CommentWidget extends WidgetType {
         if (item.aliasTitle) {
           alias.title = item.aliasTitle;
         }
-        alias.style.fontWeight = '600';
-        alias.style.color = '#333';
+        Object.assign(alias.style, commentWidgetAliasStyle);
         comment.appendChild(alias);
       }
 
@@ -575,21 +551,20 @@ class CommentWidget extends WidgetType {
         if (item.timeTitle) {
           time.title = item.timeTitle;
         }
-        time.style.color = '#555';
-        time.style.fontSize = '12px';
+        Object.assign(time.style, commentWidgetTimeStyle);
         comment.appendChild(time);
       }
 
       if (hasAlias || hasTime) {
         const dash = document.createElement('span');
         dash.textContent = '-';
-        dash.style.color = '#666';
+        Object.assign(dash.style, commentWidgetDashStyle);
         comment.appendChild(dash);
       }
 
       const text = document.createElement('span');
       text.textContent = item?.message || '';
-      text.style.color = '#333';
+      Object.assign(text.style, commentWidgetTextStyle);
       comment.appendChild(text);
 
       wrap.appendChild(comment);
@@ -619,11 +594,11 @@ class EditorErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ padding: '0.75rem 1rem', color: 'crimson', background: '#fff2f2', border: '1px solid #f5c2c7' }}>
+        <div style={editorBoundaryErrorBanner}>
           Error al renderizar el editor: {this.state.message}
           <button
             type="button"
-            style={{ marginLeft: '0.5rem' }}
+            style={editorBoundaryRetryButton}
             onClick={() => this.setState({ hasError: false, message: '' }, this.props.onReset)}
           >
             Reintentar

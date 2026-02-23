@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson, postJson } from '../api.js';
+import { buttons, forms, helpers, surfaces, text } from '../styles/ui.js';
+import { formGrid, noticeWarning, sectionIntroText } from '../styles/pagePatterns.js';
 
 export default function Professors() {
   const { role } = useAuth();
@@ -162,7 +164,7 @@ export default function Professors() {
   return (
     <section>
       <h2>Profesores</h2>
-      <p style={{ color: '#555', fontSize: '0.9rem' }}>
+      <p style={sectionIntroText}>
         Crea profesores y asígnalos a las asignaturas donde impartirán clase.
       </p>
 
@@ -253,7 +255,7 @@ export default function Professors() {
         <div style={modalOverlayStyle}>
           <div style={modalStyle}>
             <h3>Crear profesor</h3>
-            <p style={{ color: '#555', marginTop: 0 }}>
+            <p style={modalIntroStyle}>
               Completa nombre y correo. El sistema generará la contraseña inicial automáticamente.
             </p>
             <form onSubmit={handleCreateProfessor} style={modalFormStyle}>
@@ -279,7 +281,7 @@ export default function Professors() {
 
               {createModalError && <p style={errorStyle}>{createModalError}</p>}
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+              <div style={modalActionsRowStyle}>
                 <button
                   type="button"
                   style={{ ...buttonStyle, background: '#777' }}
@@ -303,46 +305,23 @@ export default function Professors() {
   );
 }
 
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  fontWeight: 600
-};
+const labelStyle = forms.label;
 
 const inputStyle = {
-  padding: '0.5rem 0.7rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
+  ...forms.input,
+  padding: '0.5rem 0.7rem'
 };
 
-const buttonStyle = {
-  padding: '0.6rem 0.9rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
-};
+const buttonStyle = buttons.primary;
 
-const errorStyle = {
-  color: 'crimson'
-};
+const errorStyle = text.error;
 
 const successStyle = {
-  color: '#1f7a1f',
+  ...text.successAlt,
   marginTop: '0.75rem'
 };
 
-const credentialNoticeStyle = {
-  marginTop: '0.75rem',
-  marginBottom: '1rem',
-  padding: '0.85rem 1rem',
-  border: '1px solid #f4d28a',
-  background: '#fffbe8',
-  borderRadius: '8px',
-  color: '#5b4300'
-};
+const credentialNoticeStyle = noticeWarning;
 
 const dismissCredentialButtonStyle = {
   marginTop: '0.65rem',
@@ -354,20 +333,9 @@ const dismissCredentialButtonStyle = {
   cursor: 'pointer'
 };
 
-const profFormStyle = {
-  display: 'grid',
-  gap: '1rem',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-  marginTop: '1rem',
-  marginBottom: '1rem'
-};
+const profFormStyle = formGrid;
 
-const assignmentLayout = {
-  display: 'flex',
-  gap: '1rem',
-  alignItems: 'flex-start',
-  flexWrap: 'wrap'
-};
+const assignmentLayout = helpers.rowWrap('1rem', 'flex-start');
 
 const professorListStyle = {
   display: 'flex',
@@ -398,36 +366,25 @@ const subjectChecklistStyle = {
   listStyle: 'none',
   padding: 0,
   margin: '1rem 0',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.5rem'
+  ...helpers.column('0.5rem')
 };
 
-const checkboxLabelStyle = {
-  display: 'flex',
-  gap: '0.5rem',
-  alignItems: 'center'
-};
+const checkboxLabelStyle = helpers.row('0.5rem', 'center');
 
 const modalOverlayStyle = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
+  ...surfaces.modalOverlay,
   background: 'rgba(0,0,0,0.45)',
-  display: 'flex',
   alignItems: 'center',
-  justifyContent: 'center',
   padding: '1.5rem',
   zIndex: 1000
 };
 
 const modalStyle = {
-  background: '#fff',
-  borderRadius: '10px',
+  ...surfaces.modalContent,
   padding: '1.5rem',
   width: 'min(520px, 100%)',
+  maxHeight: 'unset',
+  overflowY: 'visible',
   boxShadow: '0 12px 30px rgba(0,0,0,0.2)'
 };
 
@@ -435,4 +392,15 @@ const modalFormStyle = {
   display: 'grid',
   gap: '0.85rem',
   marginTop: '1rem'
+};
+
+const modalIntroStyle = {
+  ...text.muted,
+  marginTop: 0
+};
+
+const modalActionsRowStyle = {
+  ...helpers.rowWrap('0.75rem'),
+  justifyContent: 'flex-end',
+  marginTop: '0.5rem'
 };

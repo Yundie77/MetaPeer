@@ -8,7 +8,7 @@ import RubricModal from './assignments/RubricModal.jsx';
 import RubricWarningModal from './assignments/RubricWarningModal.jsx';
 import CreateAssignmentModal from './assignments/CreateAssignmentModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
-import * as styles from './assignments/styles.js';
+import * as styles from './assignments/stylesAssignment.js';
 
 /**
  * Pantalla de tareas para profes: alta de tareas, rúbricas, carga de ZIPs y asignación de revisiones.

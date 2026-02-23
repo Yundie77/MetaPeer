@@ -1,51 +1,27 @@
+import { badges, buttons, feedback, forms, helpers, lists, surfaces } from '../../styles/ui.js';
+
 export const formStyle = {
-  display: 'grid',
-  gap: '1rem',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  ...helpers.gridAutoFit(220),
   margin: '1.5rem 0'
 };
 
-export const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  fontWeight: 600,
-  gap: '0.35rem'
-};
+export const labelStyle = forms.label;
 
-export const inputStyle = {
-  padding: '0.5rem 0.65rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc'
-};
+export const inputStyle = forms.input;
 
-export const buttonStyle = {
-  padding: '0.6rem 0.3rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
-};
+export const buttonStyle = buttons.primaryNarrow;
 
 export const errorStyle = {
-  color: 'crimson',
+  ...feedback.errorText,
   marginBottom: '1rem'
 };
 
 export const successStyle = {
-  color: '#0f7b0f',
+  ...feedback.successText,
   marginBottom: '1rem'
 };
 
-export const listStyle = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '1.5rem 0',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem'
-};
+export const listStyle = lists.stackList;
 
 export const cardStyle = {
   padding: '1rem',
@@ -65,15 +41,7 @@ export const actionsStyle = {
   flexWrap: 'wrap'
 };
 
-export const smallButton = {
-  background: '#f0f4ff',
-  border: '1px solid #0b74de',
-  color: '#0b74de',
-  padding: '0.4rem 0.7rem',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
-};
+export const smallButton = buttons.outlineBrandSoft;
 
 export const metaStyle = {
   fontSize: '0.85rem',
@@ -87,11 +55,8 @@ export const descStyle = {
 };
 
 export const panelStyle = {
+  ...surfaces.panelMuted,
   marginTop: '2rem',
-  padding: '1rem',
-  borderRadius: '8px',
-  border: '1px solid #d0d0d0',
-  background: '#fafafa'
 };
 
 export const miniCard = {
@@ -101,10 +66,7 @@ export const miniCard = {
   background: '#fff'
 };
 
-export const miniMeta = {
-  fontSize: '0.85rem',
-  color: '#555'
-};
+export const miniMeta = feedback.miniMeta;
 
 export const rubricRowStyle = {
   display: 'flex',
@@ -120,30 +82,9 @@ export const rubricNumberStyle = {
   border: '1px solid #ccc'
 };
 
-export const modalOverlay = {
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  bottom: 0,
-  background: 'rgba(0,0,0,0.35)',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'flex-start',
-  padding: '3vh 1rem',
-  zIndex: 30
-};
+export const modalOverlay = surfaces.modalOverlay;
 
-export const modalContent = {
-  background: '#fff',
-  borderRadius: '10px',
-  padding: '1rem',
-  width: 'min(1100px, 100%)',
-  maxHeight: '90vh',
-  overflowY: 'auto',
-  boxShadow: '0 10px 30px rgba(0,0,0,0.15)',
-  border: '1px solid #e5e7eb'
-};
+export const modalContent = surfaces.modalContent;
 
 export const dangerModalContent = {
   ...modalContent,
@@ -159,20 +100,11 @@ export const modalHeader = {
 };
 
 export const modalFormRow = {
-  display: 'flex',
-  alignItems: 'flex-end',
-  gap: '1rem',
-  flexWrap: 'wrap',
+  ...forms.fieldRow,
   marginTop: '1rem'
 };
 
-export const plainLinkButton = {
-  background: 'transparent',
-  border: 'none',
-  color: '#0b74de',
-  fontWeight: 700,
-  cursor: 'pointer'
-};
+export const plainLinkButton = buttons.linkText;
 
 export const warningListStyle = {
   listStyle: 'disc',
@@ -187,9 +119,7 @@ export const warningItemStyle = {
 };
 
 export const previewGrid = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-  gap: '1rem',
+  ...helpers.gridAutoFit(280),
   marginTop: '1rem'
 };
 
@@ -265,25 +195,9 @@ export const dangerActions = {
   flexWrap: 'wrap'
 };
 
-export const dangerButton = {
-  background: '#b91c1c',
-  border: '1px solid #7f1d1d',
-  color: '#fff',
-  padding: '0.4rem 0.7rem',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 700
-};
+export const dangerButton = buttons.danger;
 
-export const dangerCancelButton = {
-  background: '#fff',
-  border: '1px solid #9ca3af',
-  color: '#374151',
-  padding: '0.4rem 0.7rem',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
-};
+export const dangerCancelButton = buttons.neutral;
 
 export const tabRow = {
   display: 'flex',
@@ -310,9 +224,7 @@ export const tabButtonActive = {
 };
 
 export const summaryGrid = {
-  display: 'grid',
-  gap: '0.75rem',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+  ...helpers.gridAutoFit(220, '0.75rem'),
   marginTop: '1rem'
 };
 
@@ -332,55 +244,27 @@ export const summaryLabel = {
 };
 
 export const statusList = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '1rem 0 0',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.75rem'
+  ...lists.statusListBase,
+  margin: '1rem 0 0'
 };
 
-export const statusItem = {
-  padding: '0.75rem',
-  borderRadius: '8px',
-  border: '1px solid #e5e7eb',
-  background: '#fff',
-  display: 'flex',
-  gap: '1rem',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  flexWrap: 'wrap'
-};
+export const statusItem = lists.statusItem;
 
-export const statusBadge = {
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '0.3rem',
-  borderRadius: '999px',
-  padding: '0.2rem 0.6rem',
-  fontSize: '0.78rem',
-  fontWeight: 700
-};
+export const statusBadge = badges.statusBase;
 
 export const statusBadgePending = {
   ...statusBadge,
-  background: '#fef3c7',
-  color: '#92400e',
-  border: '1px solid #f59e0b'
+  ...badges.pending
 };
 
 export const statusBadgeSubmitted = {
   ...statusBadge,
-  background: '#dbeafe',
-  color: '#1e40af',
-  border: '1px solid #60a5fa'
+  ...badges.submitted
 };
 
 export const statusBadgeGraded = {
   ...statusBadge,
-  background: '#dcfce7',
-  color: '#166534',
-  border: '1px solid #22c55e'
+  ...badges.graded
 };
 
 export const statusActions = {
@@ -390,14 +274,5 @@ export const statusActions = {
   flexWrap: 'wrap'
 };
 
-export const linkPill = {
-  background: '#eef2ff',
-  color: '#1e3a8a',
-  padding: '0.2rem 0.6rem',
-  borderRadius: '999px',
-  fontSize: '0.8rem',
-  border: '1px solid #c7d2fe',
-  textDecoration: 'none',
-  fontWeight: 600
-};
+export const linkPill = buttons.linkPill;
 

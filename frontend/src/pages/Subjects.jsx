@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import { getJson, postJson } from '../api.js';
+import { buttons, forms, text } from '../styles/ui.js';
+import { cardItem, cardList, formRow, sectionIntroText } from '../styles/pagePatterns.js';
 
 export default function Subjects() {
   const { role } = useAuth();
@@ -59,7 +61,7 @@ export default function Subjects() {
   return (
     <section>
       <h2>Asignaturas</h2>
-      <p style={{ color: '#555', fontSize: '0.9rem' }}>
+      <p style={sectionIntroText}>
         Crea asignaturas para organizar tareas y equipos.
       </p>
 
@@ -97,60 +99,25 @@ export default function Subjects() {
   );
 }
 
-const formStyle = {
-  display: 'flex',
-  gap: '1rem',
-  alignItems: 'flex-end',
-  margin: '1.5rem 0',
-  flexWrap: 'wrap'
-};
+const formStyle = formRow;
 
-const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '0.35rem',
-  fontWeight: 600
-};
+const labelStyle = forms.label;
 
 const inputStyle = {
+  ...forms.input,
   padding: '0.5rem 0.7rem',
-  borderRadius: '4px',
-  border: '1px solid #ccc',
   minWidth: '360px'
 };
 
-const buttonStyle = {
-  padding: '0.6rem 0.9rem',
-  background: '#0b74de',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
-};
+const buttonStyle = buttons.primary;
 
-const errorStyle = {
-  color: 'crimson'
-};
+const errorStyle = text.error;
 
 const listStyle = {
-  listStyle: 'none',
-  padding: 0,
-  margin: '1.5rem 0',
-  display: 'flex',
-  flexDirection: 'column',
+  ...cardList,
   gap: '0.75rem'
 };
 
-const cardStyle = {
-  padding: '0.75rem 1rem',
-  border: '1px solid #e0e0e0',
-  borderRadius: '6px',
-  background: '#fff',
-  display: 'flex',
-  justifyContent: 'space-between'
-};
+const cardStyle = cardItem;
 
-const codeStyle = {
-  fontSize: '0.9rem',
-  color: '#666'
-};
+const codeStyle = text.meta;

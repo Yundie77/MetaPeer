@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
 import metaPeerLogo from '../../logo.svg';
+import { helpers } from '../styles/ui.js';
 
 export default function Nav({ onNavigate, currentPath }) {
   const { role, user, logout } = useAuth();
@@ -100,16 +101,9 @@ const navStyle = {
   borderRadius: '8px'
 };
 
-const brandStyle = {
-  display: 'flex',
-  flexDirection: 'column'
-};
+const brandStyle = helpers.column(0);
 
-const brandTitleStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem'
-};
+const brandTitleStyle = helpers.row('0.5rem', 'center');
 
 const brandButtonStyle = {
   ...brandTitleStyle,
@@ -133,17 +127,13 @@ const roleStyle = {
 };
 
 const linksStyle = {
-  display: 'flex',
-  gap: '0.5rem',
-  flexWrap: 'wrap',
+  ...helpers.rowWrap('0.5rem'),
   justifyContent: 'center',
   flex: 1
 };
 
 const userStyle = {
-  display: 'flex',
-  alignItems: 'center',
-  gap: '0.5rem',
+  ...helpers.row('0.5rem', 'center'),
   fontSize: '0.9rem'
 };
 

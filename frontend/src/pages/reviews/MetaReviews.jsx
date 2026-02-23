@@ -14,7 +14,7 @@ import {
   linkPill,
   miniMeta,
   reviewSelectorWrap
-} from './styles.js';
+} from './stylesReview.js';
 
 const formatDate = (value) => {
   if (!value) return '—';

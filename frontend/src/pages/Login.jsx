@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../auth/AuthContext.jsx';
+import { buttons, forms, helpers, surfaces, text } from '../styles/ui.js';
 
 const OWNER_DEBUG_ENABLED = import.meta.env.DEV && import.meta.env.VITE_OWNER_DEBUG === '1';
 
@@ -148,12 +149,10 @@ export default function Login({ onSuccess }) {
 }
 
 const containerStyle = {
+  ...surfaces.card,
   maxWidth: '400px',
   margin: '2rem auto',
   padding: '1.5rem',
-  border: '1px solid #d0d0d0',
-  borderRadius: '8px',
-  background: '#fff',
   boxShadow: '0 2px 6px rgba(0,0,0,0.05)'
 };
 
@@ -179,48 +178,35 @@ const taglineStyle = {
   lineHeight: 1.35
 };
 
-const formStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '1rem'
-};
+const formStyle = forms.formStack;
 
 const labelStyle = {
-  display: 'flex',
-  flexDirection: 'column',
-  fontWeight: 600
+  ...forms.label,
+  gap: 0
 };
 
 const inputStyle = {
+  ...forms.input,
   marginTop: '0.35rem',
   padding: '0.6rem 0.75rem',
-  border: '1px solid #c5c5c5',
-  borderRadius: '4px'
+  border: '1px solid #c5c5c5'
 };
 
 const buttonStyle = {
+  ...buttons.primary,
   padding: '0.6rem 0.75rem',
   background: '#0078d4',
-  color: '#fff',
-  border: 'none',
-  borderRadius: '4px',
-  cursor: 'pointer'
 };
 
 const errorStyle = {
   marginTop: '1rem',
-  color: 'crimson'
+  ...text.error
 };
 
-const infoStyle = {
-  fontSize: '0.9rem',
-  color: '#555'
-};
+const infoStyle = text.caption;
 
 const quickRowStyle = {
-  display: 'flex',
-  gap: '0.5rem',
-  flexWrap: 'wrap',
+  ...helpers.rowWrap('0.5rem'),
   margin: '0.5rem 0 1rem'
 };
 
@@ -235,11 +221,9 @@ const quickHintStyle = {
 };
 
 const quickButtonStyle = {
+  ...buttons.linkPill,
   padding: '0.45rem 0.7rem',
-  background: '#eef2ff',
   color: '#1f3a8a',
   border: '1px solid #cbd5ff',
-  borderRadius: '4px',
-  cursor: 'pointer',
-  fontWeight: 600
+  cursor: 'pointer'
 };

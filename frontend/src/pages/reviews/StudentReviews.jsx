@@ -19,7 +19,7 @@ import {
   statusItem,
   reviewSelectorWrap,
   reviewSelectorDetail
-} from './styles.js';
+} from './stylesReview.js';
 
 const splitLabelDetail = (texto = '') => {
   const parts = texto.split('||DETAIL||');

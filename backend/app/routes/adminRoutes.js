@@ -8,7 +8,7 @@ const {
   sendError,
   safeNumber,
   ensureRosterAssignment,
-  cloneRosterTeamsToAssignment,
+  replaceAssignmentTeamsFromRoster,
   getProfessorSubjects
 } = require('../helpers');
 const { ROSTER_PREFIX } = require('../constants');
@@ -82,6 +82,13 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
     const selectTeam = db.prepare('SELECT id FROM equipo WHERE id_tarea = ? AND nombre = ?');
     const insertTeam = db.prepare('INSERT INTO equipo (id_tarea, nombre) VALUES (?, ?)');
     const insertMember = db.prepare('INSERT OR IGNORE INTO miembro_equipo (id_equipo, id_usuario) VALUES (?, ?)');
+    const deleteRosterMembers = db.prepare(`
+      DELETE FROM miembro_equipo
+      WHERE id_equipo IN (
+        SELECT id FROM equipo WHERE id_tarea = ?
+      )
+    `);
+    const deleteRosterTeams = db.prepare('DELETE FROM equipo WHERE id_tarea = ?');
     const removeUserFromRosterTeam = db.prepare(`
       DELETE FROM miembro_equipo
       WHERE id_usuario = @userId
@@ -108,13 +115,17 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
     };
 
     const tx = db.transaction(() => {
+      // Cada importacion reemplaza completamente el roster interno.
+      deleteRosterMembers.run(rosterAssignmentId);
+      deleteRosterTeams.run(rosterAssignmentId);
+
       rows.forEach((row) => {
         const normalizedGrouping = toLowercaseIdentifier(row.agrupamiento);
         const isIndividual = normalizedGrouping === 'individual';
         const isNoGroup =
           normalizedGrouping === 'no_esta_en_un_agrupamiento' || normalizedGrouping === 'no_esta_en_un_grupo';
 
-        const email = (row.direccion_de_correo || row.email || '').toLowerCase();
+        const email = (row.direccion_de_correo || row.email || '').trim().toLowerCase();
         if (!email) {
           summary.ignoradas += 1;
           return;
@@ -155,6 +166,7 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         }
 
         insertUserSubject.run(userId, asignaturaId);
+        removeUserFromRosterTeam.run({ userId, assignmentId: rosterAssignmentId });
 
         const groupingLabel = (row.agrupamiento || '').trim() || `Grupo`;
         const groupCodeRaw = (row.grupo || '').trim();
@@ -196,12 +208,23 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
         FROM tarea t
         WHERE t.id_asignatura = ?
           AND t.titulo NOT LIKE ?
+          AND NOT EXISTS (
+            SELECT 1
+            FROM entregas ent
+            WHERE ent.id_tarea = t.id
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM asignacion a
+            JOIN revision rev ON rev.id_asignacion = a.id
+            WHERE a.id_tarea = t.id
+          )
       `
       )
       .all(asignaturaId, rosterLike);
 
     candidateTasks.forEach((task) => {
-      const syncSummary = cloneRosterTeamsToAssignment(asignaturaId, task.id);
+      const syncSummary = replaceAssignmentTeamsFromRoster(asignaturaId, task.id);
       summary.tareasSincronizadas += 1;
       summary.equiposCopiadosTotal += syncSummary.equiposCopiados || 0;
       summary.membresiasCopiadasTotal += syncSummary.miembrosCopiados || 0;

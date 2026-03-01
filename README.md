@@ -187,6 +187,15 @@ Para resetear el entorno local: detén el backend y borra `backend/data.sqlite` 
 - Añade comentarios por línea sobre el código y completa la rúbrica. La nota final se calcula automáticamente según los pesos de la rúbrica (0..10).
 - Consulta el **feedback** recibido por sus entregas.
 
+## Casos de importación CSV (resumen)
+
+- Cada importación CSV **reemplaza** los equipos internos de la asignatura (fuente de verdad).
+- Si subes un CSV equivocado y luego uno correcto, la segunda importación sobrescribe miembros anteriores.
+- Filas con `Individual`, `No está en un agrupamiento` o `No está en un grupo` no crean equipos y retiran al alumno de equipos.
+- Tras importar, se sincronizan equipos en tareas de esa asignatura **solo si no tienen actividad** (sin entregas ni revisiones).
+- Tareas con entregas o revisiones existentes no se modifican (se preserva el histórico).
+- En asignaturas nuevas (o tareas nuevas sin actividad), al importar CSV se crean equipos de tarea y el botón de subir ZIP queda habilitado.
+
 ## Entregas en ZIP (cómo funciona)
 
 - El backend acepta un **ZIP “lote”** (por ejemplo, exportado por una plataforma docente) que contiene ZIPs de entrega dentro de carpetas.

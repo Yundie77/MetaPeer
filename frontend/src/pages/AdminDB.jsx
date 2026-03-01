@@ -268,6 +268,27 @@ export default function AdminDB() {
       <p style={sectionIntroText}>
         Importa el CSV exportado desde el campus virtual. Se crearán usuarios y grupos automáticamente.
       </p>
+      <div style={csvGuideStyle}>
+        <h3 style={guideTitleStyle}>Formato CSV esperado</h3>
+        <p style={guideTextStyle}>
+          Usa un CSV con primera fila de encabezados y separador coma (<code>,</code>).
+        </p>
+        <p style={guideTextStyle}>
+          Columnas esperadas: <code>Agrupamiento</code>, <code>Grupo</code>, <code>Nombre</code>, {' '}
+          <code>Apellido(s)</code>, <code>Dirección de correo</code>.
+        </p>
+        <p style={guideTextStyle}>
+          Casos especiales en <code>Agrupamiento</code>: <code>Individual</code>,{' '}
+          <code>No esta en un agrupamiento</code>, <code>No esta en un grupo</code>.
+        </p>
+        <p style={guideTextStyle}>
+          Esas filas se ignoran para crear parejas y el alumno se retira del roster interno de equipos.
+        </p>
+        <p style={guideTextStyle}>
+          Cada importación reemplaza el roster interno anterior de la asignatura para poder corregir parejas
+          cargando un CSV nuevo.
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit} style={formStyle}>
         <label style={labelStyle}>
@@ -433,6 +454,23 @@ const fileInfoStyle = {
 const summaryStyle = {
   ...surfaces.panelMuted,
   marginTop: '1.5rem',
+};
+
+const csvGuideStyle = {
+  ...surfaces.panel,
+  marginTop: '1rem',
+};
+
+const guideTitleStyle = {
+  ...panelTitle,
+  marginBottom: '0.6rem'
+};
+
+const guideTextStyle = {
+  margin: '0 0 0.55rem',
+  color: text.muted.color,
+  fontSize: '0.93rem',
+  lineHeight: 1.45
 };
 
 const historyStyle = {

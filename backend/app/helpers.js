@@ -161,6 +161,60 @@ function cloneRosterTeamsToAssignment(asignaturaId, assignmentId) {
   return { equiposCopiados, miembrosCopiados };
 }
 
+function replaceAssignmentTeamsFromRoster(asignaturaId, assignmentId) {
+  const rosterAssignment = db
+    .prepare(
+      `
+      SELECT id FROM tarea
+      WHERE id_asignatura = ?
+        AND titulo LIKE ?
+    `
+    )
+    .get(asignaturaId, `${ROSTER_PREFIX}%`);
+
+  if (!rosterAssignment || rosterAssignment.id === assignmentId) {
+    return { equiposCopiados: 0, miembrosCopiados: 0 };
+  }
+
+  const rosterTeams = db.prepare('SELECT id, nombre FROM equipo WHERE id_tarea = ?').all(rosterAssignment.id);
+  const selectMembers = db.prepare('SELECT id_usuario FROM miembro_equipo WHERE id_equipo = ?');
+  const deleteMembers = db.prepare(`
+    DELETE FROM miembro_equipo
+    WHERE id_equipo IN (
+      SELECT id FROM equipo WHERE id_tarea = ?
+    )
+  `);
+  const deleteTeams = db.prepare('DELETE FROM equipo WHERE id_tarea = ?');
+  const insertTeam = db.prepare('INSERT INTO equipo (id_tarea, nombre) VALUES (?, ?)');
+  const insertMember = db.prepare('INSERT OR IGNORE INTO miembro_equipo (id_equipo, id_usuario) VALUES (?, ?)');
+
+  let equiposCopiados = 0;
+  let miembrosCopiados = 0;
+
+  const tx = db.transaction(() => {
+    deleteMembers.run(assignmentId);
+    deleteTeams.run(assignmentId);
+
+    rosterTeams.forEach((team) => {
+      const teamName = team.nombre || `Equipo ${team.id}`;
+      const targetTeamId = insertTeam.run(assignmentId, teamName).lastInsertRowid;
+      equiposCopiados += 1;
+
+      const members = selectMembers.all(team.id);
+      members.forEach((member) => {
+        const result = insertMember.run(targetTeamId, member.id_usuario);
+        if (result.changes > 0) {
+          miembrosCopiados += 1;
+        }
+      });
+    });
+  });
+
+  tx();
+
+  return { equiposCopiados, miembrosCopiados };
+}
+
 function ensureUserTeam(assignmentId, userId) {
   const existing = db
     .prepare(
@@ -502,6 +556,7 @@ module.exports = {
   isAssignmentStartedOrLocked,
   ensureRosterAssignment,
   cloneRosterTeamsToAssignment,
+  replaceAssignmentTeamsFromRoster,
   ensureUserTeam,
   getTeamMembers,
   fetchSubmission,

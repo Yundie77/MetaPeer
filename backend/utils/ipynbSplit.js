@@ -95,6 +95,10 @@ function sourceExtension(cellType) {
   return cellType === "code" ? "py" : "md";
 }
 
+function padIndex(value, minDigits) {
+  return String(value).padStart(minDigits, "0");
+}
+
 function resolveOutputContent(output) {
   const safeOutput = isRecord(output) ? output : {};
   const data = isRecord(safeOutput.data) ? safeOutput.data : null;
@@ -221,12 +225,14 @@ async function splitIpynbFile(inputPath, outputDir, { dryRun = false } = {}) {
   }
 
   const cells = Array.isArray(notebook?.cells) ? notebook.cells : [];
+  const cellDigits = Math.max(2, String(cells.length || 1).length);
   const filesToWrite = [];
 
   cells.forEach((cell, cellIndex) => {
     const cellNumber = cellIndex + 1;
+    const cellLabel = padIndex(cellNumber, cellDigits);
     const cellType = cell?.cell_type || "markdown";
-    const sourceFileName = `cell_${cellNumber}_src.${sourceExtension(cellType)}`;
+    const sourceFileName = `cell_${cellLabel}_src.${sourceExtension(cellType)}`;
     filesToWrite.push({
       name: sourceFileName,
       content: toText(cell?.source),
@@ -238,9 +244,10 @@ async function splitIpynbFile(inputPath, outputDir, { dryRun = false } = {}) {
     }
 
     cell.outputs.forEach((output, outputIndex) => {
+      const outputLabel = padIndex(outputIndex + 1, 2);
       const resolvedOutput = resolveOutputContent(output);
       filesToWrite.push({
-        name: `cell_${cellNumber}_output_${outputIndex + 1}.${resolvedOutput.extension}`,
+        name: `cell_${cellLabel}_output_${outputLabel}.${resolvedOutput.extension}`,
         content: resolvedOutput.content,
         isBinary: Boolean(resolvedOutput.isBinary),
       });

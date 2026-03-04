@@ -4,7 +4,8 @@ const path = require('path');
 const { requireAuth } = require('../../auth');
 const { db } = require('../../db');
 const {persistUploadedZip, extractSubmission, persistAssignmentZip, 
-  assignmentFolder, unzipFile, clearDirectory, TEMP_DIRNAME
+  assignmentFolder, unzipFile, clearDirectory, TEMP_DIRNAME,
+  cleanupTeamZipHistory, cleanupBatchZipHistory, createZipFromDirectory
 } = require('../../utils/deliveries');
 const {
   sendError,
@@ -38,6 +39,15 @@ function canonicalCode(text = '') {
   const digits = Number(match[2]);
   if (!Number.isFinite(digits)) return null;
   return `${letters}${digits}`;
+}
+
+function sanitizeZipBaseName(name = '') {
+  return (
+    name
+      .replace(/[<>:"/\\|?*\x00-\x1F]/g, '')
+      .replace(/\s+/g, '-')
+      .trim() || 'entrega'
+  );
 }
 
 /**
@@ -104,26 +114,50 @@ function buildTeamResolver(assignmentId) {
 /**
  * Recorre recursivamente el directorio descomprimido para localizar zips por equipo.
  */
-async function findTeamArchives(rootDir) {
+async function findTeamArchives(rootDir, resolveTeam) {
   const queue = [rootDir];
   const results = [];
+  const seen = new Set();
+  const canResolveTeam = typeof resolveTeam === 'function';
 
   while (queue.length > 0) {
     const current = queue.shift();
     const entries = await fsp.readdir(current, { withFileTypes: true });
     const zipEntries = entries.filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith('.zip'));
+    const regularFiles = entries.filter((entry) => entry.isFile() && !entry.name.toLowerCase().endsWith('.zip'));
+    const directories = entries.filter((entry) => entry.isDirectory() && !entry.name.startsWith('__MACOSX'));
+    const key = path.resolve(current);
+    const folderName = path.basename(current);
+    const isKnownTeamFolder = !canResolveTeam || Boolean(resolveTeam(folderName));
 
-    if (zipEntries.length > 0) {
-      results.push({
-        folderName: path.basename(current),
-        zipPaths: zipEntries.map((entry) => path.join(current, entry.name))
-      });
+    if (zipEntries.length > 0 && isKnownTeamFolder) {
+      if (!seen.has(key)) {
+        results.push({
+          folderName,
+          mode: 'zip',
+          zipPath: path.join(current, zipEntries[0].name)
+        });
+        seen.add(key);
+      }
       continue;
     }
 
-    entries
-      .filter((entry) => entry.isDirectory() && !entry.name.startsWith('__MACOSX'))
-      .forEach((dir) => queue.push(path.join(current, dir.name)));
+    if (
+      regularFiles.length > 0 &&
+      !seen.has(key) &&
+      path.resolve(current) !== path.resolve(rootDir) &&
+      isKnownTeamFolder
+    ) {
+      results.push({
+        folderName,
+        mode: 'direct',
+        sourceDir: current
+      });
+      seen.add(key);
+      continue;
+    }
+
+    directories.forEach((dir) => queue.push(path.join(current, dir.name)));
   }
 
   return results;
@@ -132,49 +166,84 @@ async function findTeamArchives(rootDir) {
 /**
  * Procesa los zips encontrados: resuelve equipo, guarda zip y registra/actualiza la entrega.
  */
-async function processTeamArchives({ assignmentId, uploaderId, archives }) {
-  const resolveTeam = buildTeamResolver(assignmentId);
+async function processTeamArchives({ assignmentId, uploaderId, archives, tempDir, resolveTeam }) {
+  const resolveTeamFn = resolveTeam || buildTeamResolver(assignmentId);
   const processed = [];
+  const failed = [];
 
   for (const archive of archives) {
-    if (!archive.zipPaths || archive.zipPaths.length === 0) {
+    if (!archive || !archive.mode) {
       continue;
     }
 
-    const teamId = resolveTeam(archive.folderName);
+    const teamId = resolveTeamFn(archive.folderName);
     if (!teamId) {
-      console.warn(`No se encontró equipo para carpeta ${archive.folderName}`);
+      const message = `No se encontró equipo para carpeta ${archive.folderName}`;
+      console.warn(message);
+      failed.push({
+        folderName: archive.folderName,
+        teamId: null,
+        mensaje: message
+      });
       continue;
     }
-    const mainZipPath = archive.zipPaths[0];
-    const originalName = path.basename(mainZipPath) || 'entrega.zip';
-    const stored = await persistUploadedZip(mainZipPath, assignmentId, teamId, originalName);
-    const stats = await fsp.stat(stored.absolutePath).catch(() => null);
-    await extractSubmission(assignmentId, teamId, stored.absolutePath);
 
-    db.prepare(
+    try {
+      let sourceZipPath = '';
+      let originalName = '';
+
+      if (archive.mode === 'zip') {
+        sourceZipPath = archive.zipPath;
+        originalName = path.basename(sourceZipPath) || 'entrega.zip';
+      } else if (archive.mode === 'direct') {
+        const safeFolder = sanitizeZipBaseName(archive.folderName || 'entrega');
+        originalName = `${safeFolder}.zip`;
+        const uniqueName = `${Date.now()}-${Math.random().toString(16).slice(2)}-${originalName}`;
+        sourceZipPath = path.join(tempDir, uniqueName);
+        await createZipFromDirectory(archive.sourceDir, sourceZipPath);
+      } else {
+        throw new Error(`Modo de archivo no soportado: ${archive.mode}`);
+      }
+
+      const stored = await persistUploadedZip(sourceZipPath, assignmentId, teamId, originalName);
+      const stats = await fsp.stat(stored.absolutePath).catch(() => null);
+      await extractSubmission(assignmentId, teamId, stored.absolutePath);
+
+      db.prepare(
+        `
+        DELETE FROM entregas
+        WHERE id_tarea = ?
+          AND id_equipo = ?
       `
-      DELETE FROM entregas
-      WHERE id_tarea = ?
-        AND id_equipo = ?
-    `
-    ).run(assignmentId, teamId);
+      ).run(assignmentId, teamId);
 
-    const uploadedAt = new Date().toISOString();
-    db.prepare(
+      const uploadedAt = new Date().toISOString();
+      db.prepare(
+        `
+        INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes, fecha_subida)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `
-      INSERT INTO entregas (id_tarea, id_equipo, id_subidor, nombre_zip, ruta_archivo, tamano_bytes, fecha_subida)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-    ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null, uploadedAt);
+      ).run(assignmentId, teamId, uploaderId, originalName, stored.relativePath, stats ? stats.size : null, uploadedAt);
+      await cleanupTeamZipHistory(assignmentId, teamId, stored.absolutePath);
 
-    processed.push({
-      teamId,
-      zipName: originalName
-    });
+      processed.push({
+        teamId,
+        zipName: originalName
+      });
+    } catch (error) {
+      const message = error?.message || 'Error al procesar entrega del equipo.';
+      console.warn(
+        `[submissions] Error procesando carpeta ${archive.folderName} (teamId=${teamId}): ${message}`
+      );
+      failed.push({
+        folderName: archive.folderName,
+        teamId,
+        mensaje: message
+      });
+    }
   }
 
-  return processed;
+  return { processed, failed };
 }
 
 /**
@@ -224,19 +293,25 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     await clearDirectory(extractionDir);
     await unzipFile(storedBatch.absolutePath, extractionDir);
 
-    const archives = await findTeamArchives(extractionDir);
+    const resolveTeam = buildTeamResolver(assignmentId);
+    const archives = await findTeamArchives(extractionDir, resolveTeam);
     if (archives.length === 0) {
       return sendError(res, 400, 'No encontramos archivos ZIP de equipos dentro del paquete.');
     }
 
-    const processed = await processTeamArchives({
+    const { processed, failed } = await processTeamArchives({
       assignmentId,
       uploaderId: req.user.id,
-      archives
+      archives,
+      tempDir: extractionDir,
+      resolveTeam
     });
 
     if (processed.length === 0) {
-      return sendError(res, 400, 'No se procesaron entregas del ZIP.');
+      return res.status(400).json({
+        error: 'No se procesaron entregas del ZIP.',
+        errores: failed
+      });
     }
 
     const batchUploadedAt = new Date().toISOString();
@@ -246,8 +321,9 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
       VALUES (?, ?, ?, ?, ?, ?)
     `
     ).run(assignmentId, req.user.id, originalName, storedBatch.relativePath, processed.length, batchUploadedAt);
+    await cleanupBatchZipHistory(assignmentId, storedBatch.absolutePath);
 
-    return res.status(201).json({
+    const payload = {
       ok: true,
       assignmentId,
       totalEquipos: processed.length,
@@ -256,7 +332,13 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
         fecha: new Date().toISOString(),
         nombre_zip: originalName
       }
-    });
+    };
+
+    if (failed.length > 0) {
+      payload.errores = failed;
+    }
+
+    return res.status(201).json(payload);
   } catch (error) {
     console.error('Error al cargar ZIP de entregas:', error);
     return sendError(res, 500, 'No pudimos registrar las entregas del ZIP.');

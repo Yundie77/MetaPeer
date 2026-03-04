@@ -13,7 +13,7 @@ export default function Nav({ onNavigate, currentPath }) {
         { label: 'Profesores', path: '/professors' },
         { label: 'Asignaciones', path: '/assignments' },
         { label: 'Revisiones', path: '/reviews' },
-        { label: 'BD (CSV)', path: '/admin-db' },
+        { label: 'Gestion Grupos', path: '/admin-db' },
         { label: 'Exportar', path: '/export' }
       ];
     }

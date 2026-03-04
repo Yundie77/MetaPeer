@@ -39,6 +39,11 @@ function contentFolder(assignmentId, teamId) {
   return path.join(teamFolder(assignmentId, teamId), CONTENT_DIRNAME);
 }
 
+function normalizeAbsolutePath(filePath = "") {
+  const resolved = path.resolve(filePath);
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
 async function moveFile(tempPath, destination) {
   await ensureParent(destination);
   await fsp.rename(tempPath, destination);
@@ -119,6 +124,14 @@ async function unzipFile(zipPath, targetDir) {
   zip.extractAllTo(targetDir, true);
 }
 
+async function createZipFromDirectory(sourceDir, destinationZipPath) {
+  await ensureParent(destinationZipPath);
+  const zip = new AdmZip();
+  zip.addLocalFolder(sourceDir);
+  zip.writeZip(destinationZipPath);
+  return destinationZipPath;
+}
+
 async function expandNestedZips(dirPath) {
   const entries = await fsp.readdir(dirPath, { withFileTypes: true });
   for (const entry of entries) {
@@ -133,9 +146,30 @@ async function expandNestedZips(dirPath) {
     }
 
     const targetDir = fullPath.replace(/\.zip$/i, "");
+
+    const exists = await fsp
+      .access(fullPath, fs.constants.F_OK)
+      .then(() => true)
+      .catch(() => false);
+
+    if (!exists) {
+      console.warn(`[deliveries] ZIP anidado desapareció antes de procesarse: ${fullPath}`);
+      continue;
+    }
+
     await fsp.mkdir(targetDir, { recursive: true });
-    await unzipFile(fullPath, targetDir);
-    await fsp.unlink(fullPath);
+
+    try {
+      await unzipFile(fullPath, targetDir);
+    } catch (error) {
+      console.warn(
+        `[deliveries] No se pudo descomprimir ZIP anidado ${fullPath}: ${error?.message || error}`
+      );
+      await fsp.rm(targetDir, { recursive: true, force: true }).catch(() => {});
+      continue;
+    }
+
+    await fsp.unlink(fullPath).catch(() => {});
     await expandNestedZips(targetDir);
   }
 }
@@ -197,6 +231,38 @@ async function splitNotebooksInDirectory(rootDir) {
   }
 }
 
+async function cleanupOldZipFiles(dirPath, keepAbsolutePath = "") {
+  try {
+    const entries = await fsp.readdir(dirPath, { withFileTypes: true });
+    const keepNormalized = keepAbsolutePath
+      ? normalizeAbsolutePath(keepAbsolutePath)
+      : "";
+
+    for (const entry of entries) {
+      if (!entry.isFile() || !entry.name.toLowerCase().endsWith(".zip")) {
+        continue;
+      }
+      const candidate = path.join(dirPath, entry.name);
+      if (keepNormalized && normalizeAbsolutePath(candidate) === keepNormalized) {
+        continue;
+      }
+      await fsp.unlink(candidate).catch(() => {});
+    }
+  } catch (_error) {
+    // Si el directorio no existe o no se puede leer
+  }
+}
+
+async function cleanupTeamZipHistory(assignmentId, teamId, keepAbsolutePath = "") {
+  const dirPath = teamFolder(assignmentId, teamId);
+  await cleanupOldZipFiles(dirPath, keepAbsolutePath);
+}
+
+async function cleanupBatchZipHistory(assignmentId, keepAbsolutePath = "") {
+  const dirPath = path.join(assignmentFolder(assignmentId), BATCHES_DIRNAME);
+  await cleanupOldZipFiles(dirPath, keepAbsolutePath);
+}
+
 async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   const targetDir = contentFolder(assignmentId, teamId);
   await clearDirectory(targetDir);
@@ -250,6 +316,9 @@ module.exports = {
   listAllFiles,
   ensureInside,
   unzipFile,
+  createZipFromDirectory,
   clearDirectory,
+  cleanupTeamZipHistory,
+  cleanupBatchZipHistory,
   TEMP_DIRNAME,
 };

@@ -32,6 +32,39 @@ function toText(value) {
   return String(value);
 }
 
+function isRecord(value) {
+  return value != null && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeBase64(value) {
+  return String(value || "").replace(/\s+/g, "");
+}
+
+function decodeBase64Buffer(base64Value) {
+  const normalized = normalizeBase64(base64Value);
+  if (!normalized) {
+    throw new Error("empty base64 payload");
+  }
+
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(normalized)) {
+    throw new Error("invalid base64 alphabet");
+  }
+
+  const padded = normalized.padEnd(normalized.length + ((4 - (normalized.length % 4)) % 4), "=");
+  const buffer = Buffer.from(padded, "base64");
+  if (!buffer.length) {
+    throw new Error("decoded payload is empty");
+  }
+
+  const inputNoPadding = padded.replace(/=+$/g, "");
+  const decodedNoPadding = buffer.toString("base64").replace(/=+$/g, "");
+  if (decodedNoPadding !== inputNoPadding) {
+    throw new Error("base64 validation failed");
+  }
+
+  return buffer;
+}
+
 function createPlotlyHtml(plotlyPayload) {
   const payload = plotlyPayload && typeof plotlyPayload === "object" ? plotlyPayload : {};
   const data = Array.isArray(payload.data) ? payload.data : [];
@@ -63,12 +96,32 @@ function sourceExtension(cellType) {
 }
 
 function resolveOutputContent(output) {
-  const data = output && typeof output === "object" ? output.data : null;
+  const safeOutput = isRecord(output) ? output : {};
+  const data = isRecord(safeOutput.data) ? safeOutput.data : null;
+
+  if (data && Object.prototype.hasOwnProperty.call(data, "image/png")) {
+    try {
+      const pngSource = toText(data["image/png"]);
+      return {
+        extension: "png",
+        content: decodeBase64Buffer(pngSource),
+        isBinary: true,
+      };
+    } catch (error) {
+      console.warn(`Warning: failed to decode image/png output: ${error?.message || error}`);
+      return {
+        extension: "txt",
+        content: JSON.stringify(output || {}, null, 2),
+        isBinary: false,
+      };
+    }
+  }
 
   if (data && Object.prototype.hasOwnProperty.call(data, "application/vnd.plotly.v1+json")) {
     return {
       extension: "html",
       content: createPlotlyHtml(data["application/vnd.plotly.v1+json"]),
+      isBinary: false,
     };
   }
 
@@ -76,6 +129,7 @@ function resolveOutputContent(output) {
     return {
       extension: "html",
       content: toText(data["text/html"]),
+      isBinary: false,
     };
   }
 
@@ -83,33 +137,38 @@ function resolveOutputContent(output) {
     return {
       extension: "txt",
       content: toText(data["text/plain"]),
+      isBinary: false,
     };
   }
 
-  if (output && output.output_type === "stream") {
+  if (safeOutput.output_type === "stream") {
     return {
       extension: "txt",
-      content: toText(output.text),
+      content: toText(safeOutput.text),
+      isBinary: false,
     };
   }
 
-  if (Array.isArray(output?.traceback) && output.traceback.length > 0) {
+  if (Array.isArray(safeOutput.traceback) && safeOutput.traceback.length > 0) {
     return {
       extension: "txt",
-      content: output.traceback.join("\n"),
+      content: safeOutput.traceback.join("\n"),
+      isBinary: false,
     };
   }
 
-  if (output && (typeof output.text === "string" || Array.isArray(output.text))) {
+  if (typeof safeOutput.text === "string" || Array.isArray(safeOutput.text)) {
     return {
       extension: "txt",
-      content: toText(output.text),
+      content: toText(safeOutput.text),
+      isBinary: false,
     };
   }
 
   return {
     extension: "txt",
     content: JSON.stringify(output || {}, null, 2),
+    isBinary: false,
   };
 }
 
@@ -171,6 +230,7 @@ async function splitIpynbFile(inputPath, outputDir, { dryRun = false } = {}) {
     filesToWrite.push({
       name: sourceFileName,
       content: toText(cell?.source),
+      isBinary: false,
     });
 
     if (cellType !== "code" || !Array.isArray(cell?.outputs) || cell.outputs.length === 0) {
@@ -182,6 +242,7 @@ async function splitIpynbFile(inputPath, outputDir, { dryRun = false } = {}) {
       filesToWrite.push({
         name: `cell_${cellNumber}_output_${outputIndex + 1}.${resolvedOutput.extension}`,
         content: resolvedOutput.content,
+        isBinary: Boolean(resolvedOutput.isBinary),
       });
     });
   });
@@ -203,7 +264,11 @@ async function splitIpynbFile(inputPath, outputDir, { dryRun = false } = {}) {
 
   for (const fileEntry of filesToWrite) {
     const destination = path.join(resolvedOutputDir, fileEntry.name);
-    await fsp.writeFile(destination, toText(fileEntry.content), "utf8");
+    if (fileEntry.isBinary) {
+      await fsp.writeFile(destination, fileEntry.content);
+    } else {
+      await fsp.writeFile(destination, toText(fileEntry.content), "utf8");
+    }
   }
 
   return {

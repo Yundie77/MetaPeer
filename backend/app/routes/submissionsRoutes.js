@@ -33,12 +33,19 @@ function normalizeLabel(text = '') {
  * Extrae códigos tipo ABC123 y los devuelve en formato normalizado.
  */
 function canonicalCode(text = '') {
-  const match = text.match(/([a-zA-Z]+)(\d+)/);
+  const match = String(text).match(/([a-zA-Z]+)[^a-zA-Z0-9]*(\d+)/);
   if (!match) return null;
   const letters = match[1].toLowerCase();
   const digits = Number(match[2]);
   if (!Number.isFinite(digits)) return null;
   return `${letters}${digits}`;
+}
+
+function extractGroupNumber(text = '') {
+  const match = String(text).match(/grupo[^0-9]*(\d+)/i);
+  if (!match) return null;
+  const groupNumber = Number(match[1]);
+  return Number.isFinite(groupNumber) ? groupNumber : null;
 }
 
 function sanitizeZipBaseName(name = '') {
@@ -66,6 +73,7 @@ function buildTeamResolver(assignmentId) {
 
   const codeMap = new Map();
   const normalizedMap = new Map();
+  const groupNumberMap = new Map();
 
   knownTeams.forEach((team) => {
     const teamName = team.nombre || '';
@@ -88,6 +96,15 @@ function buildTeamResolver(assignmentId) {
     if (tokenCode && !codeMap.has(tokenCode)) {
       codeMap.set(tokenCode, team.id);
     }
+
+    const groupNumber = extractGroupNumber(teamName);
+    if (groupNumber !== null && !groupNumberMap.has(groupNumber)) {
+      groupNumberMap.set(groupNumber, team.id);
+    } else if (groupNumber !== null && groupNumberMap.get(groupNumber) !== team.id) {
+      console.warn(
+        `[submissions] Número de grupo duplicado (${groupNumber}) en equipos de tarea ${assignmentId}.`
+      );
+    }
   });
 
   return (folderName) => {
@@ -105,6 +122,11 @@ function buildTeamResolver(assignmentId) {
     const normalizedFull = normalizeLabel(folderName);
     if (normalizedFull && normalizedMap.has(normalizedFull)) {
       return normalizedMap.get(normalizedFull);
+    }
+
+    const groupNumber = extractGroupNumber(folderName);
+    if (groupNumber !== null && groupNumberMap.has(groupNumber)) {
+      return groupNumberMap.get(groupNumber);
     }
 
     return null;

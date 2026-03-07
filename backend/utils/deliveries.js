@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const AdmZip = require("adm-zip");
+const { spawn } = require("child_process");
 const { splitIpynbFile } = require("./ipynbSplit");
 
 const fsp = fs.promises;
@@ -119,9 +120,53 @@ async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   };
 }
 
+async function extractWithTar(zipPath, targetDir) {
+  await fsp.mkdir(targetDir, { recursive: true });
+
+  await new Promise((resolve, reject) => {
+    const child = spawn("tar", ["-xf", zipPath, "-C", targetDir], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+
+    child.on("error", (error) => {
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`tar exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`));
+    });
+  });
+}
+
 async function unzipFile(zipPath, targetDir) {
-  const zip = new AdmZip(zipPath);
-  zip.extractAllTo(targetDir, true);
+  await fsp.mkdir(targetDir, { recursive: true });
+
+  try {
+    const zip = new AdmZip(zipPath);
+    zip.extractAllTo(targetDir, true);
+    return;
+  } catch (admError) {
+    console.warn(
+      `[deliveries] adm-zip falló con ${zipPath}: ${admError?.message || admError}. Intentando plan alternativo con tar.`
+    );
+  }
+
+  try {
+    await extractWithTar(zipPath, targetDir);
+  } catch (tarError) {
+    throw new Error(
+      `No se pudo descomprimir ZIP ${zipPath}. adm-zip y tar fallaron: ${tarError?.message || tarError}`
+    );
+  }
 }
 
 async function createZipFromDirectory(sourceDir, destinationZipPath) {

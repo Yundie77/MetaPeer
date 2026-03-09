@@ -65,7 +65,7 @@ export default function EditorPane({
   const highlightCompartmentRef = useRef(new Compartment());
   const commentsCompartmentRef = useRef(new Compartment());
 
-  const [editorReady, setEditorReady] = useState(false);
+  const [editorReady, setEditorReady] = useState(false); // Mantiene estado UI local: línea seleccionada, menú contextual
   const [selectedLine, setSelectedLine] = useState(0);
   const [menu, setMenu] = useState({ visible: false, x: 0, y: 0, line: 0 });
   const [renderError, setRenderError] = useState('');
@@ -80,6 +80,9 @@ export default function EditorPane({
     setSelectedLine(safeLine);
   }, []);
 
+  /**
+   * Reinicia selección/menú al cambiar archivo o línea inicial.
+   */
   useEffect(() => {
     const safeLine = Number(initialLine) || 0;
     pendingLineRef.current = safeLine;
@@ -90,6 +93,9 @@ export default function EditorPane({
     }
   }, [initialLine, code, path, renderError]);
 
+  /**
+   * Sincroniza la línea pendiente con una línea válida del documento.
+   */
   useEffect(() => {
     if (!editorReady || !viewRef.current || renderError) return;
     const doc = viewRef.current.state?.doc;
@@ -102,16 +108,25 @@ export default function EditorPane({
     return () => cancelAnimationFrame(raf);
   }, [editorReady, code, path, initialLine, selectedLine, renderError, setSelectedLineSafe]);
 
+  /**
+   * Memoriza la extensión de resaltado para la línea activa.
+   */
   const highlightExtension = useMemo(
     () => buildHighlightExtension(selectedLine),
     [selectedLine]
   );
 
+  /**
+   * Memoriza la extensión de widgets de comentarios por línea.
+   */
   const commentsExtension = useMemo(
     () => buildCommentsExtension(commentsByLine),
     [commentsByLine]
   );
 
+  /**
+   * Reconfigura en caliente el resaltado dentro de CodeMirror.
+   */
   useEffect(() => {
     if (!editorReady || !viewRef.current || renderError) return;
     try {
@@ -123,6 +138,9 @@ export default function EditorPane({
     }
   }, [highlightExtension, editorReady, renderError]);
 
+  /**
+   * Reconfigura en caliente los widgets de comentarios.
+   */
   useEffect(() => {
     if (!editorReady || !viewRef.current || renderError) return;
     try {
@@ -134,6 +152,9 @@ export default function EditorPane({
     }
   }, [commentsExtension, editorReady, renderError]);
 
+  /**
+   * Hace scroll automático para centrar la línea seleccionada.
+   */
   useEffect(() => {
     if (!editorReady || !viewRef.current || !selectedLine || renderError) return;
     const timer = setTimeout(() => {
@@ -239,6 +260,9 @@ export default function EditorPane({
     }
   };
 
+  /**
+   * Define y memoiza la configuración base de extensiones de CodeMirror para que se cree una sola vez.
+   */
   const staticExtensions = useMemo(
     () => [
       javascript(),

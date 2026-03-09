@@ -3,7 +3,7 @@ import { useAuth } from '../../auth/AuthContext.jsx';
 import { API_BASE, getJson, postJson } from '../../api.js';
 import { ancestors, buildTreeFromPaths, collectDirPaths, normalizePath } from '../../utils/fileTreeHelpers.js';
 import { readFromURL, writeToURL } from '../../utils/permalink.js';
-import { findBestPath } from './helpers.js';
+import { findBestPath } from './reviewFilePathResolver.js';
 import ReviewMainCard from './ReviewMainCard.jsx';
 import ReviewMetaPanels from './ReviewMetaPanels.jsx';
 import useReviewMetaState from './useReviewMetaState.js';

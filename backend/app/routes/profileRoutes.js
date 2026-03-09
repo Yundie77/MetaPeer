@@ -9,6 +9,9 @@ const router = express.Router();
 const ROSTER_LIKE = `${ROSTER_PREFIX}%`;
 const MAX_EVENTS = 200;
 
+/**
+ * Recupera el usuario base para construir payloads de perfil.
+ */
 function getUserById(userId) {
   return db
     .prepare(
@@ -21,6 +24,9 @@ function getUserById(userId) {
     .get(userId);
 }
 
+/**
+ * Lista tareas relevantes para el usuario segun rol, excluyendo tareas internas de roster.
+ */
 function listRelevantAssignments(user) {
   if (!user) {
     return [];
@@ -313,6 +319,9 @@ function normalizeTimestamp(value) {
   return date.toISOString();
 }
 
+/**
+ * Combina asignaciones, revisiones, lotes y meta-revisiones en una linea temporal de eventos.
+ */
 function buildEvents({ assignmentRecords, revisionRows, batchUploads, metaReviews }) {
   const events = [];
   const resolveReviewer = buildReviewerResolver();
@@ -441,6 +450,9 @@ function buildEvents({ assignmentRecords, revisionRows, batchUploads, metaReview
   return events.slice(0, MAX_EVENTS);
 }
 
+/**
+ * Construye la linea temporal visible para estudiantes con revisiones propias y meta-revisiones.
+ */
 function buildStudentEvents({ reviewRows, metaReviews }) {
   const events = [];
 
@@ -506,6 +518,9 @@ function buildStudentEvents({ reviewRows, metaReviews }) {
   return events.slice(0, MAX_EVENTS);
 }
 
+/**
+ * Construye el payload completo de perfil para roles ADMIN/PROF.
+ */
 function buildProfilePayload(userId) {
   const user = getUserById(userId);
   if (!user) {
@@ -553,6 +568,9 @@ function buildProfilePayload(userId) {
   };
 }
 
+/**
+ * Construye el payload de perfil para ALUM basado en revisiones asignadas/enviadas.
+ */
 function buildStudentProfilePayload(userId) {
   const user = getUserById(userId);
   if (!user) {
@@ -603,6 +621,9 @@ function buildStudentProfilePayload(userId) {
   };
 }
 
+/**
+ * Flujo: frontend carga perfil del usuario autenticado -> backend compone stats y eventos por rol.
+ */
 router.get('/api/profile', requireAuth(), (req, res) => {
   try {
     const payload =
@@ -617,6 +638,9 @@ router.get('/api/profile', requireAuth(), (req, res) => {
   }
 });
 
+/**
+ * Flujo: admin consulta timeline de un profesor -> backend devuelve eventos agregados del profesor.
+ */
 router.get('/api/profiles/:userId/events', requireAuth(['ADMIN']), (req, res) => {
   try {
     const userId = safeNumber(req.params.userId);

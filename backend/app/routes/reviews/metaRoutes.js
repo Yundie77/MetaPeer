@@ -6,6 +6,9 @@ const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require(
 const router = express.Router();
 const META_OBSERVATION_MAX_LENGTH = 5000;
 
+/**
+ * Flujo: panel de meta-revision -> cliente consulta evaluacion del profesor para una revision.
+ */
 router.get('/api/reviews/:reviewId/meta', requireAuth(), (req, res) => {
   try {
     const reviewId = safeNumber(req.params.reviewId);
@@ -56,6 +59,9 @@ router.get('/api/reviews/:reviewId/meta', requireAuth(), (req, res) => {
   }
 });
 
+/**
+ * Flujo: profesor/admin registra meta-revision -> backend crea o actualiza la evaluacion final.
+ */
 router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const reviewId = safeNumber(req.params.reviewId);

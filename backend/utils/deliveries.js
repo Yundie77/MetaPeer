@@ -17,7 +17,9 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-// Caracteres prohibidos, espacios por guiones...
+/**
+ * Normaliza nombres de archivo para evitar caracteres no permitidos en rutas.
+ */
 function sanitizeName(name = "") {
   return (
     name
@@ -70,6 +72,9 @@ async function clearDirectory(dirPath) {
   await fsp.mkdir(dirPath, { recursive: true });
 }
 
+/**
+ * Persiste el ZIP subido por un equipo y devuelve metadata de almacenamiento.
+ */
 async function persistUploadedZip(
   tempPath,
   assignmentId,
@@ -98,6 +103,9 @@ async function persistUploadedZip(
   };
 }
 
+/**
+ * Persiste un ZIP de carga masiva asociado a una tarea.
+ */
 async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   const baseFolder = path.join(assignmentFolder(assignmentId), BATCHES_DIRNAME);
   await fsp.mkdir(baseFolder, { recursive: true });
@@ -169,6 +177,9 @@ async function unzipFile(zipPath, targetDir) {
   }
 }
 
+/**
+ * Crea un ZIP con todo el contenido de un directorio.
+ */
 async function createZipFromDirectory(sourceDir, destinationZipPath) {
   await ensureParent(destinationZipPath);
   const zip = new AdmZip();
@@ -308,6 +319,9 @@ async function cleanupBatchZipHistory(assignmentId, keepAbsolutePath = "") {
   await cleanupOldZipFiles(dirPath, keepAbsolutePath);
 }
 
+/**
+ * Extrae una entrega y prepara su contenido navegable (incluye ZIP anidados y notebooks).
+ */
 async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   const targetDir = contentFolder(assignmentId, teamId);
   await clearDirectory(targetDir);
@@ -317,6 +331,9 @@ async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   return targetDir;
 }
 
+/**
+ * Recorre recursivamente un directorio y devuelve su lista de archivos relativos.
+ */
 async function listAllFiles(baseDir) {
   const results = [];
   async function walk(current) {
@@ -341,6 +358,9 @@ async function listAllFiles(baseDir) {
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/**
+ * Resuelve una ruta solicitada y verifica que permanezca dentro de baseDir.
+ */
 function ensureInside(baseDir, requestedPath) {
   const resolved = path.resolve(baseDir, requestedPath);
   if (!resolved.startsWith(path.resolve(baseDir))) {

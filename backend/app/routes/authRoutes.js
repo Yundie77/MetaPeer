@@ -12,6 +12,9 @@ function isDemoEmail(email) {
   return String(email || '').trim().toLowerCase().endsWith('@demo');
 }
 
+/**
+ * Flujo: pantalla de login -> cliente envia credenciales -> backend valida y devuelve JWT.
+ */
 router.post('/api/login', (req, res) => {
   try {
     const { email, password } = req.body || {};
@@ -46,6 +49,9 @@ router.post('/api/login', (req, res) => {
   }
 });
 
+/**
+ * Flujo: cliente ya autenticado envia Bearer token -> backend devuelve perfil basico de sesion.
+ */
 router.get('/api/me', requireAuth(), (req, res) => {
   res.json({
     id: req.user.id,

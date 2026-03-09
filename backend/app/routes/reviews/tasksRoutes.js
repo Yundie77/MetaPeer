@@ -5,6 +5,9 @@ const { sendError } = require('../../helpers');
 
 const router = express.Router();
 
+/**
+ * Flujo: dashboard del alumno -> cliente consulta sus tareas de revision pendientes/enviadas.
+ */
 router.get('/api/my-review-tasks', requireAuth(['ALUM']), (req, res) => {
   try {
     const rows = db

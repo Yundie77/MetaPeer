@@ -28,6 +28,9 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
+/**
+ * Log minimo por request para trazabilidad basica en desarrollo/produccion.
+ */
 app.use((req, _res, next) => {
   console.log(`${new Date().toISOString()} ${req.method} ${req.originalUrl}`);
   next();

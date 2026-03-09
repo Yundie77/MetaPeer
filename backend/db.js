@@ -12,26 +12,38 @@ const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
-// Esta función aplica el SQL del esquema completo.
+/**
+ * Aplica el esquema SQL completo sobre la base actual.
+ */
 function applySchema() {
   const schemaText = fs.readFileSync(SCHEMA_FILE, 'utf8');
   db.exec(schemaText);
 }
 
-// Helpers sencillos para ejecutar consultas. Hacen el resto del código más claro.
+/**
+ * Ejecuta una sentencia SQL de escritura.
+ */
 function run(sql, params = {}) {
   return db.prepare(sql).run(params);
 }
 
+/**
+ * Ejecuta una consulta SQL y devuelve la primera fila.
+ */
 function get(sql, params = {}) {
   return db.prepare(sql).get(params);
 }
 
+/**
+ * Ejecuta una consulta SQL y devuelve todas las filas.
+ */
 function all(sql, params = {}) {
   return db.prepare(sql).all(params);
 }
 
-// Permite ejecutar varias operaciones dentro de una transacción SQLite.
+/**
+ * Ejecuta una unidad de trabajo dentro de una transacción SQLite.
+ */
 function transaction(work) {
   const wrapped = db.transaction(work);
   return wrapped(db);

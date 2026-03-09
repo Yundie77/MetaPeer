@@ -15,6 +15,9 @@ const { ROSTER_PREFIX } = require('../constants');
 
 const router = express.Router();
 
+/**
+ * Escapa una celda para salida CSV en formato separado por punto y coma.
+ */
 function escapeCsvValue(value) {
   const text = value === undefined || value === null ? '' : String(value);
   if (!/[;"\n\r]/.test(text)) {
@@ -23,6 +26,9 @@ function escapeCsvValue(value) {
   return `"${text.replace(/"/g, '""')}"`;
 }
 
+/**
+ * Construye el CSV de credenciales temporales para descarga post-importacion.
+ */
 function buildCredentialsCsv(credentials = []) {
   if (!Array.isArray(credentials) || credentials.length === 0) {
     return '';
@@ -35,6 +41,9 @@ function buildCredentialsCsv(credentials = []) {
   return lines.join('\n');
 }
 
+/**
+ * Flujo: admin/prof sube CSV del roster -> backend crea alumnos y sincroniza equipos.
+ */
 router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const csvText = req.body?.csvText;
@@ -239,6 +248,9 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
   }
 });
 
+/**
+ * Flujo: pantalla admin de profesores -> backend devuelve profesores y sus asignaturas.
+ */
 router.get('/api/admin/professors', requireAuth(['ADMIN']), (_req, res) => {
   try {
     const professors = db
@@ -266,6 +278,9 @@ router.get('/api/admin/professors', requireAuth(['ADMIN']), (_req, res) => {
   }
 });
 
+/**
+ * Flujo: admin crea profesor -> backend genera password inicial y devuelve credencial.
+ */
 router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
   try {
     const nombre = (req.body?.nombre || '').trim();
@@ -308,6 +323,9 @@ router.post('/api/admin/professors', requireAuth(['ADMIN']), (req, res) => {
   }
 });
 
+/**
+ * Flujo: admin edita asignaturas de profesor -> backend reemplaza vinculaciones usuario_asignatura.
+ */
 router.post('/api/admin/professors/:professorId/subjects', requireAuth(['ADMIN']), (req, res) => {
   try {
     const professorId = safeNumber(req.params.professorId);

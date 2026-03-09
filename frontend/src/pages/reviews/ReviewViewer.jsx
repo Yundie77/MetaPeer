@@ -1,76 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../auth/AuthContext.jsx';
 import { API_BASE, getJson, postJson } from '../../api.js';
-import FileTree from '../../components/FileTree.jsx';
-import Breadcrumbs from '../../components/Breadcrumbs.jsx';
-import EditorPane from '../../components/EditorPane.jsx';
 import { ancestors, buildTreeFromPaths, collectDirPaths, normalizePath } from '../../utils/fileTreeHelpers.js';
 import { readFromURL, writeToURL } from '../../utils/permalink.js';
-import {
-  viewerCard,
-  viewerHeader,
-  viewerHeaderLeft,
-  viewerGrid,
-  viewerSidebar,
-  viewerContent,
-  anchorBar,
-  anchorButton,
-  binaryWarning,
-  previewWrapper,
-  previewFrame,
-  linkButton,
-  commentSummaryRow,
-  commentSummaryPill,
-  commentSummaryPillActive,
-  commentSummaryPanel,
-  commentSummaryList,
-  commentSummaryHint,
-  fileCommentPanel,
-  fileCommentHeader,
-  fileCommentActions,
-  fileCommentForm,
-  fileCommentInput,
-  fileCommentList,
-  fileCommentItem,
-  fileCommentMeta,
-  fileCommentMessage,
-  fileCommentEmpty,
-  errorStyle,
-  splitHandle,
-  metaReviewPanel,
-  miniMeta,
-  statusList,
-  statusItem,
-  statusActions,
-  statusBadgePending,
-  statusBadgeSubmitted,
-  statusBadgeGraded,
-  linkPill,
-  metaReviewFields,
-  labelStyle,
-  inputStyle,
-  successStyle
-} from './stylesReview.js';
 import { findBestPath } from './helpers.js';
-import { buildAlias, formatRelativeTime } from '../../utils/reviewCommentFormat.js';
-
-const PREVIEWABLE_IMAGE_EXTENSIONS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg']);
-
-function getFileExtension(pathValue) {
-  if (!pathValue) return '';
-  const lastDot = pathValue.lastIndexOf('.');
-  if (lastDot === -1) return '';
-  return pathValue.slice(lastDot + 1).toLowerCase();
-}
-
-function getPreviewType(pathValue) {
-  const ext = getFileExtension(pathValue);
-  if (!ext) return '';
-  if (ext === 'pdf') return 'pdf';
-  if (ext === 'html') return 'html';
-  if (PREVIEWABLE_IMAGE_EXTENSIONS.has(ext)) return 'image';
-  return '';
-}
+import ReviewMainCard from './ReviewMainCard.jsx';
+import ReviewMetaPanels from './ReviewMetaPanels.jsx';
+import useReviewMetaState from './useReviewMetaState.js';
+import useResizableSidebar from './useResizableSidebar.js';
+import {
+  buildCommentsByLine,
+  buildFileCommentItems,
+  getFirstCommentLine,
+  getPreviewType,
+  normalizeCountMap,
+  normalizeFirstLineMap
+} from './reviewViewerUtils.js';
 
 /**
  * Visor de revisión que muestra árbol de archivos, comentarios en línea y descarga de la entrega.
@@ -121,16 +66,32 @@ export default function ReviewViewer({
   const [sidebarWidth, setSidebarWidth] = useState(180);
   const splitRef = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const [reviewInfo, setReviewInfo] = useState(null);
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [metaReview, setMetaReview] = useState({ nota: '', observacion: '' });
-  const [metaReviewInfo, setMetaReviewInfo] = useState(null);
-  const [metaReviewLoading, setMetaReviewLoading] = useState(false);
-  const [metaReviewSaving, setMetaReviewSaving] = useState(false);
-  const [metaReviewError, setMetaReviewError] = useState('');
-  const [metaReviewSuccess, setMetaReviewSuccess] = useState('');
   const [commentListMode, setCommentListMode] = useState('');
   const canCreateComments = !readOnly && role === 'ALUM';
+
+  const resetFileCommentState = () => {
+    setFileCommentCounts({});
+    setFileComments([]);
+    setFileCommentsLoading(false);
+    setFileCommentsError('');
+    setFileCommentDraft('');
+    setFileCommentFormOpen(false);
+    setFileCommentSaving(false);
+  };
+
+  const resetPreviewState = () => {
+    setBinaryPreviewUrl('');
+    setBinaryPreviewType('');
+    setBinaryPreviewLoading(false);
+    setBinaryPreviewError('');
+  };
+
+  const { startDragging } = useResizableSidebar({
+    dragging,
+    splitRef,
+    setDragging,
+    setSidebarWidth
+  });
 
   useEffect(() => {
     if (!revisionId) {
@@ -180,25 +141,9 @@ export default function ReviewViewer({
       });
       setCodeCommentCounts({});
       setCodeCommentFirstLine({});
-      setFileCommentCounts({});
-      setFileComments([]);
-      setFileCommentsLoading(false);
-      setFileCommentsError('');
-      setFileCommentDraft('');
-      setFileCommentFormOpen(false);
-      setFileCommentSaving(false);
-      setBinaryPreviewUrl('');
-      setBinaryPreviewType('');
-      setBinaryPreviewLoading(false);
-      setBinaryPreviewError('');
-      setReviewInfo(null);
-      setReviewLoading(false);
-      setMetaReview({ nota: '', observacion: '' });
-      setMetaReviewInfo(null);
-      setMetaReviewLoading(false);
-      setMetaReviewSaving(false);
-      setMetaReviewError('');
-      setMetaReviewSuccess('');
+      resetFileCommentState();
+      resetPreviewState();
+      resetMetaReviewState();
       setCommentListMode('');
       return;
     }
@@ -209,36 +154,9 @@ export default function ReviewViewer({
         setError('');
         const data = await getJson(`/reviews/${revisionId}/files`);
         setFiles(data.files || []);
-        const rawCounts = data?.fileCommentCounts || {};
-        const normalizedCounts = {};
-        Object.entries(rawCounts).forEach(([pathValue, total]) => {
-          const normalized = normalizePath(pathValue);
-          const count = Number(total) || 0;
-          if (normalized && count > 0) {
-            normalizedCounts[normalized] = count;
-          }
-        });
-        setFileCommentCounts(normalizedCounts);
-        const rawCodeCounts = data?.codeCommentCounts || {};
-        const normalizedCodeCounts = {};
-        Object.entries(rawCodeCounts).forEach(([pathValue, total]) => {
-          const normalized = normalizePath(pathValue);
-          const count = Number(total) || 0;
-          if (normalized && count > 0) {
-            normalizedCodeCounts[normalized] = count;
-          }
-        });
-        setCodeCommentCounts(normalizedCodeCounts);
-        const rawFirstLines = data?.codeCommentFirstLine || {};
-        const normalizedFirstLines = {};
-        Object.entries(rawFirstLines).forEach(([pathValue, lineValue]) => {
-          const normalized = normalizePath(pathValue);
-          const line = Number(lineValue) || 0;
-          if (normalized && line > 0) {
-            normalizedFirstLines[normalized] = line;
-          }
-        });
-        setCodeCommentFirstLine(normalizedFirstLines);
+        setFileCommentCounts(normalizeCountMap(data?.fileCommentCounts || {}));
+        setCodeCommentCounts(normalizeCountMap(data?.codeCommentCounts || {}));
+        setCodeCommentFirstLine(normalizeFirstLineMap(data?.codeCommentFirstLine || {}));
         setSubmissionMeta({
           zipName: data.zipName,
           submissionId: data.submissionId
@@ -272,128 +190,34 @@ export default function ReviewViewer({
   );
   const canMetaReview = role === 'ADMIN' || role === 'PROF';
   const showStudentReviewSummary = readOnly && role === 'ALUM';
+  const {
+    reviewInfo,
+    reviewLoading,
+    metaReview,
+    metaReviewInfo,
+    metaReviewLoading,
+    metaReviewSaving,
+    metaReviewError,
+    metaReviewSuccess,
+    reviewStatus,
+    submittedTime,
+    metaSavedTime,
+    setMetaReview,
+    setMetaReviewInfo,
+    setMetaReviewSaving,
+    setMetaReviewError,
+    setMetaReviewSuccess,
+    resetMetaReviewState
+  } = useReviewMetaState({
+    revisionId,
+    canMetaReview,
+    submissionId: submissionMeta?.submissionId
+  });
 
-  useEffect(() => {
-    if (!revisionId) {
-      setReviewInfo(null);
-      setReviewLoading(false);
-      setMetaReview({ nota: '', observacion: '' });
-      setMetaReviewInfo(null);
-      setMetaReviewLoading(false);
-      setMetaReviewSaving(false);
-      setMetaReviewError('');
-      setMetaReviewSuccess('');
-      return;
-    }
-
-    if (!canMetaReview) {
-      setMetaReview({ nota: '', observacion: '' });
-      setMetaReviewInfo(null);
-      setMetaReviewLoading(false);
-      setMetaReviewSaving(false);
-      setMetaReviewError('');
-      setMetaReviewSuccess('');
-      return;
-    }
-
-    setMetaReviewError('');
-    setMetaReviewSuccess('');
-  }, [revisionId, canMetaReview]);
-
-  useEffect(() => {
-    if (!revisionId || !canMetaReview) {
-      return;
-    }
-
-    let active = true;
-    const loadMetaReview = async () => {
-      try {
-        setMetaReviewLoading(true);
-        setMetaReviewError('');
-        const data = await getJson(`/reviews/${revisionId}/meta`);
-        if (!active) return;
-        const meta = data?.meta || null;
-        setMetaReviewInfo(meta);
-        setMetaReview({
-          nota: meta?.nota_final ?? '',
-          observacion: meta?.observacion ?? ''
-        });
-      } catch (err) {
-        if (!active) return;
-        setMetaReviewInfo(null);
-        setMetaReviewError(err.message);
-      } finally {
-        if (active) {
-          setMetaReviewLoading(false);
-        }
-      }
-    };
-
-    loadMetaReview();
-
-    return () => {
-      active = false;
-    };
-  }, [revisionId, canMetaReview]);
-
-  useEffect(() => {
-    if (!revisionId || !submissionMeta?.submissionId) {
-      setReviewInfo(null);
-      setReviewLoading(false);
-      return;
-    }
-
-    let active = true;
-
-    const loadReviewInfo = async () => {
-      try {
-        setReviewLoading(true);
-        const list = await getJson(`/reviews?submissionId=${submissionMeta.submissionId}`);
-        if (!active) return;
-        const matched = Array.isArray(list)
-          ? list.find((item) => Number(item.id) === Number(revisionId))
-          : null;
-        setReviewInfo(matched || null);
-      } catch (err) {
-        if (!active) return;
-        setReviewInfo(null);
-      } finally {
-        if (active) {
-          setReviewLoading(false);
-        }
-      }
-    };
-
-    loadReviewInfo();
-
-    return () => {
-      active = false;
-    };
-  }, [revisionId, submissionMeta?.submissionId]);
-
-  const commentsByLine = useMemo(() => {
-    const map = new Map();
-    (fileData.comments || []).forEach((comment) => {
-      const lineNum = Number(comment.linea);
-      if (!Number.isInteger(lineNum) || lineNum <= 0) return;
-      const content = (comment.contenido ?? '').trim();
-      if (!content) return;
-      const list = map.get(lineNum) || [];
-      const authorName = (comment.autor?.nombre ?? '').trim();
-      const alias = buildAlias(authorName || 'Revisor');
-      const { relativeText, absoluteText } = formatRelativeTime(comment.creado_en);
-      list.push({
-        id: comment.id,
-        message: content,
-        alias,
-        aliasTitle: authorName || 'Revisor',
-        timeText: relativeText,
-        timeTitle: absoluteText
-      });
-      map.set(lineNum, list);
-    });
-    return map;
-  }, [fileData.comments]);
+  const commentsByLine = useMemo(
+    () => buildCommentsByLine(fileData.comments || []),
+    [fileData.comments]
+  );
 
   const commentAnchors = useMemo(
     () =>
@@ -412,24 +236,7 @@ export default function ReviewViewer({
   );
 
   const fileCommentItems = useMemo(
-    () =>
-      (fileComments || [])
-        .map((comment) => {
-          const content = (comment.contenido ?? '').trim();
-          if (!content) return null;
-          const authorName = (comment.autor?.nombre ?? '').trim();
-          const alias = buildAlias(authorName || 'Revisor');
-          const { relativeText, absoluteText } = formatRelativeTime(comment.creado_en);
-          return {
-            id: comment.id,
-            message: content,
-            alias,
-            aliasTitle: authorName || 'Revisor',
-            timeText: relativeText,
-            timeTitle: absoluteText
-          };
-        })
-        .filter(Boolean),
+    () => buildFileCommentItems(fileComments || []),
     [fileComments]
   );
   const hasFileComment = fileCommentItems.length > 0;
@@ -505,17 +312,11 @@ export default function ReviewViewer({
           }
           return next;
         });
-        const firstLine = Array.isArray(data.comments)
-          ? data.comments.reduce((min, comment) => {
-              const line = Number(comment?.linea) || 0;
-              if (line > 0 && line < min) return line;
-              return min;
-            }, Number.POSITIVE_INFINITY)
-          : Number.POSITIVE_INFINITY;
+        const firstLine = getFirstCommentLine(data.comments || []);
         setCodeCommentFirstLine((prev) => {
           const next = { ...prev };
           if (normalizedPath) {
-            if (Number.isFinite(firstLine) && firstLine > 0) {
+            if (firstLine > 0) {
               next[normalizedPath] = firstLine;
             } else {
               delete next[normalizedPath];
@@ -565,6 +366,9 @@ export default function ReviewViewer({
     [fileMapByPath, openFileById]
   );
 
+  /**
+   * Recarga los comentarios generales de un archivo y sincroniza sus conteos por ruta.
+   */
   const refreshFileComments = useCallback(
     async (fileId, pathValue) => {
       if (!revisionId || !fileId) return [];
@@ -847,6 +651,9 @@ export default function ReviewViewer({
     }
   };
 
+  /**
+   * Crea o actualiza el comentario general del fichero actualmente seleccionado.
+   */
   const handleAddFileComment = async () => {
     if (!canCreateComments) return;
     if (!revisionId || !currentFileId) {
@@ -877,6 +684,9 @@ export default function ReviewViewer({
     }
   };
 
+  /**
+   * Abre el archivo actual en una pestaña nueva (raw binario o texto plano).
+   */
   const handleOpenInNewTab = async () => {
     if (!revisionId || !currentFileId) {
       setError('Selecciona un archivo antes de abrirlo.');
@@ -931,6 +741,9 @@ export default function ReviewViewer({
     }
   };
 
+  /**
+   * Navega al archivo y posiciona/abre la sección de comentarios generales.
+   */
   const handleOpenFileComments = useCallback(
     (pathValue) => {
       if (!pathValue) return;
@@ -951,6 +764,9 @@ export default function ReviewViewer({
     [currentPath, showFileCommentSection, openFile, currentFileId, revisionId, readOnly, scrollToFileComments]
   );
 
+  /**
+   * Abre un archivo con comentarios de código posicionándose en su primera línea comentada.
+   */
   const handleOpenCodeCommentFile = useCallback(
     (pathValue) => {
       if (!pathValue) return;
@@ -1013,26 +829,9 @@ export default function ReviewViewer({
     }
   };
 
-  const reviewStatus = useMemo(() => {
-    if (!reviewInfo?.fecha_envio) {
-      return { label: 'Pendiente', style: statusBadgePending };
-    }
-    if (reviewInfo.nota_numerica !== null && reviewInfo.nota_numerica !== undefined) {
-      return { label: 'Con nota', style: statusBadgeGraded };
-    }
-    return { label: 'Enviada', style: statusBadgeSubmitted };
-  }, [reviewInfo]);
-
-  const submittedTime = useMemo(
-    () => formatRelativeTime(reviewInfo?.fecha_envio),
-    [reviewInfo?.fecha_envio]
-  );
-
-  const metaSavedTime = useMemo(
-    () => formatRelativeTime(metaReviewInfo?.fecha_registro),
-    [metaReviewInfo?.fecha_registro]
-  );
-
+  /**
+   * Valida y guarda la meta-revisión (nota y/u observación) de la revisión actual.
+   */
   const handleSaveMetaReview = async () => {
     if (!revisionId) return;
     const notaValue = metaReview.nota !== '' ? Number(metaReview.nota) : null;
@@ -1071,421 +870,122 @@ export default function ReviewViewer({
     }
   };
 
-  // Control del separador vertical
-  useEffect(() => {
-    if (!dragging) return;
-    const MIN_LEFT = 240;
-    const MIN_RIGHT = 420;
-
-    const handleMove = (event) => {
-      if (!splitRef.current) return;
-      const rect = splitRef.current.getBoundingClientRect();
-      const totalWidth = rect.width;
-      const raw = event.clientX - rect.left;
-      const maxLeft = Math.max(MIN_LEFT, totalWidth - MIN_RIGHT);
-      const clamped = Math.min(Math.max(raw, MIN_LEFT), maxLeft);
-      setSidebarWidth(clamped);
-    };
-
-    const stop = () => setDragging(false);
-
-    window.addEventListener('mousemove', handleMove);
-    window.addEventListener('mouseup', stop);
-    window.addEventListener('mouseleave', stop);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', stop);
-      window.removeEventListener('mouseleave', stop);
-    };
-  }, [dragging]);
-
   const showBinaryPreview = shouldRenderPreview && !!binaryPreviewUrl && !binaryPreviewLoading && !binaryPreviewError;
   const showBinaryLoading = shouldRenderPreview && binaryPreviewLoading;
   const showBinaryError = shouldRenderPreview && !!binaryPreviewError;
   const previewLabel = binaryPreviewType === 'pdf' ? 'PDF' : binaryPreviewType === 'html' ? 'HTML' : 'imagen';
   const showMetaReview = canMetaReview && !readOnly;
+  const editorReadOnly = readOnly || role !== 'ALUM';
+
+  const toggleCodeCommentList = () => setCommentListMode((prev) => (prev === 'code' ? '' : 'code'));
+  const toggleFileCommentList = () => setCommentListMode((prev) => (prev === 'file' ? '' : 'file'));
+
+  const fileCommentSectionProps = {
+    fileCommentsRef,
+    fileCommentsLoading,
+    fileCommentItems,
+    fileCommentsError,
+    fileCommentFormOpen,
+    canCreateComments,
+    fileCommentSaving,
+    fileCommentDraft,
+    onFileCommentDraftChange: setFileCommentDraft,
+    onOpenFileCommentForm: handleOpenFileCommentForm,
+    onAddFileComment: handleAddFileComment,
+    hasFileComment
+  };
+
+  const handleOpenCommentAnchor = (line) => {
+    const parsed = Number(line);
+    const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
+    openFileById(currentFileId, targetLine);
+  };
+
+  const workspaceProps = {
+    splitRef,
+    sidebarWidth,
+    onStartDrag: startDragging,
+    treeData,
+    currentPath,
+    expandedPaths,
+    onToggleDir: toggleDir,
+    onOpenFile: openFile,
+    fileCommentCounts,
+    onCommentBadgeClick: handleOpenFileComments,
+    codeCommentCounts,
+    onCodeCommentBadgeClick: handleOpenCodeCommentFile,
+    onBreadcrumbNavigate: handleBreadcrumb,
+    onOpenInNewTab: handleOpenInNewTab,
+    commentAnchors,
+    onOpenCommentAnchor: handleOpenCommentAnchor,
+    fileLoading,
+    shouldRenderPreview,
+    showBinaryPreview,
+    showBinaryLoading,
+    showBinaryError,
+    binaryPreviewUrl,
+    previewLabel,
+    binaryPreviewType,
+    binaryPreviewError,
+    showFileCommentSection,
+    fileCommentSectionProps,
+    fileContent: fileData.content,
+    currentFileId,
+    initialLine,
+    commentsByLine,
+    onAddComment: handleAddComment,
+    revisionId,
+    editorReadOnly
+  };
 
   return (
     <>
-      <div style={viewerCard}>
-        <div style={viewerHeader}>
-          <div style={viewerHeaderLeft}>
-            <strong>Archivos de la entrega</strong>
-            {showCommentSummary && (
-              <div style={commentSummaryRow}>
-                {codeCommentFileCount > 0 && (
-                  <button
-                    type="button"
-                    style={isCodeListActive ? commentSummaryPillActive : commentSummaryPill}
-                    onClick={() =>
-                      setCommentListMode((prev) => (prev === 'code' ? '' : 'code'))
-                    }
-                    title="Ver archivos con comentarios de código"
-                  >
-                    {codeCommentFileCount} archivo{codeCommentFileCount === 1 ? '' : 's'} con comentarios de código
-                  </button>
-                )}
-                {fileCommentFileCount > 0 && (
-                  <button
-                    type="button"
-                    style={isFileListActive ? commentSummaryPillActive : commentSummaryPill}
-                    onClick={() =>
-                      setCommentListMode((prev) => (prev === 'file' ? '' : 'file'))
-                    }
-                    title="Ver archivos con comentarios generales"
-                  >
-                    {fileCommentFileCount} archivo{fileCommentFileCount === 1 ? '' : 's'} con comentarios generales
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-          {submissionMeta?.submissionId && (
-            <button
-              type="button"
-              style={{
-                ...linkButton,
-                opacity: downloading ? 0.6 : 1,
-                cursor: downloading ? 'wait' : 'pointer'
-              }}
-              onClick={handleDownloadZip}
-              disabled={downloading}
-            >
-              {downloading ? 'Descargando...' : 'Descargar ZIP'}
-            </button>
-          )}
-        </div>
-        {showCommentSummary && commentListMode && activeCommentPaths.length > 0 && (
-          <div style={commentSummaryPanel}>
-            <div style={commentSummaryHint}>{activeCommentLabel}</div>
-            <div style={commentSummaryList}>
-              {activeCommentPaths.map((pathValue) => {
-                const count = isCodeListActive
-                  ? Number(codeCommentCounts[pathValue]) || 0
-                  : Number(fileCommentCounts[pathValue]) || 0;
-                const label = `${pathValue} (${count})`;
-                return (
-                  <button
-                    key={pathValue}
-                    type="button"
-                    style={anchorButton}
-                    title={pathValue}
-                    onClick={() =>
-                      (isCodeListActive
-                        ? handleOpenCodeCommentFile(pathValue)
-                        : handleOpenFileCommentFromList(pathValue))
-                    }
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        {error && <p style={errorStyle}>{error}</p>}
-        {treeLoading ? (
-          <p>Cargando archivos...</p>
-        ) : files.length === 0 ? (
-          <p>No hay archivos para esta entrega.</p>
-        ) : (
-          <div ref={splitRef} style={viewerGrid}>
-            <aside
-              style={{
-                ...viewerSidebar,
-                width: `${sidebarWidth}px`,
-                minWidth: '240px',
-                maxWidth: '780px',
-                flex: '0 0 auto'
-              }}
-            >
-              <FileTree
-                nodes={treeData}
-                selectedPath={currentPath}
-                expandedPaths={expandedPaths}
-                onToggleDir={toggleDir}
-                onOpenFile={(filePath) => openFile(filePath, 0)}
-                commentCounts={fileCommentCounts}
-                onCommentBadgeClick={handleOpenFileComments}
-                codeCommentCounts={codeCommentCounts}
-                onCodeCommentBadgeClick={handleOpenCodeCommentFile}
-              />
-            </aside>
-            <div
-              role="separator"
-              aria-orientation="vertical"
-              tabIndex={-1}
-              style={splitHandle}
-              onMouseDown={(event) => {
-                event.preventDefault();
-                setDragging(true);
-              }}
-            />
-            <div style={viewerContent}>
-              <Breadcrumbs path={currentPath} onNavigate={handleBreadcrumb} />
-              {currentPath && (
-                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <button type="button" style={linkButton} onClick={handleOpenInNewTab}>
-                    Abrir en pestaña nueva
-                  </button>
-                </div>
-              )}
-              {commentAnchors.length > 0 && (
-                <div style={anchorBar}>
-                  Comentarios:
-                  {commentAnchors.map((comment) => (
-                    <button
-                      key={comment.id}
-                      type="button"
-                      style={anchorButton}
-                      onClick={() => {
-                        const parsed = Number(comment.line);
-                        const targetLine = Number.isInteger(parsed) && parsed > 0 ? parsed : 0;
-                        openFileById(currentFileId, targetLine);
-                      }}
-                    >
-                      L{comment.line}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {fileLoading ? (
-                <p>Cargando archivo...</p>
-              ) : !currentPath ? (
-                <p style={{ color: '#555' }}>Selecciona un archivo para revisarlo.</p>
-              ) : shouldRenderPreview ? (
-                <>
-                  {showBinaryPreview ? (
-                    <div style={previewWrapper}>
-                      <iframe
-                        title={`Vista previa de ${previewLabel}`}
-                        src={binaryPreviewUrl}
-                        style={previewFrame}
-                        sandbox={binaryPreviewType === 'html' ? 'allow-scripts' : undefined}
-                      />
-                    </div>
-                  ) : showBinaryLoading ? (
-                    <p>Cargando vista previa...</p>
-                  ) : showBinaryError ? (
-                    <div style={binaryWarning}>{binaryPreviewError}</div>
-                  ) : (
-                    <div style={binaryWarning}>No pudimos mostrar la vista previa de este archivo.</div>
-                  )}
+      <ReviewMainCard
+        submissionId={submissionMeta?.submissionId}
+        downloading={downloading}
+        onDownloadZip={handleDownloadZip}
+        showCommentSummary={showCommentSummary}
+        codeCommentFileCount={codeCommentFileCount}
+        fileCommentFileCount={fileCommentFileCount}
+        isCodeListActive={isCodeListActive}
+        isFileListActive={isFileListActive}
+        onToggleCodeList={toggleCodeCommentList}
+        onToggleFileList={toggleFileCommentList}
+        commentListMode={commentListMode}
+        activeCommentPaths={activeCommentPaths}
+        activeCommentLabel={activeCommentLabel}
+        codeCommentCounts={codeCommentCounts}
+        fileCommentCounts={fileCommentCounts}
+        onOpenCodeCommentFile={handleOpenCodeCommentFile}
+        onOpenFileCommentFromList={handleOpenFileCommentFromList}
+        error={error}
+        treeLoading={treeLoading}
+        hasFiles={files.length > 0}
+        workspaceProps={workspaceProps}
+      />
 
-                  {showFileCommentSection && (
-                    <section ref={fileCommentsRef} style={fileCommentPanel}>
-                      <div style={fileCommentHeader}>
-                        <div>
-                          <strong>Comentario sobre el fichero</strong>
-                          <div style={miniMeta}>
-                            {fileCommentsLoading
-                              ? 'Cargando...'
-                              : `${fileCommentItems.length} comentario${fileCommentItems.length === 1 ? '' : 's'}`}
-                          </div>
-                        </div>
-                        <div style={fileCommentActions}>
-                          {canCreateComments && (
-                            <button
-                              type="button"
-                              style={linkButton}
-                              onClick={handleOpenFileCommentForm}
-                              disabled={fileCommentSaving}
-                            >
-                              {hasFileComment ? 'Modificar comentario' : 'Añadir comentario'}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {fileCommentsError && <p style={errorStyle}>{fileCommentsError}</p>}
-
-                      {fileCommentFormOpen && canCreateComments && (
-                        <div style={fileCommentForm}>
-                          <textarea
-                            style={fileCommentInput}
-                            value={fileCommentDraft}
-                            onChange={(event) => setFileCommentDraft(event.target.value)}
-                            rows={2}
-                            placeholder="Escribe un comentario general sobre este archivo..."
-                            disabled={fileCommentSaving}
-                          />
-                          <button
-                            type="button"
-                            style={{
-                              ...linkButton,
-                              opacity: fileCommentSaving ? 0.6 : 1,
-                              cursor: fileCommentSaving ? 'wait' : 'pointer'
-                            }}
-                            onClick={handleAddFileComment}
-                            disabled={fileCommentSaving}
-                          >
-                            {fileCommentSaving ? 'Guardando...' : 'Confirmar'}
-                          </button>
-                        </div>
-                      )}
-
-                      {fileCommentsLoading ? (
-                        <p>Cargando comentarios...</p>
-                      ) : fileCommentItems.length > 0 ? (
-                        <ul style={fileCommentList}>
-                          {fileCommentItems.map((item) => (
-                            <li key={item.id || item.message} style={fileCommentItem}>
-                              <div style={fileCommentMeta}>
-                                <span role="img" aria-hidden="true">💬</span>
-                                <span title={item.aliasTitle} style={{ fontWeight: 600, color: '#333' }}>
-                                  {item.alias}
-                                </span>
-                                {item.timeText && (
-                                  <span title={item.timeTitle}>{item.timeText}</span>
-                                )}
-                              </div>
-                              <div style={fileCommentMessage}>{item.message}</div>
-                            </li>
-                          ))}
-                        </ul>
-                      ) : (
-                        <p style={fileCommentEmpty}>Todavía no hay comentarios generales.</p>
-                      )}
-                    </section>
-                  )}
-                </>
-              ) : (
-                <EditorPane
-                  path={currentPath}
-                  code={fileData.content}
-                  height="560px"
-                  initialLine={initialLine}
-                  commentsByLine={commentsByLine}
-                  onAddComment={handleAddComment}
-                  revisionId={revisionId}
-                  fileId={currentFileId}
-                  readOnly={readOnly || role !== 'ALUM'}
-                />
-              )}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {showMetaReview && (
-        <section style={metaReviewPanel}>
-          <div style={viewerHeader}>
-            <strong>Meta-revisión</strong>
-            {metaReviewLoading && <span style={miniMeta}>Cargando...</span>}
-          </div>
-          {metaReviewError && <p style={errorStyle}>{metaReviewError}</p>}
-          {metaReviewSuccess && <p style={successStyle}>{metaReviewSuccess}</p>}
-          {reviewLoading ? (
-            <p style={miniMeta}>Cargando resumen de la revisión...</p>
-          ) : (
-            <ul style={statusList}>
-              <li style={statusItem}>
-                <div style={{ minWidth: '240px', flex: 1 }}>
-                  <strong>Revisión #{revisionId}</strong>
-                  <div style={miniMeta}>
-                    Revisor: {reviewInfo?.equipo_revisor?.nombre || '—'}
-                    {submissionMeta?.zipName ? ` · Entrega: ${submissionMeta.zipName}` : ''}
-                  </div>
-                  <div style={miniMeta} title={submittedTime.absoluteText || undefined}>
-                    Enviada: {submittedTime.relativeText || reviewInfo?.fecha_envio || 'sin fecha'}
-                    {reviewInfo?.nota_numerica !== null && reviewInfo?.nota_numerica !== undefined
-                      ? ` · Nota: ${reviewInfo.nota_numerica}`
-                      : ''}
-                  </div>
-                  {reviewInfo?.comentario && <div style={miniMeta}>Comentario: {reviewInfo.comentario}</div>}
-
-                  <div style={metaReviewFields}>
-                    <label style={labelStyle}>
-                      Nota final
-                      <small style={miniMeta}>0-10</small>
-                      <input
-                        style={inputStyle}
-                        type="number"
-                        step="0.5"
-                        min="0"
-                        max="10"
-                        value={metaReview.nota}
-                        onChange={(event) =>
-                          setMetaReview((prev) => ({ ...prev, nota: event.target.value }))
-                        }
-                        disabled={metaReviewSaving || metaReviewLoading}
-                      />
-                    </label>
-                    <label style={labelStyle}>
-                      Observación
-                      <textarea
-                        style={{ ...inputStyle, minHeight: '80px' }}
-                        value={metaReview.observacion}
-                        onChange={(event) =>
-                          setMetaReview((prev) => ({ ...prev, observacion: event.target.value }))
-                        }
-                        disabled={metaReviewSaving || metaReviewLoading}
-                      />
-                    </label>
-                  </div>
-
-                  {metaReviewInfo?.fecha_registro && (
-                    <div style={miniMeta} title={metaSavedTime.absoluteText || undefined}>
-                      Meta registrada {metaSavedTime.relativeText || metaReviewInfo.fecha_registro}
-                    </div>
-                  )}
-                </div>
-                <div style={statusActions}>
-                  <span style={reviewStatus.style}>{reviewStatus.label}</span>
-                  <button
-                    type="button"
-                    style={{
-                      ...linkPill,
-                      opacity: metaReviewSaving ? 0.6 : 1,
-                      cursor: metaReviewSaving ? 'wait' : 'pointer'
-                    }}
-                    onClick={handleSaveMetaReview}
-                    disabled={metaReviewSaving}
-                  >
-                    {metaReviewSaving ? 'Guardando...' : 'Guardar meta-revisión'}
-                  </button>
-                </div>
-              </li>
-            </ul>
-          )}
-        </section>
-      )}
-
-      {showStudentReviewSummary && (
-        <section style={metaReviewPanel}>
-          <strong>Resumen de la revisión recibida</strong>
-          {reviewLoading ? (
-            <p style={miniMeta}>Cargando resumen de la revisión...</p>
-          ) : (
-            <ul style={statusList}>
-              <li style={statusItem}>
-                <div style={{ minWidth: '240px', flex: 1 }}>
-                  <strong>Revisión #{revisionId}</strong>
-                  <div style={miniMeta}>
-                    Revisor: {reviewInfo?.equipo_revisor?.nombre || '—'}
-                    {submissionMeta?.zipName ? ` · Entrega: ${submissionMeta.zipName}` : ''}
-                  </div>
-                  <div style={miniMeta} title={submittedTime.absoluteText || undefined}>
-                    Enviada: {submittedTime.relativeText || reviewInfo?.fecha_envio || 'sin fecha'}
-                  </div>
-                  <div style={miniMeta}>
-                    Nota: {reviewInfo?.nota_numerica !== null && reviewInfo?.nota_numerica !== undefined
-                      ? reviewInfo.nota_numerica
-                      : 'sin nota'}
-                  </div>
-                  <div style={miniMeta}>
-                    Comentario: {reviewInfo?.comentario?.trim() || 'sin comentario'}
-                  </div>
-                </div>
-                <div style={statusActions}>
-                  <span style={reviewStatus.style}>{reviewStatus.label}</span>
-                </div>
-              </li>
-            </ul>
-          )}
-        </section>
-      )}
+      <ReviewMetaPanels
+        showMetaReview={showMetaReview}
+        showStudentReviewSummary={showStudentReviewSummary}
+        metaReviewLoading={metaReviewLoading}
+        metaReviewError={metaReviewError}
+        metaReviewSuccess={metaReviewSuccess}
+        reviewLoading={reviewLoading}
+        revisionId={revisionId}
+        reviewInfo={reviewInfo}
+        submissionMeta={submissionMeta}
+        submittedTime={submittedTime}
+        metaReview={metaReview}
+        onMetaReviewNotaChange={(value) => setMetaReview((prev) => ({ ...prev, nota: value }))}
+        onMetaReviewObservacionChange={(value) =>
+          setMetaReview((prev) => ({ ...prev, observacion: value }))
+        }
+        metaReviewSaving={metaReviewSaving}
+        onSaveMetaReview={handleSaveMetaReview}
+        metaReviewInfo={metaReviewInfo}
+        metaSavedTime={metaSavedTime}
+        reviewStatus={reviewStatus}
+      />
     </>
   );
 }

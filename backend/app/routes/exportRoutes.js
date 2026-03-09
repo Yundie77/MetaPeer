@@ -28,6 +28,9 @@ function normalizeNumericCell(value) {
   return String(Number(parsed.toFixed(2)));
 }
 
+/**
+ * Flujo: vista de exportacion profesor/admin -> solicita CSV JSON de meta-revision saliente por tarea.
+ */
 router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.query.assignmentId);
@@ -76,6 +79,9 @@ router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, re
   }
 });
 
+/**
+ * Flujo: vista de exportacion profesor/admin -> solicita revisiones entrantes con notas de rubrica.
+ */
 router.get('/api/export/incoming-reviews', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const assignmentId = safeNumber(req.query.assignmentId);

@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const AdmZip = require("adm-zip");
+const JSZip = require("jszip");
 const { spawn } = require("child_process");
 const { splitIpynbFile } = require("./ipynbSplit");
 
@@ -17,7 +17,9 @@ function ensureDir(dirPath) {
   fs.mkdirSync(dirPath, { recursive: true });
 }
 
-// Caracteres prohibidos, espacios por guiones...
+/**
+ * Normaliza nombres de archivo para evitar caracteres no permitidos en rutas.
+ */
 function sanitizeName(name = "") {
   return (
     name
@@ -70,6 +72,9 @@ async function clearDirectory(dirPath) {
   await fsp.mkdir(dirPath, { recursive: true });
 }
 
+/**
+ * Persiste el ZIP subido por un equipo y devuelve metadata de almacenamiento.
+ */
 async function persistUploadedZip(
   tempPath,
   assignmentId,
@@ -98,6 +103,9 @@ async function persistUploadedZip(
   };
 }
 
+/**
+ * Persiste un ZIP de carga masiva asociado a una tarea.
+ */
 async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   const baseFolder = path.join(assignmentFolder(assignmentId), BATCHES_DIRNAME);
   await fsp.mkdir(baseFolder, { recursive: true });
@@ -120,11 +128,75 @@ async function persistAssignmentZip(tempPath, assignmentId, originalName) {
   };
 }
 
-async function extractWithTar(zipPath, targetDir) {
+/**
+ * Normaliza y valida rutas internas del ZIP para evitar path traversal.
+ */
+function normalizeZipEntryPath(entryName = "") {
+  const normalized = String(entryName).replace(/\\/g, "/");
+  if (!normalized.trim()) {
+    return "";
+  }
+  if (normalized.startsWith("/") || normalized.startsWith("//") || /^[A-Za-z]:\//.test(normalized)) {
+    throw new Error(`Ruta absoluta no permitida en ZIP: ${entryName}`);
+  }
+
+  const segments = normalized.split("/").filter(Boolean);
+  for (const segment of segments) {
+    if (segment === "." || segment === "..") {
+      throw new Error(`Ruta insegura en ZIP: ${entryName}`);
+    }
+  }
+
+  return segments.join("/");
+}
+
+/**
+ * Resuelve una ruta relativa garantizando que queda dentro de baseDir.
+ */
+function resolveInsideDir(baseDir, relativePath) {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedPath = path.resolve(resolvedBase, relativePath);
+  const prefix = resolvedBase.endsWith(path.sep) ? resolvedBase : `${resolvedBase}${path.sep}`;
+  if (resolvedPath !== resolvedBase && !resolvedPath.startsWith(prefix)) {
+    throw new Error(`Ruta fuera del destino: ${relativePath}`);
+  }
+  return resolvedPath;
+}
+
+/**
+ * Descomprime un ZIP con jszip escribiendo cada entrada al disco.
+ */
+async function extractWithJsZip(zipPath, targetDir) {
+  const zipBuffer = await fsp.readFile(zipPath);
+  const zip = await JSZip.loadAsync(zipBuffer);
+  const entries = Object.values(zip.files);
+
+  for (const entry of entries) {
+    const safeRelativePath = normalizeZipEntryPath(entry.name);
+    if (!safeRelativePath) {
+      continue;
+    }
+
+    const destination = resolveInsideDir(targetDir, safeRelativePath);
+    if (entry.dir) {
+      await fsp.mkdir(destination, { recursive: true });
+      continue;
+    }
+
+    await ensureParent(destination);
+    const content = await entry.async("nodebuffer");
+    await fsp.writeFile(destination, content);
+  }
+}
+
+/**
+ * Descomprime un ZIP usando el binario externo unzip como fallback.
+ */
+async function extractWithUnzip(zipPath, targetDir) {
   await fsp.mkdir(targetDir, { recursive: true });
 
   await new Promise((resolve, reject) => {
-    const child = spawn("tar", ["-xf", zipPath, "-C", targetDir], {
+    const child = spawn("unzip", ["-o", zipPath, "-d", targetDir], {
       stdio: ["ignore", "pipe", "pipe"],
     });
 
@@ -142,7 +214,7 @@ async function extractWithTar(zipPath, targetDir) {
         resolve();
         return;
       }
-      reject(new Error(`tar exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`));
+      reject(new Error(`unzip exited with code ${code}${stderr ? `: ${stderr.trim()}` : ""}`));
     });
   });
 }
@@ -151,29 +223,82 @@ async function unzipFile(zipPath, targetDir) {
   await fsp.mkdir(targetDir, { recursive: true });
 
   try {
-    const zip = new AdmZip(zipPath);
-    zip.extractAllTo(targetDir, true);
+    await extractWithJsZip(zipPath, targetDir);
     return;
-  } catch (admError) {
+  } catch (jszipError) {
     console.warn(
-      `[deliveries] adm-zip falló con ${zipPath}: ${admError?.message || admError}. Intentando plan alternativo con tar.`
+      `[deliveries] jszip falló con ${zipPath}: ${jszipError?.message || jszipError}. Intentando plan alternativo con unzip.`
     );
   }
 
   try {
-    await extractWithTar(zipPath, targetDir);
-  } catch (tarError) {
+    await extractWithUnzip(zipPath, targetDir);
+  } catch (unzipError) {
+    if (unzipError?.code === "ENOENT") {
+      throw new Error(
+        `No se pudo descomprimir ZIP ${zipPath}. jszip falló y no se encontró el binario unzip. Instala unzip en el sistema.`
+      );
+    }
     throw new Error(
-      `No se pudo descomprimir ZIP ${zipPath}. adm-zip y tar fallaron: ${tarError?.message || tarError}`
+      `No se pudo descomprimir ZIP ${zipPath}. jszip y unzip fallaron: ${unzipError?.message || unzipError}`
     );
   }
 }
 
+/**
+ * Añade recursivamente archivos/carpetas de un directorio a un ZIP.
+ */
+async function appendDirectoryToZip(zip, sourceDir, currentDir) {
+  const entries = await fsp.readdir(currentDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(currentDir, entry.name);
+    const relativePath = path.relative(sourceDir, fullPath).replace(/\\/g, "/");
+
+    if (entry.isDirectory()) {
+      if (relativePath) {
+        zip.folder(relativePath);
+      }
+      await appendDirectoryToZip(zip, sourceDir, fullPath);
+      continue;
+    }
+
+    if (!entry.isFile()) {
+      continue;
+    }
+
+    zip.file(relativePath, fs.createReadStream(fullPath));
+  }
+}
+
+/**
+ * Genera y escribe el ZIP en disco mediante stream.
+ */
+async function writeZipToFile(zip, destinationZipPath) {
+  await new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(destinationZipPath);
+    output.on("finish", resolve);
+    output.on("error", reject);
+
+    const stream = zip.generateNodeStream({
+      type: "nodebuffer",
+      streamFiles: true,
+      compression: "DEFLATE",
+    });
+
+    stream.on("error", reject);
+    stream.pipe(output);
+  });
+}
+
+/**
+ * Crea un ZIP con todo el contenido de un directorio.
+ */
 async function createZipFromDirectory(sourceDir, destinationZipPath) {
   await ensureParent(destinationZipPath);
-  const zip = new AdmZip();
-  zip.addLocalFolder(sourceDir);
-  zip.writeZip(destinationZipPath);
+  const zip = new JSZip();
+  await appendDirectoryToZip(zip, sourceDir, sourceDir);
+  await writeZipToFile(zip, destinationZipPath);
   return destinationZipPath;
 }
 
@@ -308,6 +433,9 @@ async function cleanupBatchZipHistory(assignmentId, keepAbsolutePath = "") {
   await cleanupOldZipFiles(dirPath, keepAbsolutePath);
 }
 
+/**
+ * Extrae una entrega y prepara su contenido navegable (incluye ZIP anidados y notebooks).
+ */
 async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   const targetDir = contentFolder(assignmentId, teamId);
   await clearDirectory(targetDir);
@@ -317,6 +445,9 @@ async function extractSubmission(assignmentId, teamId, zipAbsolutePath) {
   return targetDir;
 }
 
+/**
+ * Recorre recursivamente un directorio y devuelve su lista de archivos relativos.
+ */
 async function listAllFiles(baseDir) {
   const results = [];
   async function walk(current) {
@@ -341,6 +472,9 @@ async function listAllFiles(baseDir) {
   return results.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/**
+ * Resuelve una ruta solicitada y verifica que permanezca dentro de baseDir.
+ */
 function ensureInside(baseDir, requestedPath) {
   const resolved = path.resolve(baseDir, requestedPath);
   if (!resolved.startsWith(path.resolve(baseDir))) {

@@ -5,6 +5,9 @@ const { sendError, safeNumber, getTeamMembers } = require('../../helpers');
 
 const router = express.Router();
 
+/**
+ * Flujo: detalle de una entrega -> frontend pide la lista de revisiones asociadas.
+ */
 router.get('/api/reviews', requireAuth(), (req, res) => {
   try {
     const submissionId = safeNumber(req.query.submissionId);

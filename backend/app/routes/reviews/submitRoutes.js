@@ -13,6 +13,9 @@ const { RUBRIC_SCORE_MIN, RUBRIC_SCORE_MAX } = require('../../constants');
 const router = express.Router();
 const REVIEW_COMMENT_MAX_LENGTH = 5000;
 
+/**
+ * Flujo: alumno envia revision completada -> backend valida rubrica y persiste respuestas/nota.
+ */
 router.post('/api/reviews', requireAuth(['ALUM']), (req, res) => {
   try {
     const submissionId = safeNumber(req.body?.submissionId);

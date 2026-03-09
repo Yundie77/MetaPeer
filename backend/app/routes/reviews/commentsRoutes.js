@@ -11,6 +11,9 @@ const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require(
 const router = express.Router();
 const REVIEW_COMMENT_MAX_LENGTH = 5000;
 
+/**
+ * Flujo: visor de codigo de revision -> alumno publica comentario por linea de archivo.
+ */
 router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
@@ -104,6 +107,9 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
   }
 });
 
+/**
+ * Flujo: abrir archivo en workspace de revision -> cliente consulta comentario general del archivo.
+ */
 router.get('/api/reviews/:revisionId/file-comments', requireAuth(), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);
@@ -172,6 +178,9 @@ router.get('/api/reviews/:revisionId/file-comments', requireAuth(), async (req, 
   }
 });
 
+/**
+ * Flujo: panel de revision -> alumno crea/actualiza comentario general del archivo activo.
+ */
 router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), async (req, res) => {
   try {
     const revisionId = safeNumber(req.params.revisionId);

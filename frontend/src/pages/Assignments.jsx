@@ -8,6 +8,16 @@ import RubricModal from './assignments/RubricModal.jsx';
 import RubricWarningModal from './assignments/RubricWarningModal.jsx';
 import CreateAssignmentModal from './assignments/CreateAssignmentModal.jsx';
 import AssignmentCard from './assignments/AssignmentCard.jsx';
+import AssignmentsControlsBar from './assignments/AssignmentsControlsBar.jsx';
+import useAssignmentFlow from './assignments/useAssignmentFlow.js';
+import {
+  combineLabelDetail,
+  getDueSortTitle,
+  getNextDueSortMode,
+  isAssignmentBlocked,
+  sortAssignmentsByDue,
+  splitLabelDetail
+} from './assignments/assignmentUtils.js';
 import * as styles from './assignments/stylesAssignment.js';
 
 /**
@@ -34,31 +44,75 @@ export default function Assignments() {
   const [rubricSaving, setRubricSaving] = useState(false);
   const [rubricError, setRubricError] = useState('');
 
-  const [assignModalOpen, setAssignModalOpen] = useState(false);
-  const [assignTarget, setAssignTarget] = useState(null);
-  const [assignMode, setAssignMode] = useState('equipo');
-  const [assignReviews, setAssignReviews] = useState(1);
-  const [assignPreview, setAssignPreview] = useState(null);
-  const [assignWarnings, setAssignWarnings] = useState([]);
-  const [assignModalError, setAssignModalError] = useState('');
-  const [assignModalLoading, setAssignModalLoading] = useState(false);
-  const [assignConfirming, setAssignConfirming] = useState(false);
-  const [rubricWarningOpen, setRubricWarningOpen] = useState(false);
-const [assignSeed, setAssignSeed] = useState('');
-const [assignInfo, setAssignInfo] = useState('');
-const [resetModalOpen, setResetModalOpen] = useState(false);
-const [resetTarget, setResetTarget] = useState(null);
-const [resetLoading, setResetLoading] = useState(false);
-const [resetError, setResetError] = useState('');
-const [summaryModalOpen, setSummaryModalOpen] = useState(false);
-const [summaryTarget, setSummaryTarget] = useState(null);
-const [summaryData, setSummaryData] = useState(null);
-const [summaryLoading, setSummaryLoading] = useState(false);
-const [summaryError, setSummaryError] = useState('');
-const [summaryTab, setSummaryTab] = useState('map');
-const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
-const [uploadMessage, setUploadMessage] = useState('');
-const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
+  const [summaryModalOpen, setSummaryModalOpen] = useState(false);
+  const [summaryTarget, setSummaryTarget] = useState(null);
+  const [summaryData, setSummaryData] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(false);
+  const [summaryError, setSummaryError] = useState('');
+  const [summaryTab, setSummaryTab] = useState('map');
+
+  const [uploadingAssignmentId, setUploadingAssignmentId] = useState(null);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
+
+  const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
+  const fileInputsRef = useRef({});
+
+  const dueSortTitle = getDueSortTitle(dueSortMode);
+
+  const filteredAssignments = useMemo(() => {
+    if (!subjectId) return assignments;
+    return assignments.filter((assignment) => String(assignment.id_asignatura) === String(subjectId));
+  }, [assignments, subjectId]);
+
+  const sortedAssignments = useMemo(
+    () => sortAssignmentsByDue(filteredAssignments, dueSortMode),
+    [filteredAssignments, dueSortMode]
+  );
+
+  const selectedSubjectLabel = useMemo(() => {
+    if (!subjectId) return '';
+    const match = subjects.find((subject) => String(subject.id) === String(subjectId));
+    return match?.nombre || '';
+  }, [subjects, subjectId]);
+
+  const {
+    assignState: {
+      assignModalOpen,
+      assignTarget,
+      assignMode,
+      assignReviews,
+      assignPreview,
+      assignWarnings,
+      assignModalError,
+      assignInfo,
+      assignModalLoading,
+      assignConfirming,
+      rubricWarningOpen,
+      resetModalOpen,
+      resetTarget,
+      resetLoading,
+      resetError
+    },
+    assignActions: {
+      openAssignModal,
+      closeAssignModal,
+      handlePreviewAssignment,
+      handleOpenRubricWarning,
+      handleConfirmAssignment,
+      handleAssignModeChange,
+      handleAssignReviewsChange,
+      closeRubricWarning,
+      openResetModal,
+      closeResetModal,
+      handleResetAssignment
+    }
+  } = useAssignmentFlow({
+    submissionsMeta,
+    postJson,
+    setAssignments,
+    setError
+  });
 
   /**
    * Guarda metadatos de las entregas (ZIP, total, fecha) asociados a una tarea.
@@ -101,39 +155,6 @@ const [submissionsMeta, setSubmissionsMeta] = useState(new Map());
       }
     }
   };
-
-const isTeacher = useMemo(() => role === 'ADMIN' || role === 'PROF', [role]);
-const fileInputsRef = useRef({});
-// Se recalcula al cambiar "assignments" o "subjectId"
-const filteredAssignments = useMemo(() => {
-  if (!subjectId) return assignments;
-  return assignments.filter((assignment) => String(assignment.id_asignatura) === String(subjectId));
-}, [assignments, subjectId]);
-const sortedAssignments = useMemo(() => {
-  if (dueSortMode === 'default') {
-    return filteredAssignments;
-  }
-  const direction = dueSortMode === 'asc' ? 1 : -1;
-  const withFallback = (value) => {
-    if (!value) return null;
-    const parsed = new Date(value);
-    if (Number.isNaN(parsed.getTime())) return null;
-    return parsed.getTime();
-  };
-  return [...filteredAssignments].sort((a, b) => {
-    const aTime = withFallback(a.fecha_entrega);
-    const bTime = withFallback(b.fecha_entrega);
-    if (aTime === null && bTime === null) return 0;
-    if (aTime === null) return 1;
-    if (bTime === null) return -1;
-    return (aTime - bTime) * direction;
-  });
-}, [filteredAssignments, dueSortMode]);
-const selectedSubjectLabel = useMemo(() => {
-  if (!subjectId) return '';
-  const match = subjects.find((subject) => String(subject.id) === String(subjectId));
-  return match?.nombre || '';
-}, [subjects, subjectId]);
 
   /**
    * Carga inicial de tareas y asignaturas para profesores.
@@ -209,31 +230,10 @@ const selectedSubjectLabel = useMemo(() => {
   };
 
   /**
-   * Separa un texto de rúbrica en etiqueta y detalle.
-   */
-  const splitLabelDetail = (texto = '') => {
-    const parts = texto.split('||DETAIL||');
-    return {
-      label: parts[0] || '',
-      detail: parts.slice(1).join('||DETAIL||') || ''
-    };
-  };
-
-  /**
-   * Une etiqueta y detalle en el formato esperado por backend.
-   */
-  const combineLabelDetail = (label, detail) => {
-    const safeLabel = label || '';
-    const safeDetail = detail || '';
-    return safeDetail ? `${safeLabel}||DETAIL||${safeDetail}` : safeLabel;
-  };
-
-  /**
    * Abre el modal de rúbrica y carga ítems existentes.
    */
   const handleOpenRubric = async (assignment) => {
-    const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
-    if (blocked) {
+    if (isAssignmentBlocked(assignment)) {
       setError('La asignación ya está iniciada/bloqueada. No se puede modificar la rúbrica.');
       return;
     }
@@ -243,17 +243,18 @@ const selectedSubjectLabel = useMemo(() => {
       setRubricError('');
       const rows = await getJson(`/assignments/${assignment.id}/rubrica`);
       if (!rows || rows.length === 0) {
-        setRubricItems([
-          { clave: 'item_1', texto: 'Calidad general', detalle: '', peso: 100 }
-        ]);
+        setRubricItems([{ clave: 'item_1', texto: 'Calidad general', detalle: '', peso: 100 }]);
       } else {
         setRubricItems(
-          rows.map((row) => ({
-            clave: row.clave_item,
-            texto: splitLabelDetail(row.texto).label || row.texto,
-            detalle: splitLabelDetail(row.texto).detail || '',
-            peso: Number(row.peso) || 0
-          }))
+          rows.map((row) => {
+            const parsed = splitLabelDetail(row.texto);
+            return {
+              clave: row.clave_item,
+              texto: parsed.label || row.texto,
+              detalle: parsed.detail || '',
+              peso: Number(row.peso) || 0
+            };
+          })
         );
       }
     } catch (err) {
@@ -327,8 +328,7 @@ const selectedSubjectLabel = useMemo(() => {
   const triggerUploadPicker = (assignmentId) => {
     setUploadMessage('');
     const assignment = assignments.find((item) => item.id === assignmentId);
-    const blocked = assignment?.asignacion_bloqueada || (assignment?.asignacion_total_revisiones ?? 0) > 0;
-    if (blocked) {
+    if (isAssignmentBlocked(assignment)) {
       setError('La asignación ya está iniciada/bloqueada. No se pueden subir entregas ZIP.');
       return;
     }
@@ -368,9 +368,9 @@ const selectedSubjectLabel = useMemo(() => {
         body: formData
       });
       const target = assignments.find((item) => item.id === assignmentId);
-    setUploadMessage(
-      `Carga registrada para "${target?.titulo || 'la tarea'}": ${result.totalEquipos || 0} entregas encontradas.`
-    );
+      setUploadMessage(
+        `Carga registrada para "${target?.titulo || 'la tarea'}": ${result.totalEquipos || 0} entregas encontradas.`
+      );
       updateSubmissionsMeta(assignmentId, {
         hasZip: true,
         uploadedAt: result.fechaSubida || result.fecha || new Date().toISOString(),
@@ -385,83 +385,6 @@ const selectedSubjectLabel = useMemo(() => {
       if (input) {
         input.value = '';
       }
-    }
-  };
-
-  /**
-   * Abre el modal de asignación si hay entregas y la tarea no está bloqueada.
-   */
-  const openAssignModal = (assignment) => {
-    const meta = submissionsMeta.get(assignment.id);
-    if (!meta?.hasZip) {
-      setError('Sube un ZIP de entregas antes de asignar revisiones.');
-      return;
-    }
-    const blocked = assignment.asignacion_bloqueada || (assignment.asignacion_total_revisiones ?? 0) > 0;
-    if (blocked) {
-      setError('Esta tarea ya tiene una asignación confirmada. Consulta el mapa existente.');
-      return;
-    }
-    setAssignTarget(assignment);
-    setAssignMode(assignment.asignacion_modo || 'equipo');
-    const defaultReviews = Number(assignment.asignacion_revisores_por_entrega || 1) || 1;
-    setAssignReviews(defaultReviews);
-    setAssignPreview(null);
-    setAssignWarnings([]);
-    setAssignModalError('');
-    setAssignSeed('');
-    setAssignInfo('');
-    setRubricWarningOpen(false);
-    setAssignModalOpen(true);
-  };
-
-  /**
-   * Abre el modal de confirmación para reasignar.
-   */
-  const openResetModal = (assignment) => {
-    setResetTarget(assignment);
-    setResetError('');
-    setResetModalOpen(true);
-  };
-
-  /**
-   * Cierra el modal de confirmación de reasignación.
-   */
-  const closeResetModal = () => {
-    if (resetLoading) {
-      return;
-    }
-    setResetModalOpen(false);
-    setResetTarget(null);
-    setResetError('');
-  };
-
-  /**
-   * Resetea la asignación actual y abre el modal normal.
-   */
-  const handleResetAssignment = async () => {
-    if (!resetTarget) return;
-    try {
-      setResetLoading(true);
-      setResetError('');
-      const response = await postJson(`/assignments/${resetTarget.id}/reset`);
-      const updatedAssignment =
-        response?.assignment || {
-          ...resetTarget,
-          asignacion_bloqueada: 0,
-          asignacion_total_revisiones: 0,
-          asignacion_fecha_asignacion: null
-        };
-      setAssignments((prev) =>
-        prev.map((item) => (item.id === resetTarget.id ? { ...item, ...updatedAssignment } : item))
-      );
-      setResetModalOpen(false);
-      setResetTarget(null);
-      openAssignModal(updatedAssignment);
-    } catch (err) {
-      setResetError(err.message);
-    } finally {
-      setResetLoading(false);
     }
   };
 
@@ -510,135 +433,13 @@ const selectedSubjectLabel = useMemo(() => {
     setSummaryLoading(false);
   };
 
-  /**
-   * Cierra el modal de asignación y limpia estados.
-   */
-  const closeAssignModal = () => {
-    if (assignConfirming) {
-      return;
-    }
-    setAssignModalOpen(false);
-    setRubricWarningOpen(false);
-    setAssignTarget(null);
-    setAssignPreview(null);
-    setAssignWarnings([]);
-    setAssignModalError('');
-    setAssignModalLoading(false);
-    setAssignConfirming(false);
-    setAssignInfo('');
+  const handleOpenCreateModal = () => {
+    setCreateModalOpen(true);
+    setCreateError('');
   };
 
-  /**
-   * Pide al backend una previsualización de asignación (con semilla opcional).
-   */
-  const handlePreviewAssignment = async ({ freshSeed = false } = {}) => {
-    if (!assignTarget) return;
-    const requested = Math.floor(Number(assignReviews) || 0);
-    if (!requested || requested < 1) {
-      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
-      return;
-    }
-    try {
-      setAssignModalLoading(true);
-      setAssignModalError('');
-      setAssignInfo('');
-      const preview = await postJson(`/assignments/${assignTarget.id}/assign`, {
-        modo: assignMode,
-        revisionesPorRevisor: requested,
-        seed: freshSeed ? null : assignSeed || null
-      });
-      setAssignPreview(preview);
-      setAssignSeed(preview.seed || '');
-      setAssignWarnings(preview.warnings || []);
-    } catch (err) {
-      setAssignModalError(err.message);
-      setAssignPreview(null);
-      setAssignWarnings([]);
-    } finally {
-      setAssignModalLoading(false);
-    }
-  };
-
-  /**
-   * Valida datos mínimos y abre el aviso previo a la confirmación real.
-   */
-  const handleOpenRubricWarning = () => {
-    if (!assignTarget) return;
-    if (assignModalLoading || assignConfirming) return;
-    const requested = Math.floor(Number(assignReviews) || 0);
-    if (!requested || requested < 1) {
-      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
-      return;
-    }
-    if (!assignPreview) {
-      setAssignModalError('Primero genera una previsualización.');
-      return;
-    }
-    setRubricWarningOpen(true);
-  };
-
-  /**
-   * Confirma y persiste la asignación usando la previsualización actual.
-   */
-  const handleConfirmAssignment = async () => {
-    if (!assignTarget) return;
-    const requested = Math.floor(Number(assignReviews) || 0);
-    if (!requested || requested < 1) {
-      setAssignModalError('Indica cuántas revisiones hará cada revisor.');
-      return;
-    }
-    if (!assignPreview) {
-      setAssignModalError('Primero genera una previsualización.');
-      return;
-    }
-    try {
-      setRubricWarningOpen(false);
-      setAssignConfirming(true);
-      setAssignModalError('');
-      const confirmed = await postJson(`/assignments/${assignTarget.id}/assign`, {
-        modo: assignMode,
-        revisionesPorRevisor: requested,
-        seed: assignPreview.seed || assignSeed || null,
-        confirmar: true
-      });
-      setAssignPreview(confirmed);
-      setAssignSeed(confirmed.seed || assignPreview.seed || '');
-      setAssignWarnings(confirmed.warnings || []);
-      setAssignInfo('Asignación guardada y bloqueada.');
-      if (confirmed.assignmentState) {
-        setAssignments((prev) =>
-          prev.map((item) =>
-            item.id === assignTarget.id
-              ? {
-                  ...item,
-                  asignacion_bloqueada: confirmed.assignmentState.bloqueada ?? 1,
-                  asignacion_modo: confirmed.assignmentState.modo || assignMode,
-                  asignacion_revisores_por_entrega:
-                    confirmed.assignmentState.revisores_por_entrega ?? requested,
-                  asignacion_fecha_asignacion: confirmed.assignmentState.fecha_asignacion
-                }
-              : item
-          )
-        );
-        setAssignTarget((prev) =>
-          prev
-            ? {
-                ...prev,
-                asignacion_bloqueada: confirmed.assignmentState.bloqueada ?? 1,
-                asignacion_modo: confirmed.assignmentState.modo || assignMode,
-                asignacion_revisores_por_entrega:
-                  confirmed.assignmentState.revisores_por_entrega ?? requested,
-                asignacion_fecha_asignacion: confirmed.assignmentState.fecha_asignacion
-              }
-            : prev
-        );
-      }
-      closeAssignModal();
-    } catch (err) {
-      setAssignModalError(err.message);
-    } finally {
-      setAssignConfirming(false);
-    }
+  const toggleDueSortMode = () => {
+    setDueSortMode((prev) => getNextDueSortMode(prev));
   };
 
   if (!isTeacher) {
@@ -652,54 +453,17 @@ const selectedSubjectLabel = useMemo(() => {
         Crea tareas, define rúbricas y lanza la asignación automática de revisores.
       </p>
 
-      <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap', margin: '1rem 0' }}>
-        <label style={styles.labelStyle}>
-          Asignatura
-          <select
-            style={styles.inputStyle}
-            value={subjectId}
-            onChange={(event) => setSubjectId(event.target.value)}
-            disabled={loadingList || subjects.length === 0}
-          >
-            {subjects.map((subject) => (
-              <option key={subject.id} value={subject.id}>
-                {subject.nombre}
-              </option>
-            ))}
-          </select>
-          <span style={styles.metaStyle}>Seleccione una asignatura para ver las tareas correspondientes.</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span style={styles.metaStyle}>Ordenar por Fecha de entrega</span>
-            <button
-              type="button"
-              style={{ ...styles.smallButton, padding: '0.2rem 0.5rem', fontSize: '0.85rem' }}
-              onClick={() =>
-                setDueSortMode((prev) => (prev === 'default' ? 'asc' : prev === 'asc' ? 'desc' : 'default'))
-              }
-              title={
-                dueSortMode === 'asc'
-                  ? 'Orden ascendente por fecha de entrega'
-                  : dueSortMode === 'desc'
-                    ? 'Orden descendente por fecha de entrega'
-                    : 'Orden original por id'
-              }
-            >
-              {dueSortMode === 'asc' ? '↑' : dueSortMode === 'desc' ? '↓' : '...'}
-            </button>
-          </div>
-        </label>
-        <button
-          type="button"
-          style={styles.buttonStyle}
-          onClick={() => {
-            setCreateModalOpen(true);
-            setCreateError('');
-          }}
-          disabled={subjects.length === 0}
-        >
-          Crear tarea
-        </button>
-      </div>
+      <AssignmentsControlsBar
+        subjects={subjects}
+        subjectId={subjectId}
+        loadingList={loadingList}
+        dueSortMode={dueSortMode}
+        dueSortTitle={dueSortTitle}
+        onSubjectChange={setSubjectId}
+        onToggleDueSort={toggleDueSortMode}
+        onOpenCreate={handleOpenCreateModal}
+        styles={styles}
+      />
 
       {error && <p style={styles.errorStyle}>{error}</p>}
       {uploadMessage && <p style={styles.successStyle}>{uploadMessage}</p>}
@@ -786,33 +550,18 @@ const selectedSubjectLabel = useMemo(() => {
         assignModalLoading={assignModalLoading}
         assignConfirming={assignConfirming}
         onClose={closeAssignModal}
-        onPreview={() => handlePreviewAssignment()}
+        onPreview={handlePreviewAssignment}
         onReassign={() => handlePreviewAssignment({ freshSeed: true })}
         onConfirm={handleOpenRubricWarning}
-        onModeChange={(value) => {
-          setAssignMode(value);
-          setAssignPreview(null);
-          setAssignWarnings([]);
-          setRubricWarningOpen(false);
-          setAssignSeed('');
-          setAssignInfo('');
-          setAssignModalError('');
-        }}
-        onReviewsChange={(value) => {
-          setAssignReviews(value);
-          setAssignPreview(null);
-          setAssignWarnings([]);
-          setRubricWarningOpen(false);
-          setAssignInfo('');
-          setAssignModalError('');
-        }}
+        onModeChange={handleAssignModeChange}
+        onReviewsChange={handleAssignReviewsChange}
         styles={styles}
       />
 
       <RubricWarningModal
         isOpen={rubricWarningOpen}
         loading={assignConfirming}
-        onBack={() => setRubricWarningOpen(false)}
+        onBack={closeRubricWarning}
         onConfirm={handleConfirmAssignment}
         styles={styles}
       />

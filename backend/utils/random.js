@@ -1,6 +1,9 @@
 const crypto = require('crypto');
 const { MAX_ASSIGNMENT_SHUFFLE } = require('../app/constants');
 
+/**
+ * Crea un generador pseudoaleatorio determinista a partir de una semilla.
+ */
 function buildSeededRandom(seed) {
   if (seed === undefined || seed === null) {
     return null;
@@ -19,6 +22,9 @@ function buildSeededRandom(seed) {
   };
 }
 
+/**
+ * Devuelve una copia barajada del arreglo usando randomFn o crypto.randomInt.
+ */
 function shuffleArray(items, randomFn = null) {
   const copy = [...items];
   for (let i = copy.length - 1; i > 0; i -= 1) {
@@ -30,6 +36,9 @@ function shuffleArray(items, randomFn = null) {
   return copy;
 }
 
+/**
+ * Construye una permutacion sin puntos fijos (nadie queda en su posicion original).
+ */
 function buildDerangement(ids) {
   if (ids.length < 2) {
     return ids.slice();

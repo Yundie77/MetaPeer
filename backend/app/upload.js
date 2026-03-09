@@ -4,6 +4,9 @@ const { MAX_UPLOAD_SIZE_BYTES, UPLOAD_DIR } = require('./constants');
 
 fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
+/**
+ * Middleware multer para recepcion de ZIPs con limite de tamano configurable.
+ */
 const uploadZip = multer({
   dest: UPLOAD_DIR,
   limits: { fileSize: MAX_UPLOAD_SIZE_BYTES }

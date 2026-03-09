@@ -11,13 +11,13 @@
     "seed:prod": "node -e \"process.env.NODE_ENV='production'; process.env.SEED_DEMO_USERS='0'; require('./seed').seedDatabase(); console.log('Seed prod completado. Usuarios demo deshabilitados y bootstrap admin evaluado.');\""
   },
   "dependencies": {
-    "adm-zip": "^0.5.16",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^9.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
+    "jszip": "^3.10.1",
     "multer": "^2.0.2"
   },
   "devDependencies": {

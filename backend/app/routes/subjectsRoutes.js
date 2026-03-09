@@ -5,6 +5,9 @@ const { sendError } = require('../helpers');
 
 const router = express.Router();
 
+/**
+ * Flujo: panel de gestion -> crear asignatura -> backend valida duplicados y persiste.
+ */
 router.post('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const nombre = (req.body?.nombre || '').trim();
@@ -30,6 +33,9 @@ router.post('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   }
 });
 
+/**
+ * Flujo: selector de asignaturas en frontend -> backend lista asignaturas segun rol.
+ */
 router.get('/api/asignaturas', requireAuth(['ADMIN', 'PROF']), (req, res) => {
   try {
     const isProf = req.user?.rol === 'PROF';

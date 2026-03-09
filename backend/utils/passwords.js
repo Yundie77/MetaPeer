@@ -6,6 +6,9 @@ const SYMBOLS = '#@$%&!?+-/*';
 const DIGITS = '23456789'; // sin 0 ni 1
 const PASSWORD_ALPHABET = `${LOWERCASE}${UPPERCASE}${SYMBOLS}${DIGITS}`;
 
+/**
+ * Genera una contraseña legible evitando caracteres ambiguos.
+ */
 function generateReadablePassword(length = 10) {
   const size = Number(length);
   if (!Number.isInteger(size) || size <= 0) {

@@ -9,7 +9,8 @@ const {
   safeNumber,
   ensureRosterAssignment,
   replaceAssignmentTeamsFromRoster,
-  getProfessorSubjects
+  getProfessorSubjects,
+  logBusinessEvent
 } = require('../helpers');
 const { ROSTER_PREFIX } = require('../constants');
 
@@ -45,9 +46,12 @@ function buildCredentialsCsv(credentials = []) {
  * Flujo: admin/prof sube CSV del roster -> backend crea alumnos y sincroniza equipos.
  */
 router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let subjectIdForLog = null;
+
   try {
     const csvText = req.body?.csvText;
     const asignaturaId = safeNumber(req.body?.asignaturaId);
+    subjectIdForLog = asignaturaId;
 
     if (!csvText || typeof csvText !== 'string') {
       return sendError(res, 400, 'Debes enviar el texto CSV.');
@@ -241,9 +245,35 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
 
     summary.credencialesCsv = buildCredentialsCsv(summary.credencialesCreadas);
 
+    logBusinessEvent({
+      event: 'roster_import_completed',
+      action: 'import_roster',
+      status: 'ok',
+      user: req.user,
+      assignmentId: null,
+      data: {
+        subject_id: asignaturaId,
+        alumnos_creados: summary.alumnosCreados,
+        equipos_creados: summary.equiposCreados,
+        membresias_insertadas: summary.membresiasInsertadas,
+        ignoradas: summary.ignoradas
+      }
+    });
+
     res.json(summary);
   } catch (error) {
     console.error('Error al importar CSV:', error);
+    logBusinessEvent({
+      event: 'roster_import_completed',
+      action: 'import_roster',
+      status: 'error',
+      user: req.user,
+      assignmentId: null,
+      data: {
+        subject_id: subjectIdForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos procesar el CSV.');
   }
 });

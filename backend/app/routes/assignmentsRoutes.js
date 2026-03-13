@@ -13,7 +13,8 @@ const {
   fetchAssignmentRubric,
   buildAssignmentPlan,
   persistAssignmentPlan,
-  fetchAssignmentMap
+  fetchAssignmentMap,
+  logBusinessEvent
 } = require('../helpers');
 const { ROSTER_PREFIX } = require('../constants');
 
@@ -273,11 +274,14 @@ router.get('/api/assignments', requireAuth(), (req, res) => {
  * Crea una nueva tarea y copia equipos roster; devuelve la tarea creada.
  */
 router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let subjectIdForLog = null;
+
   try {
     const title = (req.body?.titulo || req.body?.title || '').trim();
     const description = (req.body?.descripcion || req.body?.description || '').trim();
     const dueDateRaw = (req.body?.fechaEntrega || req.body?.dueDate || '').trim();
     const subjectId = safeNumber(req.body?.asignaturaId || req.body?.subjectId);
+    subjectIdForLog = subjectId;
 
     if (!title) {
       return sendError(res, 400, 'El título es obligatorio.');
@@ -335,9 +339,32 @@ router.post('/api/assignments', requireAuth(['ADMIN', 'PROF']), (req, res) => {
       )
       .get(assignmentId);
 
+    logBusinessEvent({
+      event: 'assignment_created',
+      action: 'create_assignment',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        subject_id: subjectId,
+        assignment_title: title
+      }
+    });
+
     res.status(201).json(created);
   } catch (error) {
     console.error('Error al crear tarea:', error);
+    logBusinessEvent({
+      event: 'assignment_created',
+      action: 'create_assignment',
+      status: 'error',
+      user: req.user,
+      assignmentId: null,
+      data: {
+        subject_id: subjectIdForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos crear la tarea.');
   }
 });
@@ -504,8 +531,14 @@ router.get('/api/assignments/:assignmentId/rubrica', requireAuth(), (req, res) =
  * Genera previsualización de asignación (equipo/individual) o la confirma y persiste.
  */
 router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let assignmentIdForLog = null;
+  let confirmFlagForLog = false;
+  let modeForLog = 'equipo';
+  let requestedReviewsForLog = null;
+
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
+    assignmentIdForLog = assignmentId;
     if (!assignmentId) {
       return sendError(res, 400, 'Identificador inválido.');
     }
@@ -517,6 +550,7 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
 
     const modeRaw = String(req.body?.modo || req.body?.mode || 'equipo').toLowerCase();
     const mode = modeRaw === 'individual' ? 'individual' : 'equipo';
+    modeForLog = mode;
     const requestedReviews = Math.floor(
       Number(
         req.body?.revisionesPorRevisor ??
@@ -526,11 +560,13 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
           req.body?.N
       ) || 0
     );
+    requestedReviewsForLog = requestedReviews;
     if (!Number.isFinite(requestedReviews) || requestedReviews < 1) {
       return sendError(res, 400, 'Indica un número de revisiones por revisor mayor o igual a 1.');
     }
 
     const confirmFlag = Boolean(req.body?.confirmar || req.body?.confirm || req.body?.confirmado);
+    confirmFlagForLog = confirmFlag;
     const seed = req.body?.seed || req.body?.semilla || null;
 
     const assignmentRecord = db.prepare('SELECT id, bloqueada FROM asignacion WHERE id_tarea = ?').get(assignmentId);
@@ -574,6 +610,20 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
       };
     }
 
+    logBusinessEvent({
+      event: confirmFlag ? 'assignment_assigned_confirmed' : 'assignment_assigned_preview',
+      action: confirmFlag ? 'confirm_assignment' : 'preview_assignment',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        mode,
+        requested_reviews_per_reviewer: requestedReviews,
+        applied_reviews_per_reviewer: plan.appliedReviewsPerReviewer,
+        generated_reviews: Array.isArray(plan.pairs) ? plan.pairs.length : 0
+      }
+    });
+
     const { pairs, ...preview } = plan;
     res.json({
       ...preview,
@@ -583,6 +633,18 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
     });
   } catch (error) {
     console.error('Error al generar asignación:', error);
+    logBusinessEvent({
+      event: confirmFlagForLog ? 'assignment_assigned_confirmed' : 'assignment_assigned_preview',
+      action: confirmFlagForLog ? 'confirm_assignment' : 'preview_assignment',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      data: {
+        mode: modeForLog,
+        requested_reviews_per_reviewer: requestedReviewsForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos generar la asignación.');
   }
 });
@@ -591,8 +653,11 @@ router.post('/api/assignments/:assignmentId/assign', requireAuth(['ADMIN', 'PROF
  * Resetea la asignación de una tarea eliminando revisiones y dependencias, sin borrar entregas.
  */
 router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let assignmentIdForLog = null;
+
   try {
     const assignmentId = safeNumber(req.params.assignmentId);
+    assignmentIdForLog = assignmentId;
     if (!assignmentId) {
       return sendError(res, 400, 'Identificador inválido.');
     }
@@ -668,9 +733,30 @@ router.post('/api/assignments/:assignmentId/reset', requireAuth(['ADMIN', 'PROF'
       )
       .get(assignmentId);
 
+    logBusinessEvent({
+      event: 'assignment_reset',
+      action: 'reset_assignment',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        assignment_title: updated?.titulo || null
+      }
+    });
+
     res.json({ ok: true, assignment: updated });
   } catch (error) {
     console.error('Error al resetear asignación:', error);
+    logBusinessEvent({
+      event: 'assignment_reset',
+      action: 'reset_assignment',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      data: {
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos reiniciar la asignación.');
   }
 });

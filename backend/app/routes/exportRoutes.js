@@ -5,7 +5,8 @@ const {
   sendError,
   safeNumber,
   ensureAssignmentExists,
-  fetchAssignmentRubric
+  fetchAssignmentRubric,
+  logBusinessEvent
 } = require('../helpers');
 
 const router = express.Router();
@@ -32,8 +33,11 @@ function normalizeNumericCell(value) {
  * Flujo: vista de exportacion profesor/admin -> solicita CSV JSON de meta-revision saliente por tarea.
  */
 router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let assignmentIdForLog = null;
+
   try {
     const assignmentId = safeNumber(req.query.assignmentId);
+    assignmentIdForLog = assignmentId;
     if (!assignmentId) {
       return sendError(res, 400, 'Debes indicar assignmentId.');
     }
@@ -68,6 +72,17 @@ router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, re
       comentario: normalizeCell(row.comentario)
     }));
 
+    logBusinessEvent({
+      event: 'export_requested_meta_outgoing',
+      action: 'export_meta_outgoing',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        rows_count: resultRows.length
+      }
+    });
+
     res.json({
       assignmentId,
       header: ['Alumno', 'id_rev_saliente', 'nota_meta_rev', 'comentario'],
@@ -75,6 +90,16 @@ router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, re
     });
   } catch (error) {
     console.error('Error al exportar meta-revisión saliente:', error);
+    logBusinessEvent({
+      event: 'export_requested_meta_outgoing',
+      action: 'export_meta_outgoing',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      data: {
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos exportar la meta-revisión saliente.');
   }
 });
@@ -83,8 +108,11 @@ router.get('/api/export/meta-outgoing', requireAuth(['ADMIN', 'PROF']), (req, re
  * Flujo: vista de exportacion profesor/admin -> solicita revisiones entrantes con notas de rubrica.
  */
 router.get('/api/export/incoming-reviews', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let assignmentIdForLog = null;
+
   try {
     const assignmentId = safeNumber(req.query.assignmentId);
+    assignmentIdForLog = assignmentId;
     if (!assignmentId) {
       return sendError(res, 400, 'Debes indicar assignmentId.');
     }
@@ -141,6 +169,17 @@ router.get('/api/export/incoming-reviews', requireAuth(['ADMIN', 'PROF']), (req,
       };
     });
 
+    logBusinessEvent({
+      event: 'export_requested_incoming_reviews',
+      action: 'export_incoming_reviews',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        rows_count: resultRows.length
+      }
+    });
+
     res.json({
       assignmentId,
       header: ['Alumno', 'id_rev_entrante', ...criteriaHeader, 'nota_evaluada_rubrica', 'comentario'],
@@ -148,6 +187,16 @@ router.get('/api/export/incoming-reviews', requireAuth(['ADMIN', 'PROF']), (req,
     });
   } catch (error) {
     console.error('Error al exportar revisión entrante:', error);
+    logBusinessEvent({
+      event: 'export_requested_incoming_reviews',
+      action: 'export_incoming_reviews',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      data: {
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos exportar la revisión entrante.');
   }
 });

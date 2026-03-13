@@ -7,7 +7,7 @@ const { db } = require('../../../db');
 const { listAllFiles, ensureInside, contentFolder } = require('../../../utils/deliveries');
 const { attachFileIds, findFileById, normalizeRelativePath } = require('../../../utils/reviewFileIds');
 const { fileHash } = require('../../../utils/fileHash');
-const { sendError, safeNumber, ensureRevisionPermission, isLikelyBinary } = require('../../helpers');
+const { sendError, safeNumber, ensureRevisionPermission, isLikelyBinary, logBusinessEvent } = require('../../helpers');
 
 const router = express.Router();
 
@@ -34,8 +34,13 @@ function resolveContentType(filePath) {
  * Lista los archivos de una revisión específica
  */
 router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => {
+  let revisionIdForLog = null;
+  let assignmentIdForLog = null;
+  let submissionIdForLog = null;
+
   try {
     const revisionId = safeNumber(req.params.revisionId);
+    revisionIdForLog = revisionId;
     if (!revisionId) {
       return sendError(res, 400, 'Identificador de revisión inválido.');
     }
@@ -44,6 +49,8 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
     if (!revision) {
       return sendError(res, 403, 'No puedes ver los archivos de esta revisión.');
     }
+    assignmentIdForLog = revision.assignment_id;
+    submissionIdForLog = revision.submission_id;
 
     const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
     if (!fs.existsSync(baseDir)) {
@@ -99,7 +106,7 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
       }
     });
 
-    return res.json({
+    const responsePayload = {
       revisionId,
       submissionId: revision.submission_id,
       zipName: revision.zip_name,
@@ -107,9 +114,68 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
       fileCommentCounts,
       codeCommentCounts,
       codeCommentFirstLine
-    });
+    };
+
+    if (req.user?.rol === 'ALUM') {
+      logBusinessEvent({
+        event: 'review_workspace_opened',
+        action: 'open_review_workspace',
+        status: 'ok',
+        user: req.user,
+        assignmentId: revision.assignment_id,
+        submissionId: revision.submission_id,
+        reviewId: revisionId,
+        data: {
+          files_count: responsePayload.files.length,
+          has_previous_comments:
+            Object.keys(fileCommentCounts).length > 0 || Object.keys(codeCommentCounts).length > 0
+        }
+      });
+    } else if (req.user?.rol === 'PROF' || req.user?.rol === 'ADMIN') {
+      logBusinessEvent({
+        event: 'review_opened_staff',
+        action: 'open_review_workspace',
+        status: 'ok',
+        user: req.user,
+        assignmentId: revision.assignment_id,
+        submissionId: revision.submission_id,
+        reviewId: revisionId,
+        data: {
+          files_count: responsePayload.files.length
+        }
+      });
+    }
+
+    return res.json(responsePayload);
   } catch (error) {
     console.error('Error al listar archivos de revisión:', error);
+    if (req.user?.rol === 'ALUM') {
+      logBusinessEvent({
+        event: 'review_workspace_opened',
+        action: 'open_review_workspace',
+        status: 'error',
+        user: req.user,
+        assignmentId: assignmentIdForLog,
+        submissionId: submissionIdForLog,
+        reviewId: revisionIdForLog,
+        data: {
+          reason: 'unexpected_error'
+        }
+      });
+    } else if (req.user?.rol === 'PROF' || req.user?.rol === 'ADMIN') {
+      logBusinessEvent({
+        event: 'review_opened_staff',
+        action: 'open_review_workspace',
+        status: 'error',
+        user: req.user,
+        assignmentId: assignmentIdForLog,
+        submissionId: submissionIdForLog,
+        reviewId: revisionIdForLog,
+        data: {
+          reason: 'unexpected_error'
+        }
+      });
+    }
     return sendError(res, 500, 'No pudimos cargar el árbol de archivos.');
   }
 });
@@ -118,8 +184,14 @@ router.get('/api/reviews/:revisionId/files', requireAuth(), async (req, res) => 
  * Obtiene el contenido de un archivo específico dentro de una revisión
  */
 router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
+  let revisionIdForLog = null;
+  let assignmentIdForLog = null;
+  let submissionIdForLog = null;
+  let relativePathForLog = null;
+
   try {
     const revisionId = safeNumber(req.params.revisionId);
+    revisionIdForLog = revisionId;
     const fileId = (req.query.fileId || req.query.file || '').toString().trim();
 
     if (!revisionId || !fileId) {
@@ -130,6 +202,8 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
     if (!revision) {
       return sendError(res, 403, 'No puedes abrir este archivo.');
     }
+    assignmentIdForLog = revision.assignment_id;
+    submissionIdForLog = revision.submission_id;
 
     const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
     if (!fs.existsSync(baseDir)) {
@@ -143,6 +217,7 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
     }
 
     const relativePath = normalizeRelativePath(target.path);
+    relativePathForLog = relativePath.replace(/\\/g, '/');
     const absolutePath = ensureInside(baseDir, relativePath);
     const stats = await fsp.stat(absolutePath);
     if (!stats.isFile()) {
@@ -178,17 +253,80 @@ router.get('/api/reviews/:revisionId/file', requireAuth(), async (req, res) => {
         autor: row.autor_nombre ? { nombre: row.autor_nombre, correo: row.autor_correo } : null
       }));
 
-    return res.json({
+    const responsePayload = {
       id: target.id,
-      path: relativePath.replace(/\\/g, '/'),
+      path: relativePathForLog,
       size: stats.size,
       isBinary,
       sha1,
       content: isBinary ? null : buffer.toString('utf8'),
       comments
-    });
+    };
+
+    if (req.user?.rol === 'ALUM') {
+      logBusinessEvent({
+        event: 'review_file_opened',
+        action: 'open_review_file',
+        status: 'ok',
+        user: req.user,
+        assignmentId: revision.assignment_id,
+        submissionId: revision.submission_id,
+        reviewId: revisionId,
+        data: {
+          file_path_rel: relativePathForLog,
+          is_binary: isBinary,
+          size_bytes: stats.size
+        }
+      });
+    } else if (req.user?.rol === 'PROF' || req.user?.rol === 'ADMIN') {
+      logBusinessEvent({
+        event: 'review_file_opened_staff',
+        action: 'open_review_file',
+        status: 'ok',
+        user: req.user,
+        assignmentId: revision.assignment_id,
+        submissionId: revision.submission_id,
+        reviewId: revisionId,
+        data: {
+          file_path_rel: relativePathForLog,
+          is_binary: isBinary,
+          size_bytes: stats.size
+        }
+      });
+    }
+
+    return res.json(responsePayload);
   } catch (error) {
     console.error('Error al leer archivo de revisión:', error);
+    if (req.user?.rol === 'ALUM') {
+      logBusinessEvent({
+        event: 'review_file_opened',
+        action: 'open_review_file',
+        status: 'error',
+        user: req.user,
+        assignmentId: assignmentIdForLog,
+        submissionId: submissionIdForLog,
+        reviewId: revisionIdForLog,
+        data: {
+          file_path_rel: relativePathForLog,
+          reason: 'unexpected_error'
+        }
+      });
+    } else if (req.user?.rol === 'PROF' || req.user?.rol === 'ADMIN') {
+      logBusinessEvent({
+        event: 'review_file_opened_staff',
+        action: 'open_review_file',
+        status: 'error',
+        user: req.user,
+        assignmentId: assignmentIdForLog,
+        submissionId: submissionIdForLog,
+        reviewId: revisionIdForLog,
+        data: {
+          file_path_rel: relativePathForLog,
+          reason: 'unexpected_error'
+        }
+      });
+    }
     return sendError(res, 500, 'No pudimos abrir el archivo solicitado.');
   }
 });

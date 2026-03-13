@@ -1,7 +1,7 @@
 const express = require('express');
 const { requireAuth } = require('../../../auth');
 const { db } = require('../../../db');
-const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require('../../helpers');
+const { sendError, safeNumber, ensureRevisionPermission, escapeHtml, logBusinessEvent } = require('../../helpers');
 
 const router = express.Router();
 const META_OBSERVATION_MAX_LENGTH = 5000;
@@ -63,8 +63,13 @@ router.get('/api/reviews/:reviewId/meta', requireAuth(), (req, res) => {
  * Flujo: profesor/admin registra meta-revision -> backend crea o actualiza la evaluacion final.
  */
 router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  let reviewIdForLog = null;
+  let assignmentIdForLog = null;
+  let submissionIdForLog = null;
+
   try {
     const reviewId = safeNumber(req.params.reviewId);
+    reviewIdForLog = reviewId;
     if (!reviewId) {
       return sendError(res, 400, 'Identificador inválido.');
     }
@@ -83,6 +88,8 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
     if (!revision) {
       return sendError(res, 404, 'La revisión no existe.');
     }
+    assignmentIdForLog = revision.assignment_id;
+    submissionIdForLog = revision.entrega_id;
 
     const rawNota = req.body?.nota_final ?? req.body?.nota_calidad;
     const notaFinal = rawNota === undefined || rawNota === null || rawNota === '' ? null : Number(rawNota);
@@ -136,9 +143,35 @@ router.post('/api/reviews/:reviewId/meta', requireAuth(['ADMIN', 'PROF']), (req,
       );
     }
 
+    logBusinessEvent({
+      event: existing ? 'meta_review_updated' : 'meta_review_submitted',
+      action: existing ? 'update_meta_review' : 'create_meta_review',
+      status: 'ok',
+      user: req.user,
+      assignmentId: revision.assignment_id,
+      submissionId: revision.entrega_id,
+      reviewId,
+      data: {
+        nota_final: notaFinal,
+        has_observacion: Boolean(observacion)
+      }
+    });
+
     res.json({ ok: true });
   } catch (error) {
     console.error('Error al registrar meta-revisión:', error);
+    logBusinessEvent({
+      event: 'meta_review_submitted',
+      action: 'create_or_update_meta_review',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      submissionId: submissionIdForLog,
+      reviewId: reviewIdForLog,
+      data: {
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos registrar la meta-revisión.');
   }
 });

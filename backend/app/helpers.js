@@ -30,6 +30,7 @@ const {
 } = require('./helpers/rubricService');
 const { fetchAssignmentMap } = require('./helpers/assignmentMap');
 const { getProfessorSubjects } = require('./helpers/professorSubjects');
+const { logBusinessEvent } = require('./helpers/activityLogger');
 
 module.exports = {
   sendError,
@@ -58,5 +59,6 @@ module.exports = {
   ...assignmentHelpers,
   fetchAssignmentRubric,
   fetchAssignmentMap,
-  getProfessorSubjects
+  getProfessorSubjects,
+  logBusinessEvent
 };

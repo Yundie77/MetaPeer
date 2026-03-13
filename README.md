@@ -263,4 +263,47 @@ Otros:
 - `GET /api/profile` (autenticado: ADMIN/PROF/ALUM)
 - `GET /api/profiles/:userId/events` (ADMIN)
 
+## Logs (JSONL)
+
+El backend emite eventos de actividad en formato **JSON por línea** (JSONL). Esto facilita leerlos en consola y analizarlos después con scripts.
+
+Campos base:
+- `ts`: timestamp ISO (`new Date().toISOString()`).
+- `event`: nombre del evento (`login_success`, etc.).
+- `action`: acción técnica (`login`, etc.).
+- `user_id`, `user_nombre`, `user_rol`: actor (si existe).
+- `assignment_id`, `submission_id`, `review_id`: contexto (si aplica).
+- `status`: normalmente `ok` o `error`.
+
+Además, puede incluir `data` con campos extra del evento (por ejemplo `rows_count`, `line`, `has_comment`).
+
+Para todos los roles:
+- `login_success`: inicio de sesión correcto.
+- `login_failed`: intento de login fallido.
+
+ADMIN/PROF:
+- `submission_batch_uploaded`: prof/admin subió un ZIP de entregas en lote.
+- `review_opened_staff`: prof/admin abrió el árbol de archivos de una revisión puntual.
+- `review_file_opened_staff`: prof/admin abrió un archivo concreto para revisarlo.
+- `meta_review_submitted`: prof/admin registró una meta-revisión.
+- `meta_review_updated`: prof/admin modificó una meta-revisión.
+- `assignment_created`: prof/admin creó una tarea.
+- `assignment_assigned_preview`: prof/admin generó previsualización de asignación.
+- `assignment_assigned_confirmed`: prof/admin confirmó y guardó asignación.
+- `assignment_reset`: prof/admin reseteó la asignación de revisiones.
+- `roster_import_completed`: prof/admin terminó importación de roster CSV.
+- `export_requested_meta_outgoing`: prof/admin pidió export de meta-revisión saliente.
+- `export_requested_incoming_reviews`: prof/admin pidió export de revisiones entrantes.
+
+ALUM:
+- `review_workspace_opened`: el alumno abrió el árbol de archivos de una revisión.
+- `review_file_opened`: el alumno abrió un archivo concreto para revisarlo.
+- `line_comment_created`: el alumno añadió comentario por línea.
+- `file_comment_created`: el alumno creó comentario general de archivo.
+- `file_comment_updated`: el alumno actualizó comentario general de archivo.
+- `review_submitted`: el alumno envió la revisión final (rúbrica + nota/comentario).
+- `review_cycle_time_measured`: tiempo entre asignación de revisión y envío final.
+
+Todos los eventos pueden aparecer con `status: "ok"` o `status: "error"`.
+
 

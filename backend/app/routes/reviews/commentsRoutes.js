@@ -6,7 +6,7 @@ const { db } = require('../../../db');
 const { contentFolder, ensureInside, listAllFiles } = require('../../../utils/deliveries');
 const { findFileById, normalizeRelativePath } = require('../../../utils/reviewFileIds');
 const { fileHash } = require('../../../utils/fileHash');
-const { sendError, safeNumber, ensureRevisionPermission, escapeHtml } = require('../../helpers');
+const { sendError, safeNumber, ensureRevisionPermission, escapeHtml, logBusinessEvent } = require('../../helpers');
 
 const router = express.Router();
 const REVIEW_COMMENT_MAX_LENGTH = 5000;
@@ -15,10 +15,18 @@ const REVIEW_COMMENT_MAX_LENGTH = 5000;
  * Flujo: visor de codigo de revision -> alumno publica comentario por linea de archivo.
  */
 router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (req, res) => {
+  let revisionIdForLog = null;
+  let assignmentIdForLog = null;
+  let submissionIdForLog = null;
+  let filePathRelForLog = null;
+  let lineForLog = null;
+
   try {
     const revisionId = safeNumber(req.params.revisionId);
+    revisionIdForLog = revisionId;
     const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
     const linea = safeNumber(req.body?.line || req.body?.linea);
+    lineForLog = linea;
     const contenidoRaw = req.body?.contenido ?? req.body?.text ?? '';
 
     if (contenidoRaw !== null && contenidoRaw !== undefined && typeof contenidoRaw !== 'string') {
@@ -46,6 +54,8 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
     if (!revision) {
       return sendError(res, 403, 'No puedes comentar este archivo.');
     }
+    assignmentIdForLog = revision.assignment_id;
+    submissionIdForLog = revision.submission_id;
 
     const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
     if (!fs.existsSync(baseDir)) {
@@ -59,6 +69,7 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
     }
 
     const relativePath = normalizeRelativePath(target.path);
+    filePathRelForLog = relativePath.replace(/\\/g, '/');
     const absolutePath = ensureInside(baseDir, relativePath);
     const stats = await fsp.stat(absolutePath);
     if (!stats.isFile()) {
@@ -75,7 +86,7 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
         VALUES (?, ?, ?, ?, ?, ?, ?)
       `
       )
-      .run(revisionId, sha1, relativePath.replace(/\\/g, '/'), linea, escapedContenido, req.user.id, createdAt);
+      .run(revisionId, sha1, filePathRelForLog, linea, escapedContenido, req.user.id, createdAt);
 
     const created = db
       .prepare(
@@ -93,6 +104,20 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
       )
       .get(insert.lastInsertRowid);
 
+    logBusinessEvent({
+      event: 'line_comment_created',
+      action: 'create_line_comment',
+      status: 'ok',
+      user: req.user,
+      assignmentId: revision.assignment_id,
+      submissionId: revision.submission_id,
+      reviewId: revisionId,
+      data: {
+        line: linea,
+        file_path_rel: filePathRelForLog
+      }
+    });
+
     return res.status(201).json({
       id: created.id,
       linea: created.linea,
@@ -103,6 +128,20 @@ router.post('/api/reviews/:revisionId/comments', requireAuth(['ALUM']), async (r
     });
   } catch (error) {
     console.error('Error al guardar comentario de código:', error);
+    logBusinessEvent({
+      event: 'line_comment_created',
+      action: 'create_line_comment',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      submissionId: submissionIdForLog,
+      reviewId: revisionIdForLog,
+      data: {
+        line: lineForLog,
+        file_path_rel: filePathRelForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos guardar el comentario.');
   }
 });
@@ -182,8 +221,14 @@ router.get('/api/reviews/:revisionId/file-comments', requireAuth(), async (req, 
  * Flujo: panel de revision -> alumno crea/actualiza comentario general del archivo activo.
  */
 router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), async (req, res) => {
+  let revisionIdForLog = null;
+  let assignmentIdForLog = null;
+  let submissionIdForLog = null;
+  let filePathRelForLog = null;
+
   try {
     const revisionId = safeNumber(req.params.revisionId);
+    revisionIdForLog = revisionId;
     const fileId = (req.body?.fileId || req.body?.file || '').toString().trim();
     const contenidoRaw = req.body?.contenido ?? req.body?.text ?? '';
 
@@ -209,6 +254,8 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
     if (!revision) {
       return sendError(res, 403, 'No puedes comentar este archivo.');
     }
+    assignmentIdForLog = revision.assignment_id;
+    submissionIdForLog = revision.submission_id;
 
     const baseDir = contentFolder(revision.assignment_id, revision.author_team_id);
     if (!fs.existsSync(baseDir)) {
@@ -230,6 +277,7 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
 
     const sha1 = await fileHash(absolutePath, 'sha1');
     const normalizedPath = relativePath.replace(/\\/g, '/');
+    filePathRelForLog = normalizedPath;
 
     const existing = db
       .prepare(
@@ -286,6 +334,19 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
       )
       .get(commentId);
 
+    logBusinessEvent({
+      event: updated ? 'file_comment_updated' : 'file_comment_created',
+      action: updated ? 'update_file_comment' : 'create_file_comment',
+      status: 'ok',
+      user: req.user,
+      assignmentId: revision.assignment_id,
+      submissionId: revision.submission_id,
+      reviewId: revisionId,
+      data: {
+        file_path_rel: normalizedPath
+      }
+    });
+
     return res.status(updated ? 200 : 201).json({
       id: created.id,
       contenido: created.contenido,
@@ -295,6 +356,19 @@ router.post('/api/reviews/:revisionId/file-comments', requireAuth(['ALUM']), asy
     });
   } catch (error) {
     console.error('Error al guardar comentario general:', error);
+    logBusinessEvent({
+      event: 'file_comment_created',
+      action: 'create_or_update_file_comment',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      submissionId: submissionIdForLog,
+      reviewId: revisionIdForLog,
+      data: {
+        file_path_rel: filePathRelForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos guardar el comentario.');
   }
 });

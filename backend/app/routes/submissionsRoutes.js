@@ -13,7 +13,8 @@ const {
   ensureAssignmentExists,
   ensureSubmissionAccess,
   cloneRosterTeamsToAssignment,
-  isAssignmentStartedOrLocked
+  isAssignmentStartedOrLocked,
+  logBusinessEvent
 } = require('../helpers');
 const { WORKSPACE_ROOT, BACKEND_ROOT } = require('../constants');
 const { uploadZip } = require('../upload');
@@ -274,6 +275,8 @@ async function processTeamArchives({ assignmentId, uploaderId, archives, tempDir
 router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploadZip.single('zipFile'), async (req, res) => {
   let tempPathToClean = '';
   let extractionDir = '';
+  let assignmentIdForLog = null;
+  let zipNameForLog = null;
 
   try {
     if (req.file?.path) {
@@ -281,6 +284,7 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     }
 
     const assignmentId = safeNumber(req.body?.assignmentId);
+    assignmentIdForLog = assignmentId;
     if (!assignmentId) {
       return sendError(res, 400, 'Debes indicar la tarea.');
     }
@@ -303,6 +307,7 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     }
 
     const originalName = req.file.originalname || 'entregas.zip';
+    zipNameForLog = originalName;
 
     if (!originalName.toLowerCase().endsWith('.zip')) {
       return sendError(res, 400, 'El archivo debe tener extensión .zip.');
@@ -330,6 +335,19 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
     });
 
     if (processed.length === 0) {
+      logBusinessEvent({
+        event: 'submission_batch_uploaded',
+        action: 'upload_submissions_zip',
+        status: 'error',
+        user: req.user,
+        assignmentId,
+        data: {
+          zip_name: originalName,
+          total_processed: 0,
+          total_failed: failed.length,
+          reason: 'no_submissions_processed'
+        }
+      });
       return res.status(400).json({
         error: 'No se procesaron entregas del ZIP.',
         errores: failed
@@ -360,9 +378,33 @@ router.post('/api/submissions/upload-zip', requireAuth(['ADMIN', 'PROF']), uploa
       payload.errores = failed;
     }
 
+    logBusinessEvent({
+      event: 'submission_batch_uploaded',
+      action: 'upload_submissions_zip',
+      status: 'ok',
+      user: req.user,
+      assignmentId,
+      data: {
+        zip_name: originalName,
+        total_processed: processed.length,
+        total_failed: failed.length
+      }
+    });
+
     return res.status(201).json(payload);
   } catch (error) {
     console.error('Error al cargar ZIP de entregas:', error);
+    logBusinessEvent({
+      event: 'submission_batch_uploaded',
+      action: 'upload_submissions_zip',
+      status: 'error',
+      user: req.user,
+      assignmentId: assignmentIdForLog,
+      data: {
+        zip_name: zipNameForLog,
+        reason: 'unexpected_error'
+      }
+    });
     return sendError(res, 500, 'No pudimos registrar las entregas del ZIP.');
   } finally {
     if (tempPathToClean) {

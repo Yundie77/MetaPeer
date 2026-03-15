@@ -24,3 +24,5 @@ frontend/public/quick-users.local.json
 # System files
 .DS_Store
 Thumbs.db
+
+*.tmp.driveupload

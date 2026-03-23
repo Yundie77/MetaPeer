@@ -246,6 +246,66 @@ function buildTeamPlan(context, requestedReviewsPerReviewer, randomFn) {
 }
 
 /**
+ * Verifica si una persona puede revisar al equipo objetivo en modo individual.
+ */
+function isValidIndividualTarget(reviewer, targetTeamId, targetsByReviewer) {
+  if (!reviewer || reviewer.teamId === targetTeamId) {
+    return false;
+  }
+  const existingTargets = targetsByReviewer.get(reviewer.userId) || [];
+  return !existingTargets.includes(targetTeamId);
+}
+
+/**
+ * Registra una asignación individual y actualiza contadores.
+ */
+function assignIndividualTarget(reviewer, targetTeamId, targetsByReviewer, receivedCount, roundAssignments) {
+  const existingTargets = targetsByReviewer.get(reviewer.userId) || [];
+  existingTargets.push(targetTeamId);
+  targetsByReviewer.set(reviewer.userId, existingTargets);
+  receivedCount.set(targetTeamId, (receivedCount.get(targetTeamId) || 0) + 1);
+  roundAssignments.push({
+    reviewerUserId: reviewer.userId,
+    targetTeamId
+  });
+}
+
+/**
+ * Revierte todas las asignaciones de la ronda actual.
+ */
+function rollbackIndividualRound(roundAssignments, targetsByReviewer, receivedCount) {
+  roundAssignments.forEach((assignment) => {
+    const existingTargets = targetsByReviewer.get(assignment.reviewerUserId) || [];
+    const nextTargets = existingTargets.filter((teamId) => teamId !== assignment.targetTeamId);
+    targetsByReviewer.set(assignment.reviewerUserId, nextTargets);
+    const currentCount = receivedCount.get(assignment.targetTeamId) || 0;
+    receivedCount.set(assignment.targetTeamId, Math.max(0, currentCount - 1));
+  });
+}
+
+/**
+ * Entre equipos válidos, elige el menos cargado; desempate pseudoaleatorio.
+ */
+function pickLeastLoadedTeam(validTeamIds, receivedCount, randomFn) {
+  if (!Array.isArray(validTeamIds) || validTeamIds.length === 0) {
+    return null;
+  }
+  const shuffled = shuffleArray(validTeamIds, randomFn);
+  let bestTeamId = shuffled[0];
+  let bestLoad = receivedCount.get(bestTeamId) || 0;
+
+  shuffled.forEach((teamId) => {
+    const load = receivedCount.get(teamId) || 0;
+    if (load < bestLoad) {
+      bestLoad = load;
+      bestTeamId = teamId;
+    }
+  });
+
+  return bestTeamId;
+}
+
+/**
  * Genera el plan en modo individual: baraja personas y asigna revisiones a otros equipos.
  */
 function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
@@ -282,7 +342,7 @@ function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
   const minPeopleOutsideTeam = Math.min(...peopleOutsideTeam);
   const maxPerReviewerByTeams = context.teamIds.length - 1;
   const maxPossible = Math.min(maxPerReviewerByTeams, minPeopleOutsideTeam);
-  const appliedReviewsPerReviewer = Math.min(requestedReviewsPerReviewer, maxPossible);
+  let appliedReviewsPerReviewer = Math.min(requestedReviewsPerReviewer, maxPossible);
 
   if (appliedReviewsPerReviewer < 1) {
     warnings.push('No hay suficientes equipos distintos para asignar al menos una revisión por persona.');
@@ -302,28 +362,105 @@ function buildIndividualPlan(context, requestedReviewsPerReviewer, randomFn) {
     );
   }
 
+  const targetsByReviewer = new Map();
+  reviewers.forEach((reviewer) => {
+    targetsByReviewer.set(reviewer.userId, []);
+  });
+  const receivedCount = new Map();
+  context.teamIds.forEach((teamId) => {
+    receivedCount.set(teamId, 0);
+  });
+
+  let roundsCompleted = 0;
+  for (let round = 0; round < appliedReviewsPerReviewer; round += 1) {
+    const shuffledTeams = shuffleArray(context.teamIds, randomFn);
+    const pendingReviewers = shuffleArray(reviewers, randomFn);
+    const roundAssignments = [];
+    const baseQuota = Math.floor(reviewers.length / shuffledTeams.length);
+
+    shuffledTeams.forEach((targetTeamId) => {
+      if (baseQuota < 1 || pendingReviewers.length === 0) {
+        return;
+      }
+
+      let assignedForTeam = 0;
+      for (let index = 0; index < pendingReviewers.length && assignedForTeam < baseQuota; index += 1) {
+        const reviewer = pendingReviewers[index];
+        if (!isValidIndividualTarget(reviewer, targetTeamId, targetsByReviewer)) {
+          continue;
+        }
+        assignIndividualTarget(reviewer, targetTeamId, targetsByReviewer, receivedCount, roundAssignments);
+        // Si falla, el revisor se mantiene en pending para intentar con otro equipo
+        pendingReviewers.splice(index, 1);
+        index -= 1;
+        assignedForTeam += 1;
+      }
+    });
+
+    const leftoversPool = shuffleArray(shuffledTeams, randomFn);
+    const unassignedInRound = [];
+
+    pendingReviewers.forEach((reviewer) => {
+      const validLeftoverTeams = leftoversPool.filter((teamId) => isValidIndividualTarget(reviewer, teamId, targetsByReviewer));
+      if (validLeftoverTeams.length > 0) {
+        const targetTeamId = pickLeastLoadedTeam(validLeftoverTeams, receivedCount, randomFn);
+        assignIndividualTarget(reviewer, targetTeamId, targetsByReviewer, receivedCount, roundAssignments);
+        const poolIndex = leftoversPool.indexOf(targetTeamId);
+        if (poolIndex >= 0) {
+          leftoversPool.splice(poolIndex, 1);
+        }
+        return;
+      }
+
+      const validTeams = shuffledTeams.filter((teamId) => isValidIndividualTarget(reviewer, teamId, targetsByReviewer));
+      const fallbackTeamId = pickLeastLoadedTeam(validTeams, receivedCount, randomFn);
+      if (!fallbackTeamId) {
+        unassignedInRound.push(reviewer.userId);
+        return;
+      }
+
+      assignIndividualTarget(reviewer, fallbackTeamId, targetsByReviewer, receivedCount, roundAssignments);
+    });
+
+    if (unassignedInRound.length > 0) {
+      rollbackIndividualRound(roundAssignments, targetsByReviewer, receivedCount);
+      appliedReviewsPerReviewer = roundsCompleted;
+      warnings.push(
+        `No se pudo completar la ronda ${round + 1} en modo individual por restricciones de composición de equipos. Ajustamos a ${appliedReviewsPerReviewer}.`
+      );
+      break;
+    }
+
+    roundsCompleted += 1;
+  }
+
+  if (appliedReviewsPerReviewer < 1) {
+    return {
+      appliedReviewsPerReviewer: 0,
+      warnings,
+      reviewers: [],
+      reviewed: [],
+      pairs: [],
+      totalReviewers: reviewers.length
+    };
+  }
+
+  const receivedLoads = context.teamIds.map((teamId) => receivedCount.get(teamId) || 0);
+  const minLoad = Math.min(...receivedLoads);
+  const maxLoad = Math.max(...receivedLoads);
+  if (maxLoad - minLoad > 2) {
+    warnings.push(
+      `El reparto final quedó desequilibrado entre equipos (${minLoad} a ${maxLoad} revisiones recibidas) por restricciones de composición.`
+    );
+  }
+
   const shuffledReviewers = shuffleArray(reviewers, randomFn);
-  const targetOrder = shuffleArray(context.teamIds, randomFn);
   const reviewedMap = new Map();
   const reviewersPreview = [];
   const pairs = [];
 
-  shuffledReviewers.forEach((reviewer, index) => {
-    const targets = [];
-    const startIndex = (targetOrder.indexOf(reviewer.teamId) + 1 + index) % targetOrder.length;
-    let step = 0;
-    while (targets.length < appliedReviewsPerReviewer && step < targetOrder.length * 2) {
-      const candidateTeamId = targetOrder[(startIndex + step) % targetOrder.length];
-      step += 1;
-      if (candidateTeamId === reviewer.teamId) {
-        continue;
-      }
-      if (targets.includes(candidateTeamId)) {
-        continue;
-      }
-      targets.push(candidateTeamId);
-    }
-
+  shuffledReviewers.forEach((reviewer) => {
+    const targets = targetsByReviewer.get(reviewer.userId) || [];
     const reviewerLabel = reviewer.nombre || `Usuario ${reviewer.userId}`;
     const reviewerMembers = [{ id: reviewer.userId, nombre_completo: reviewerLabel }];
 

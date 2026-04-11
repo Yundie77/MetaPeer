@@ -187,6 +187,16 @@ Para resetear el entorno local: detén el backend y borra `backend/data.sqlite` 
 - Añade comentarios por línea sobre el código y completa la rúbrica. La nota final se calcula automáticamente según los pesos de la rúbrica (0..10).
 - Consulta el **feedback** recibido por sus entregas.
 
+### Reemplazo forzado de credenciales (recuperación operativa)
+
+Desde **Gestión Grupos** (ADMIN/PROF) hay un botón rojo **"Reemplazar credenciales con CSV existente"** para casos de recuperación operativa:
+
+- Acepta un CSV con exactamente dos columnas: `email;password` (separador `;`, primera fila de cabecera).
+- Solo actualiza `contrasena_hash` de usuarios **ya existentes**; no crea usuarios ni toca otros campos.
+- Filas vacías o mal formadas se ignoran; los emails no presentes en BD se cuentan como "no encontrados".
+- La operación se ejecuta en una transacción y muestra un resumen: total filas, actualizadas, ignoradas, no encontrados y errores.
+- La UI pide confirmación antes de ejecutar por ser una acción destructiva.
+
 ## Casos de importación CSV (resumen)
 
 - Cada importación CSV **reemplaza** los equipos internos de la asignatura (fuente de verdad).
@@ -225,6 +235,7 @@ Asignaturas / administración:
 - `POST /api/asignaturas` (ADMIN/PROF)
 - `GET /api/asignaturas` (ADMIN/PROF)
 - `POST /api/admin/import-roster` (ADMIN/PROF)
+- `POST /api/admin/replace-credentials` (ADMIN/PROF)
 - `GET /api/admin/professors` (ADMIN)
 - `POST /api/admin/professors` (ADMIN)
 - `POST /api/admin/professors/:professorId/subjects` (ADMIN)

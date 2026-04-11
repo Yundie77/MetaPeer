@@ -107,6 +107,12 @@ export default function AdminDB() {
   const [summary, setSummary] = useState(null);
   const [error, setError] = useState('');
   const [credentialsHistory, setCredentialsHistory] = useState(() => loadCredentialsHistory());
+  const [replaceCsvText, setReplaceCsvText] = useState('');
+  const [replaceFileName, setReplaceFileName] = useState('');
+  const [replaceReadingFile, setReplaceReadingFile] = useState(false);
+  const [replaceSaving, setReplaceSaving] = useState(false);
+  const [replaceSummary, setReplaceSummary] = useState(null);
+  const [replaceError, setReplaceError] = useState('');
 
   useEffect(() => {
     // Limpia entradas caducadas al abrir la pantalla.
@@ -232,6 +238,69 @@ export default function AdminDB() {
     }
   };
 
+  const handleReplaceFileChange = (event) => {
+    const file = event.target.files && event.target.files[0];
+    setReplaceSummary(null);
+    setReplaceError('');
+    if (!file) {
+      setReplaceCsvText('');
+      setReplaceFileName('');
+      return;
+    }
+
+    if (!file.name.toLowerCase().endsWith('.csv')) {
+      setReplaceError('Selecciona un archivo con extensión .csv.');
+      setReplaceCsvText('');
+      setReplaceFileName('');
+      return;
+    }
+
+    setReplaceReadingFile(true);
+    const reader = new FileReader();
+    reader.onload = (loadEvent) => {
+      const readText = typeof loadEvent.target?.result === 'string' ? loadEvent.target.result : '';
+      setReplaceCsvText(readText);
+      setReplaceFileName(file.name);
+      setReplaceError('');
+      setReplaceReadingFile(false);
+    };
+    reader.onerror = () => {
+      setReplaceError('No pudimos leer el archivo seleccionado.');
+      setReplaceCsvText('');
+      setReplaceFileName('');
+      setReplaceReadingFile(false);
+    };
+    reader.readAsText(file, 'utf-8');
+  };
+
+  const handleReplaceCredentials = async () => {
+    if (!replaceCsvText.trim()) {
+      setReplaceError('Pega o carga un CSV con formato email;password antes de reemplazar credenciales.');
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Esta acción reemplazará credenciales de usuarios existentes. ¿Continuar?'
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setReplaceSaving(true);
+      setReplaceError('');
+      setReplaceSummary(null);
+      const result = await postJson('/admin/replace-credentials', {
+        csvText: replaceCsvText
+      });
+      setReplaceSummary(result);
+    } catch (err) {
+      setReplaceError(err.message);
+    } finally {
+      setReplaceSaving(false);
+    }
+  };
+
   if (!isAdmin) {
     return <p>Solo los administradores pueden acceder a esta sección.</p>;
   }
@@ -240,6 +309,8 @@ export default function AdminDB() {
   const credencialesCsv = typeof summary?.credencialesCsv === 'string' ? summary.credencialesCsv : '';
   const currentSavedCsv = credentialsHistory?.current || null;
   const previousSavedCsv = credentialsHistory?.previous || null;
+  const selectedSubject = subjects.find((subject) => String(subject.id) === String(subjectId));
+  const selectedSubjectLabel = selectedSubject?.nombre || '';
   const handleDownloadSavedCsv = (slot) => {
     setCredentialsHistory((prev) => {
       const normalizedPrev = normalizeCredentialsHistory(prev);
@@ -318,7 +389,13 @@ export default function AdminDB() {
           {selectedFileName && <span style={fileInfoStyle}>Seleccionado: {selectedFileName}</span>}
         </label>
         <button type="submit" style={buttonStyle} disabled={saving || readingFile}>
-          {saving ? 'Importando...' : readingFile ? 'Leyendo archivo...' : 'Importar CSV'}
+          {saving
+            ? 'Importando...'
+            : readingFile
+            ? 'Leyendo archivo...'
+            : selectedSubjectLabel
+            ? `Importar CSV para ${selectedSubjectLabel}`
+            : 'Importar CSV'}
         </button>
       </form>
 
@@ -425,6 +502,71 @@ export default function AdminDB() {
           </div>
         </div>
       )}
+
+      <div style={replaceSectionStyle}>
+        <h3 style={panelTitle}>Reemplazar credenciales con CSV existente</h3>
+        <p style={guideTextStyle}>
+          Acción de recuperación operativa: fuerza el reemplazo de la contraseña
+          (<code>contrasena_hash</code>) de los usuarios indicados. No crea usuarios nuevos.
+        </p>
+        <p style={guideTextStyle}>
+          Formato CSV esperado: dos columnas <code>email;password</code> separadas por{' '}
+          <code>;</code>, primera fila de cabecera. Las filas inválidas o con campos vacíos se ignoran.
+        </p>
+        <label style={labelStyle}>
+          Pegar CSV (email;password)
+          <textarea
+            style={replaceTextareaStyle}
+            value={replaceCsvText}
+            onChange={(event) => {
+              setReplaceCsvText(event.target.value);
+              setReplaceFileName('');
+              setReplaceSummary(null);
+            }}
+            placeholder={'email;password\nalum1@demo;nuevaPass1\nalum2@demo;nuevaPass2'}
+            rows={6}
+            disabled={replaceSaving || replaceReadingFile}
+          />
+        </label>
+        <label style={labelStyle}>
+          ...o cargar archivo CSV
+          <input
+            style={inputStyle}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={handleReplaceFileChange}
+            disabled={replaceSaving || replaceReadingFile}
+          />
+          {replaceFileName && <span style={fileInfoStyle}>Seleccionado: {replaceFileName}</span>}
+        </label>
+        <button
+          type="button"
+          style={dangerButtonStyle}
+          onClick={handleReplaceCredentials}
+          disabled={replaceSaving || replaceReadingFile || !replaceCsvText.trim()}
+        >
+          {replaceSaving
+            ? 'Reemplazando...'
+            : replaceReadingFile
+            ? 'Leyendo archivo...'
+            : selectedSubjectLabel
+            ? `Reemplazar credenciales con CSV existente para ${selectedSubjectLabel}`
+            : 'Reemplazar credenciales con CSV existente'}
+        </button>
+
+        {replaceError && <p style={errorStyle}>{replaceError}</p>}
+
+        {replaceSummary && (
+          <div style={summaryStyle}>
+            <h4 style={panelTitle}>Resumen del reemplazo</h4>
+            <p>Total filas procesadas: {replaceSummary.totalFilas}</p>
+            <p>Credenciales actualizadas: {replaceSummary.actualizadas}</p>
+            <p>Filas ignoradas: {replaceSummary.ignoradas}</p>
+            <p>Usuarios no encontrados: {replaceSummary.noEncontrados}</p>
+            <p>Errores: {replaceSummary.errores}</p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }
@@ -528,3 +670,25 @@ const credentialsTableStyle = {
 const tableHeaderCellStyle = tables.headerCell;
 
 const tableCellStyle = tables.bodyCell;
+
+const replaceSectionStyle = {
+  ...surfaces.panel,
+  marginTop: '1.5rem',
+  borderColor: '#fecaca',
+  background: '#fff7f7',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.75rem'
+};
+
+const replaceTextareaStyle = {
+  ...forms.textarea,
+  padding: '0.6rem 0.75rem',
+  minHeight: '120px'
+};
+
+const dangerButtonStyle = {
+  ...buttons.danger,
+  padding: '0.65rem 0.9rem',
+  maxWidth: '360px'
+};

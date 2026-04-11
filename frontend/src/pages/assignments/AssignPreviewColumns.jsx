@@ -63,7 +63,7 @@ export default function AssignPreviewColumns({
                 {item.reviewers?.length ? (
                   <div>
                     <p style={{ ...miniMeta, margin: '0.35rem 0 0.25rem', fontWeight: 700, fontSize: '0.95rem' }}>
-                      Es revisado por
+                      Es revisado por{item.reviewers.length > 3 ? ` (${item.reviewers.length})` : ''}
                     </p>
                     <div style={tagsRow}>
                       {item.reviewers.map((rev) => (

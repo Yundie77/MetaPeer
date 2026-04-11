@@ -43,6 +43,56 @@ function buildCredentialsCsv(credentials = []) {
 }
 
 /**
+ * Parser dedicado para el CSV de reemplazo de credenciales.
+ * Devuelve las filas válidas y un contador de filas ignoradas.
+ */
+function parseCredentialsReplacementCsv(csvText) {
+  const result = { rows: [], ignoradas: 0, totalFilas: 0 };
+  if (!csvText || typeof csvText !== 'string') {
+    return result;
+  }
+
+  const normalized = csvText.replace(/^\ufeff/, '');
+  const lines = normalized.split(/\r?\n/);
+  let headerSkipped = false;
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const rawLine = lines[i];
+    if (!rawLine || !rawLine.trim()) {
+      continue;
+    }
+    if (!headerSkipped) {
+      headerSkipped = true;
+      continue;
+    }
+
+    result.totalFilas += 1;
+
+    const parts = rawLine.split(';');
+    if (parts.length < 2) {
+      result.ignoradas += 1;
+      continue;
+    }
+
+    const emailRaw = (parts[0] || '').trim().replace(/^"|"$/g, '');
+    // Permitimos que la password contenga caracteres extra si el usuario metió ; accidentalmente.
+    const passwordRaw = parts.slice(1).join(';').trim().replace(/^"|"$/g, '');
+
+    const email = emailRaw.toLowerCase();
+    const password = passwordRaw;
+
+    if (!email || !password || !email.includes('@')) {
+      result.ignoradas += 1;
+      continue;
+    }
+
+    result.rows.push({ email, password });
+  }
+
+  return result;
+}
+
+/**
  * Flujo: admin/prof sube CSV del roster -> backend crea alumnos y sincroniza equipos.
  */
 router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, res) => {
@@ -275,6 +325,65 @@ router.post('/api/admin/import-roster', requireAuth(['ADMIN', 'PROF']), (req, re
       }
     });
     return sendError(res, 500, 'No pudimos procesar el CSV.');
+  }
+});
+
+/**
+ * Flujo: admin/prof sube CSV `email;password`
+ * y el backend reemplaza contrasena_hash solo para usuarios existentes.
+ */
+router.post('/api/admin/replace-credentials', requireAuth(['ADMIN', 'PROF']), (req, res) => {
+  try {
+    const csvText = req.body?.csvText;
+    if (!csvText || typeof csvText !== 'string') {
+      return sendError(res, 400, 'Debes enviar el texto CSV.');
+    }
+
+    const parsed = parseCredentialsReplacementCsv(csvText);
+
+    const summary = {
+      totalFilas: parsed.totalFilas,
+      actualizadas: 0,
+      ignoradas: parsed.ignoradas,
+      noEncontrados: 0,
+      errores: 0
+    };
+
+    if (parsed.rows.length === 0) {
+      return res.json(summary);
+    }
+
+    const selectUser = db.prepare('SELECT id FROM usuario WHERE correo = ?');
+    const updateHash = db.prepare('UPDATE usuario SET contrasena_hash = ? WHERE id = ?');
+
+    const tx = db.transaction((rows) => {
+      rows.forEach((row) => {
+        try {
+          const user = selectUser.get(row.email);
+          if (!user) {
+            summary.noEncontrados += 1;
+            return;
+          }
+          const hash = bcrypt.hashSync(row.password, 10);
+          const updateResult = updateHash.run(hash, user.id);
+          if (updateResult.changes > 0) {
+            summary.actualizadas += 1;
+          } else {
+            summary.errores += 1;
+          }
+        } catch (_rowError) {
+          summary.errores += 1;
+        }
+      });
+    });
+
+    tx(parsed.rows);
+
+    return res.json(summary);
+  } catch (error) {
+    // No exponer el cuerpo 
+    console.error('Error al reemplazar credenciales:', error.message);
+    return sendError(res, 500, 'No pudimos procesar el CSV de credenciales.');
   }
 });
 

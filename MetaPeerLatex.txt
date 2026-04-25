@@ -259,7 +259,7 @@ La segunda es la capa de acceso HTTP, concentrada en \ttt{api.js}, que ofrece un
 
 \subsection{Organización del backend}
 
-El backend se estructura en torno a un punto de entrada único (\ttt{server.js}) que configura la aplicación Express, registra los middleware transversales\footnote{Un middleware es una función que se ejecuta antes de procesar una petición, para realizar tareas como comprobar datos o permisos.}: CORS\footnote{CORS (Cross-Origin Resource Sharing) es un mecanismo que controla qué páginas web pueden acceder al servidor desde otro origen distinto.}, analizador de cuerpo JSON con un límite de 5 MB, autenticación basada en JWT\footnote{JWT (JSON Web Token) es un estándar para transmitir información de autenticación de forma segura entre cliente y servidor.} y registro de actividad y monta los distintos routers de la aplicación. 
+El backend se estructura en torno a un punto de entrada único (\ttt{server.js}) que configura la aplicación Express, registra los middleware transversales\footnote{Un middleware es una función que se ejecuta antes de procesar una petición, para realizar tareas como comprobar datos o permisos.}: CORS\footnote{CORS (Cross-Origin Resource Sharing) es un mecanismo que controla qué páginas web pueden acceder al servidor desde otro origen distinto.}, analizador de cuerpo JSON con un límite de 5 MB y un registro mínimo de cada petición, y monta los distintos routers de la aplicación. La autenticación basada en JWT\footnote{JWT (JSON Web Token) es un estándar para transmitir información de autenticación de forma segura entre cliente y servidor.} no se aplica como middleware global, sino de forma explícita en las rutas que lo requieren mediante \ttt{requireAuth}. 
 
 Cada router\footnote{Router de Express: mecanismo para agrupar y gestionar rutas HTTP de forma modular dentro de una aplicación Node.js.}
  agrupa las rutas correspondientes a un dominio funcional: autenticación, administración, asignaturas, tareas, entregas, revisiones, meta-revisión, exportación y perfil. Esta organización por dominio facilita localizar la lógica asociada a cada funcionalidad y permite aplicar de forma uniforme los controles de autorización, ya que cada router puede combinar libremente los middleware que necesita sin afectar al resto.
@@ -284,7 +284,7 @@ La Figura \ref{fig:Ciclo simplificado de una petición en MetaPeer entre fronten
 
 \figura{Figuras/ciclo_peticion.png}{}{Ciclo simplificado de una petición en MetaPeer entre frontend y backend}
 
-Los apartados siguientes profundizan en cada una de estas piezas: primero se describen, desde el punto de vista de implementación, las prácticas de ingeniería del software empleadas de forma transversal; a continuación, el frontend y sus pantallas; y, por último, la concreción en código de los algoritmos de asignación ya presentados en el capítulo de diseño.
+Los apartados siguientes profundizan en cada una de estas piezas: primero se describe el frontend y sus pantallas y, por último, la concreción en código de los algoritmos de asignación ya presentados en el capítulo de diseño.
 
 \section{Implementación del frontend}
 
@@ -306,7 +306,7 @@ La pantalla de inicio de sesión (Figura \ref{fig:Pantalla de inicio de sesión}
 
 Este token se almacena en el contexto de autenticación de la aplicación y se adjunta automáticamente a todas las peticiones posteriores, tal como se describió en el apartado 4.1.
 
-Una vez autenticado, el sistema redirige a la persona usuaria a la vista correspondiente a su rol: el panel de tareas en el caso del profesorado, la lista de revisiones asignadas en el caso del alumnado o la pantalla de administración si se trata de un administrador.
+Una vez autenticado, el sistema redirige a la persona usuaria a la vista correspondiente a su rol: el panel de tareas en el caso del profesorado y del administrador, y la lista de revisiones asignadas en el caso del alumnado.
 
 En modo de desarrollo, esta pantalla (Figura \ref{fig:Pantalla de inicio de sesión}) incluye además un mecanismo de acceso rápido que carga una lista de usuarios de prueba desde un fichero local \ttt{quick-users.local.json}. Estos botones permiten iniciar sesión con un solo clic sin necesidad de introducir credenciales, lo que agiliza las pruebas durante el desarrollo. Este mecanismo solo se activa cuando la aplicación se ejecuta en modo desarrollo con la variable de entorno correspondiente habilitada, y no está disponible en producción.
 
@@ -334,7 +334,7 @@ La creación de una nueva tarea se realiza a través de un diálogo modal (Figur
 
 La definición de la rúbrica se realiza desde un segundo diálogo modal (Figura \ref{fig:Modal de edición de rúbrica}) accesible a través de la tarjeta de cada tarea. En él, el profesor configura los criterios de evaluación que utilizará el alumnado revisor. Cada criterio consta de un texto descriptivo y un peso porcentual. 
 
-La interfaz valida en tiempo real que la suma de los pesos sea exactamente 100 y que cada peso sea mayor que 0; mientras estas condiciones no se cumplan, el botón de guardado permanece deshabilitado. Los criterios se pueden añadir o eliminar libremente, salvo el primero, que no es eliminable para garantizar que toda rúbrica tenga al menos un criterio.
+La interfaz valida que la suma de los pesos sea exactamente 100 y que cada peso sea mayor que 0; si estas condiciones no se cumplen, la rúbrica no se guarda y se muestra el mensaje de error correspondiente. Los criterios se pueden añadir o eliminar libremente, salvo el primero, que no es eliminable para garantizar que toda rúbrica tenga al menos un criterio.
 
 \section{Generación y confirmación de la asignación de revisiones}
 
@@ -366,7 +366,7 @@ La segunda (Figura \ref{fig:Resumen de asignación 2}), \textit{Fechas y número
 
 \figura{Figuras/pantalla_resumen_asignacion3.png}{}{Resumen de asignación 3}
 
-La tercera pestaña (Figura \ref{fig:Resumen de asignación 3}), \textit{Estado y enlaces}, lista cada revisión con su estado actual representado mediante un código de colores: pendiente, enviada o meta-revisada. Cada elemento incluye además un enlace directo que permite al profesor acceder a la revisión concreta para consultarla o meta-revisarla.
+La tercera pestaña (Figura \ref{fig:Resumen de asignación 3}), \textit{Estado y enlaces}, lista cada revisión con su estado actual representado mediante un código de colores: pendiente, enviada o con nota. Cada elemento incluye además un enlace directo que permite al profesor acceder a la revisión concreta para consultarla.
 
 \subsection{Espacio de revisión del alumno}
 
@@ -424,11 +424,11 @@ La pantalla de exportación (Figura \ref{fig:Pantalla de exportación de calific
 
 \figura{Figuras/pantalla_export2.png}{}{Pantalla de Meta-revision saliente}
 
-Una vez seleccionada la tarea, la interfaz ofrece dos opciones de generación, cada una asociada a un tipo de exportación. La primera genera el CSV de meta-revisiones salientes (Figura \ref{fig:Pantalla de Meta-revision saliente}), que recoge la valoración realizada por el profesorado sobre cada revisión, incluyendo el identificador del alumno, el identificador de la revisión, la nota de la meta-revisión y la observación asociada. 
+Una vez seleccionada la tarea, la interfaz ofrece dos opciones de generación, cada una asociada a un tipo de exportación. La primera genera el CSV de meta-revisiones salientes (Figura \ref{fig:Pantalla de Meta-revision saliente}), que recoge la valoración realizada por el profesorado sobre cada revisión, incluyendo el nombre del alumno, el identificador de la revisión, la nota de la meta-revisión y la observación asociada. 
 
 \figura{Figuras/pantalla_export3.png}{}{Pantalla de Revision entrante}
 
-La segunda genera el CSV de revisiones entrantes (Figura \ref{fig:Pantalla de Revision entrante}), que contiene las calificaciones recibidas por cada alumno sobre su propia entrega, incluyendo el identificador del alumno, las puntuaciones por criterio de la rúbrica, la nota final ponderada y el comentario del revisor.
+La segunda genera el CSV de revisiones entrantes (Figura \ref{fig:Pantalla de Revision entrante}), que contiene las calificaciones recibidas por cada alumno sobre su propia entrega, incluyendo el nombre del alumno, las puntuaciones por criterio de la rúbrica, la nota final ponderada y el comentario del revisor.
 
 Además de permitir la descarga del fichero, los datos generados se presentan como una tabla directamente en la interfaz, lo que facilita la verificación visual de los resultados antes de su exportación.
 
@@ -436,7 +436,7 @@ Además de permitir la descarga del fichero, los datos generados se presentan co
 
 \figura{Figuras/pantalla_perfil.png}{}{Pantalla de perfil de usuario}
 
-La pantalla de perfil (Figura \ref{fig:Pantalla de perfil de usuario})  muestra la información básica del usuario autenticado junto con un listado cronológico de los eventos relevantes asociados a su actividad en el sistema. Los tipos de eventos visibles se adaptan al rol del usuario: en el caso del profesorado y el administrador se incluyen eventos de asignación, carga de entregas, revisiones enviadas y meta-revisiones; para el alumnado, revisiones asignadas, revisiones enviadas y meta-revisiones recibidas.
+La pantalla de perfil (Figura \ref{fig:Pantalla de perfil de usuario})  muestra la información básica del usuario autenticado junto con un listado cronológico de eventos relevantes construidos a partir de la información disponible en el sistema. Los tipos de eventos visibles se adaptan al rol del usuario: en el caso del profesorado y el administrador se incluyen eventos de asignación, carga de entregas, revisiones enviadas y meta-revisiones; para el alumnado, revisiones asignadas, revisiones enviadas y meta-revisiones recibidas.
 
 Cada evento incorpora una etiqueta que identifica el tipo de acción, la fecha formateada y un enlace directo a la pantalla correspondiente. Por ejemplo, un evento de tipo revisión enviada permite acceder a la vista detallada de esa revisión, mientras que un evento de asignación enlaza con el panel de tareas.
 

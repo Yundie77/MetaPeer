@@ -251,7 +251,7 @@ Antes de entrar en los detalles de cada capa, conviene tener una imagen mental d
 
 El frontend adopta la forma de una \textit{Single-Page Application}, compuesta por páginas asociadas a cada vista principal del sistema (lista de tareas, espacio de revisión, feedback recibido, perfil, etc.) y por componentes reutilizables que encapsulan elementos concretos de la interfaz, como el visor de código con comentarios por línea o los diálogos modales de creación de tareas y rúbricas.
 
-La navegación entre páginas se resuelve en el cliente sin recargas completas, de modo que el contexto de sesión y los datos ya cargados se conservan a lo largo de la interacción.
+La navegación entre páginas se resuelve en el cliente sin recargas completas del documento completo, manteniendo el contexto de sesión activo durante la interacción.
 
 Dos piezas centrales sostienen el funcionamiento del frontend. La primera es el contexto de autenticación, implementado en \ttt{AuthContext.jsx}, que mantiene disponibles el usuario activo, su rol y el token JWT\footnote{JWT (JSON Web Token) es un estándar que permite transmitir información de autenticación de forma segura entre cliente y servidor.} a lo largo de toda la aplicación, y expone las operaciones de inicio y cierre de sesión. 
 
@@ -318,7 +318,7 @@ En modo de desarrollo, esta pantalla (Figura \ref{fig:Pantalla de inicio de sesi
 
 El panel de asignaciones (Figura \ref{fig:Panel de asignaciones del profesorado}) constituye la vista principal del profesorado y el punto de partida para la gestión de las actividades de revisión por pares. Desde esta pantalla, el profesor puede consultar todas las tareas de las asignaturas que tiene asignadas, filtrarlas por asignatura y ordenarlas por fecha de entrega.
 
-Cada tarea se presenta como una tarjeta independiente que muestra su título, la asignatura a la que pertenece, la fecha de entrega y un resumen del estado actual: si se han subido entregas, si la asignación de revisiones ha sido generada y confirmada, y cuántas revisiones se han completado. 
+Cada tarea se presenta como una tarjeta independiente que muestra su título, la fecha de entrega, una descripción si existe, el estado de la última carga de entregas y si la asignación de revisiones ya ha quedado guardada. Cuando la asignación está bloqueada, la tarjeta muestra también el modo de asignación, el número de revisiones configurado y la fecha de asignación.
 
 Desde cada tarjeta, el profesor puede acceder directamente a las acciones relevantes según el estado de la tarea: editar la rúbrica, subir entregas, generar la asignación de revisiones o consultar el resumen de la asignación.
 
@@ -328,7 +328,7 @@ En la parte superior de las tarjetas se encuentra el botón para crear una nueva
 
 \figura{Figuras/pantalla_crear_tarea.png}{}{Modal de creación de tarea}
 
-La creación de una nueva tarea se realiza a través de un diálogo modal (Figura \ref{fig:Modal de creación de tarea}) que se superpone al panel de tareas. En este diálogo, el profesor introduce el título de la tarea, una descripción opcional, selecciona la asignatura a la que pertenece y fija la fecha de entrega. Al confirmar, el sistema crea la tarea y la muestra inmediatamente en el panel.
+La creación de una nueva tarea se realiza a través de un diálogo modal (Figura \ref{fig:Modal de creación de tarea}). La asignatura se selecciona previamente en la barra de controles del panel, y el modal muestra dicha asignatura como contexto de creación. En el diálogo, el profesor introduce el título de la tarea, una descripción opcional y la fecha de entrega. Al confirmar, el sistema crea la tarea asociada a la asignatura seleccionada y la muestra inmediatamente en el panel.
 
 \figura{Figuras/pantalla_rubrica.png}{}{Modal de edición de rúbrica}
 
@@ -378,7 +378,7 @@ La zona izquierda presenta un árbol de ficheros navegable que reproduce la estr
 
 La zona central ocupa la mayor parte de la pantalla y muestra el contenido del fichero seleccionado. Para ficheros de código fuente, se utiliza el componente \ttt{CodeMirror}, descrito en el apartado \ref{sec:codemirror}, que presenta el código con números de línea. El revisor puede hacer clic en el número de la línea para añadir un comentario anclado a esa posición, que queda visible como una anotación insertada bajo la línea correspondiente. 
 
-Para ficheros de tipo imagen o PDF, el visor muestra el contenido en un \ttt{iframe}\footnote{Elemento HTML que permite incrustar contenido externo (como PDF o imágenes) dentro de una página web.} con opción de abrirlo a pantalla completa en una pestaña nueva.
+Para ficheros de tipo imagen o PDF, el visor muestra el contenido en un \ttt{iframe}\footnote{Elemento HTML que permite incrustar contenido externo (como PDF o imágenes) dentro de una página web.} y ofrece la opción de abrir el archivo en una pestaña nueva del navegador.
 
 En la parte superior del visor se muestra una barra de migas de pan (\textit{breadcrumbs}) con la ruta del fichero activo y, cuando existen comentarios, una barra de anclas que permite saltar directamente a cada comentario sin recorrer el fichero completo.
 

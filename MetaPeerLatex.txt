@@ -626,3 +626,11 @@ Dentro de la transacción se llevan a cabo dos operaciones principales:
 \end{enumerate}
 
 Si se produce un fallo en cualquier punto del proceso, SQLite revierte automáticamente todos los cambios realizados dentro de la transacción, garantizando la consistencia de los datos. En ese caso, el sistema devuelve un error al frontend y la asignación no queda registrada.
+
+\subsection{Acceso rápido mediante \ttt{quick-users.local.json}}
+
+En la pantalla de inicio de sesión, debajo del formulario, se muestran botones del tipo \textit{``Entrar como …''} que permiten autenticarse con un solo clic como un usuario predefinido (Figura \ref{fig:Pantalla de inicio de sesión con acceso rápido}). Este panel está controlado mediante la variable de entorno \ttt{VITE\_OWNER\_DEBUG} y solo se muestra cuando se cumplen dos condiciones: que el frontend se esté ejecutando en modo de desarrollo y que dicha variable tenga valor \ttt{1}.
+
+El proyecto incluye el fichero \ttt{.env.owner} con esta configuración predefinida, así como un comando específico, \ttt{npm run dev:owner}, que permite activar este modo durante la sesión de desarrollo.
+
+La lista de usuarios disponibles se define en el fichero \ttt{quick-users.local.json}, ubicado en la carpeta pública del frontend. Cada entrada contiene una etiqueta visible, un correo electrónico y una contraseña. Por motivos de seguridad, este fichero está incluido en \ttt{.gitignore} y no se incorpora al repositorio. En su lugar, se proporciona un fichero \ttt{quick-users.example.json} como plantilla para facilitar la configuración en nuevos entornos de desarrollo.

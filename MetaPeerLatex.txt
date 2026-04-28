@@ -253,6 +253,7 @@ El frontend adopta la forma de una \textit{Single-Page Application}, compuesta p
 
 La navegación entre páginas se resuelve en el cliente sin recargas completas del documento completo, manteniendo el contexto de sesión activo durante la interacción.
 
+
 Dos piezas centrales sostienen el funcionamiento del frontend. La primera es el contexto de autenticación, implementado en \ttt{AuthContext.jsx}, que mantiene disponibles el usuario activo, su rol y el token JWT\footnote{JWT (JSON Web Token) es un estándar que permite transmitir información de autenticación de forma segura entre cliente y servidor.} a lo largo de toda la aplicación, y expone las operaciones de inicio y cierre de sesión. 
 
 La segunda es la capa de acceso HTTP, concentrada en \ttt{api.js}, que ofrece una interfaz uniforme para comunicarse con el backend: añade automáticamente la cabecera de autorización con el token vigente, serializa el cuerpo de las peticiones, interpreta las respuestas y traduce los errores HTTP a excepciones manejables por las páginas. 
@@ -260,6 +261,7 @@ La segunda es la capa de acceso HTTP, concentrada en \ttt{api.js}, que ofrece un
 \subsection{Organización del backend}
 
 El backend se estructura en torno a un punto de entrada único (\ttt{server.js}) que configura la aplicación Express, registra los middleware transversales\footnote{Un middleware es una función que se ejecuta antes de procesar una petición, para realizar tareas como comprobar datos o permisos.}: CORS\footnote{CORS (Cross-Origin Resource Sharing) es un mecanismo que controla qué páginas web pueden acceder al servidor desde otro origen distinto.}, analizador de cuerpo JSON con un límite de 5 MB y un registro mínimo de cada petición, y monta los distintos routers de la aplicación. La autenticación basada en JWT\footnote{JWT (JSON Web Token) es un estándar para transmitir información de autenticación de forma segura entre cliente y servidor.} no se aplica como middleware global, sino de forma explícita en las rutas que lo requieren mediante \ttt{requireAuth}. 
+
 
 Cada router\footnote{Router de Express: mecanismo para agrupar y gestionar rutas HTTP de forma modular dentro de una aplicación Node.js.}
  agrupa las rutas correspondientes a un dominio funcional: autenticación, administración, asignaturas, tareas, entregas, revisiones, meta-revisión, exportación y perfil. Esta organización por dominio facilita localizar la lógica asociada a cada funcionalidad y permite aplicar de forma uniforme los controles de autorización, ya que cada router puede combinar libremente los middleware que necesita sin afectar al resto.
@@ -286,6 +288,7 @@ La Figura \ref{fig:Ciclo simplificado de una petición en MetaPeer entre fronten
 
 Los apartados siguientes profundizan en cada una de estas piezas: primero se describe el frontend y sus pantallas y, por último, la concreción en código de los algoritmos de asignación ya presentados en el capítulo de diseño.
 
+
 \section{Implementación del frontend}
 
 Las pantallas que componen la interfaz de MetaPeer se presentan a continuación siguiendo el orden natural del ciclo de revisión por pares descrito en el diagrama de comportamiento: preparación docente, revisión por el alumnado, y cierre y exportación. 
@@ -298,8 +301,6 @@ La barra de navegación superior, implementada en el componente \ttt{Nav.jsx}, a
 
 \subsection{Inicio de sesión}
 
-
-
 \figura{Figuras/pantalla_login1.png}{0.7}{Pantalla de inicio de sesión}
 
 La pantalla de inicio de sesión (Figura \ref{fig:Pantalla de inicio de sesión}) es la primera vista que encuentra cualquier usuario al acceder a MetaPeer. Presenta un formulario con dos campos: correo electrónico y contraseña, y un botón de acceso. Al enviar las credenciales, el frontend las transmite al backend, que las verifica y, en caso de ser válidas, devuelve un token JWT.
@@ -308,7 +309,8 @@ Este token se almacena en el contexto de autenticación de la aplicación y se a
 
 Una vez autenticado, el sistema redirige a la persona usuaria a la vista correspondiente a su rol: el panel de tareas en el caso del profesorado y del administrador, y la lista de revisiones asignadas en el caso del alumnado.
 
-En modo de desarrollo, esta pantalla (Figura \ref{fig:Pantalla de inicio de sesión}) incluye además un mecanismo de acceso rápido que carga una lista de usuarios de prueba desde un fichero local \ttt{quick-users.local.json}. Estos botones permiten iniciar sesión con un solo clic sin necesidad de introducir credenciales, lo que agiliza las pruebas durante el desarrollo. Este mecanismo solo se activa cuando la aplicación se ejecuta en modo desarrollo con la variable de entorno correspondiente habilitada, y no está disponible en producción.
+
+En modo de desarrollo, esta pantalla (Figura \ref{fig:Pantalla de inicio de sesión con acceso rápido}) incluye además un mecanismo de acceso rápido que carga una lista de usuarios de prueba desde un fichero local \ttt{quick-users.local.json}. Estos botones permiten iniciar sesión con un solo clic sin necesidad de introducir credenciales, lo que agiliza las pruebas durante el desarrollo. Este mecanismo solo se activa cuando la aplicación se ejecuta en modo desarrollo con la variable de entorno correspondiente habilitada, y no está disponible en producción.
 
 \figura{Figuras/pantalla_login2.png}{0.5}{Pantalla de inicio de sesión con acceso rápido}
 
@@ -320,6 +322,7 @@ El panel de asignaciones (Figura \ref{fig:Panel de asignaciones del profesorado}
 
 Cada tarea se presenta como una tarjeta independiente que muestra su título, la fecha de entrega, una descripción si existe, el estado de la última carga de entregas y si la asignación de revisiones ya ha quedado guardada. Cuando la asignación está bloqueada, la tarjeta muestra también el modo de asignación, el número de revisiones configurado y la fecha de asignación.
 
+
 Desde cada tarjeta, el profesor puede acceder directamente a las acciones relevantes según el estado de la tarea: editar la rúbrica, subir entregas, generar la asignación de revisiones o consultar el resumen de la asignación.
 
 En la parte superior de las tarjetas se encuentra el botón para crear una nueva tarea, que abre el diálogo modal de creación descrito en el apartado siguiente.
@@ -330,13 +333,26 @@ En la parte superior de las tarjetas se encuentra el botón para crear una nueva
 
 La creación de una nueva tarea se realiza a través de un diálogo modal (Figura \ref{fig:Modal de creación de tarea}). La asignatura se selecciona previamente en la barra de controles del panel, y el modal muestra dicha asignatura como contexto de creación. En el diálogo, el profesor introduce el título de la tarea, una descripción opcional y la fecha de entrega. Al confirmar, el sistema crea la tarea asociada a la asignatura seleccionada y la muestra inmediatamente en el panel.
 
+
 \figura{Figuras/pantalla_rubrica.png}{}{Modal de edición de rúbrica}
 
 La definición de la rúbrica se realiza desde un segundo diálogo modal (Figura \ref{fig:Modal de edición de rúbrica}) accesible a través de la tarjeta de cada tarea. En él, el profesor configura los criterios de evaluación que utilizará el alumnado revisor. Cada criterio consta de un texto descriptivo y un peso porcentual. 
 
 La interfaz valida que la suma de los pesos sea exactamente 100 y que cada peso sea mayor que 0; si estas condiciones no se cumplen, la rúbrica no se guarda y se muestra el mensaje de error correspondiente. Los criterios se pueden añadir o eliminar libremente, salvo el primero, que no es eliminable para garantizar que toda rúbrica tenga al menos un criterio.
 
-\section{Generación y confirmación de la asignación de revisiones}
+\subsection{Subida de entregas}
+
+\figura{Figuras/pantalla_subirzip.png}{}{Subida de entregas desde la tarjeta de la tarea}
+
+Una vez creada la tarea y definida su rúbrica, el siguiente paso del profesorado consiste en incorporar al sistema las entregas del alumnado. La subida se realiza directamente desde la tarjeta correspondiente (Figura \ref{fig:Subida de entregas desde la tarjeta de la tarea}) mediante el botón \textit{Subir entregas (ZIP)}.
+
+Al pulsarlo, el navegador abre el selector de ficheros del sistema operativo, restringido a archivos con extensión \ttt{.zip}. El profesor selecciona el ZIP lote previamente descargado del Campus Virtual y, tras confirmarlo, el frontend lo envía al backend. Durante el proceso, el botón de la tarjeta muestra el indicador \textit{Cargando...} para informar de que la operación está en curso.
+
+Cuando la subida finaliza correctamente, la tarjeta se actualiza para mostrar el nombre del fichero subido, la fecha de la última carga y el número de entregas detectadas en su interior. A partir de ese momento, la tarea queda preparada para generar la asignación de revisiones, como se describe en el apartado siguiente.
+
+El procesamiento interno del ZIP en el servidor, incluyendo la detección de entregas individuales, la descompresión de archivos anidados y el tratamiento de formatos especiales, se aborda más adelante en el apartado dedicado a la gestión de entregas y archivos del backend.
+
+\subsection{Generación y confirmación de la asignación de revisiones}
 
 \figura{Figuras/pantalla_asignacion.png}{}{Modal de asignación de revisiones con previsualización}
 
@@ -368,7 +384,12 @@ La segunda (Figura \ref{fig:Resumen de asignación 2}), \textit{Fechas y número
 
 La tercera pestaña (Figura \ref{fig:Resumen de asignación 3}), \textit{Estado y enlaces}, lista cada revisión con su estado actual representado mediante un código de colores: pendiente, enviada o con nota. Cada elemento incluye además un enlace directo que permite al profesor acceder a la revisión concreta para consultarla.
 
+
 \subsection{Espacio de revisión del alumno}
+
+\figura{Figuras/pantalla_revision3.png}{0.9}{Selector de revisión asignada}
+
+Cuando el alumno accede al espacio de revisión, la primera vista que encuentra es un selector denominado \textit{Revisión asignada} (Figura \ref{fig:Selector de revisión asignada}), donde aparecen las revisiones que tiene asignadas. Cada opción del desplegable identifica la entrega que debe revisar mediante el título de la tarea, el nombre del fichero ZIP correspondiente y la fecha de entrega. En los casos en que ya existe una revisión enviada, también se muestra la fecha de realización. Una vez seleccionada una revisión, se carga el espacio de trabajo descrito a continuación.
 
 \figura{Figuras/pantalla_revision1.png}{}{Espacio de revisión central}
 
@@ -379,6 +400,7 @@ La zona izquierda presenta un árbol de ficheros navegable que reproduce la estr
 La zona central ocupa la mayor parte de la pantalla y muestra el contenido del fichero seleccionado. Para ficheros de código fuente, se utiliza el componente \ttt{CodeMirror}, descrito en el apartado \ref{sec:codemirror}, que presenta el código con números de línea. El revisor puede hacer clic en el número de la línea para añadir un comentario anclado a esa posición, que queda visible como una anotación insertada bajo la línea correspondiente. 
 
 Para ficheros de tipo imagen o PDF, el visor muestra el contenido en un \ttt{iframe}\footnote{Elemento HTML que permite incrustar contenido externo (como PDF o imágenes) dentro de una página web.} y ofrece la opción de abrir el archivo en una pestaña nueva del navegador.
+
 
 En la parte superior del visor se muestra una barra de migas de pan (\textit{breadcrumbs}) con la ruta del fichero activo y, cuando existen comentarios, una barra de anclas que permite saltar directamente a cada comentario sin recorrer el fichero completo.
 
@@ -426,9 +448,10 @@ La pantalla de exportación (Figura \ref{fig:Pantalla de exportación de calific
 
 Una vez seleccionada la tarea, la interfaz ofrece dos opciones de generación, cada una asociada a un tipo de exportación. La primera genera el CSV de meta-revisiones salientes (Figura \ref{fig:Pantalla de Meta-revision saliente}), que recoge la valoración realizada por el profesorado sobre cada revisión, incluyendo el nombre del alumno, el identificador de la revisión, la nota de la meta-revisión y la observación asociada. 
 
+
 \figura{Figuras/pantalla_export3.png}{}{Pantalla de Revision entrante}
 
-La segunda genera el CSV de revisiones entrantes (Figura \ref{fig:Pantalla de Revision entrante}), que contiene las calificaciones recibidas por cada alumno sobre su propia entrega, incluyendo el nombre del alumno, las puntuaciones por criterio de la rúbrica, la nota final ponderada y el comentario del revisor.
+La segunda genera el CSV de revisiones entrantes (Figura \ref{fig:Pantalla de Revision entrante}), que contiene las calificaciones recibidas por cada alumno sobre su propia entrega, incluyendo el identificador del alumno, las puntuaciones por criterio de la rúbrica, la nota final ponderada y el comentario del revisor.
 
 Además de permitir la descarga del fichero, los datos generados se presentan como una tabla directamente en la interfaz, lo que facilita la verificación visual de los resultados antes de su exportación.
 
@@ -437,6 +460,7 @@ Además de permitir la descarga del fichero, los datos generados se presentan co
 \figura{Figuras/pantalla_perfil.png}{}{Pantalla de perfil de usuario}
 
 La pantalla de perfil (Figura \ref{fig:Pantalla de perfil de usuario})  muestra la información básica del usuario autenticado junto con un listado cronológico de eventos relevantes construidos a partir de la información disponible en el sistema. Los tipos de eventos visibles se adaptan al rol del usuario: en el caso del profesorado y el administrador se incluyen eventos de asignación, carga de entregas, revisiones enviadas y meta-revisiones; para el alumnado, revisiones asignadas, revisiones enviadas y meta-revisiones recibidas.
+
 
 Cada evento incorpora una etiqueta que identifica el tipo de acción, la fecha formateada y un enlace directo a la pantalla correspondiente. Por ejemplo, un evento de tipo revisión enviada permite acceder a la vista detallada de esa revisión, mientras que un evento de asignación enlaza con el panel de tareas.
 
@@ -519,7 +543,7 @@ El proceso de autenticación se articula en tres fases:
 
 \begin{enumerate}
     \item \textbf{Inicio de sesión.}  
-    El frontend envía el correo y la contraseña del usuario al endpoint \ttt{POST /api/login}. El backend recupera el registro correspondiente en la base de datos y compara la contraseña con el hash almacenado mediante \ttt{bcrypt}. Si la comprobación es correcta, genera un token firmado que incluye el identificador y el rol del usuario, y lo devuelve junto con sus datos públicos (\ttt{\{ token, user \}}).
+    El frontend envía el correo y la contraseña del usuario al endpoint \ttt{POST /api/login}. El backend recupera el registro correspondiente en la base de datos y compara la contraseña con el hash almacenado mediante \ttt{bcrypt}\footnote{\ttt{bcryptjs} es una biblioteca que permite aplicar el algoritmo bcrypt para almacenar contraseñas como hashes, evitando guardarlas en texto plano.}. Si la comprobación es correcta, genera un token firmado que incluye el identificador y el rol del usuario, y lo devuelve junto con sus datos públicos (\ttt{\{ token, user \}}).
     
     \item \textbf{Transporte del token.}  
     El frontend almacena el token y lo incluye en todas las peticiones posteriores a través de la cabecera \ttt{Authorization}, precedido por el prefijo \ttt{Bearer}\footnote{Prefijo estándar en la cabecera Authorization que indica que el valor es un token de acceso (portador).}. El token tiene una vigencia de 12 horas, una vez expirado, el usuario debe iniciar sesión de nuevo.
@@ -552,80 +576,156 @@ Cada router define sus propias rutas y aplica las comprobaciones de autenticaci�
 
 Como apoyo a esta organización por routers, MetaPeer utiliza una capa de utilidades compartidas donde \ttt{helpers.js} actúa como fachada de acceso. Esta fachada centraliza funciones reutilizadas por distintos dominios (validaciones, resolución de permisos, operaciones de asignación o registro de actividad), evitando duplicación de código y manteniendo los routers enfocados en la coordinación de la petición.
 
-\section{Algoritmos de asignación en el código}
+\section{Implementación de la asignación de revisiones}
 
-En el apartado \ref{sec:38} se presentó el diseño de los algoritmos de reparto de revisiones. Este apartado describe cómo dicho diseño se materializa en el backend y qué estructura adopta en la implementación.
+En el apartado \ref{sec:38} se presentó el diseño de los algoritmos de reparto de revisiones. Este apartado explica cómo ese diseño se incorpora al backend, con el foco puesto en las decisiones de implementación y no en los detalles del algoritmo, ya tratados en el capítulo de diseño.
 
-La lógica de asignación se concentra en el módulo \ttt{backend/app/assignmentHelpers.js}, que agrupa funciones para construir planes, detectar casos no resolubles y persistir resultados. Su consumidor principal es \ttt{assignmentsRoutes.js}, desde donde se invocan las operaciones de previsualización y confirmación.
+\subsection{Ubicación y separación en fases}
 
-\subsection{Organización del módulo}
+La lógica de asignación se concentra en un módulo específico del backend, \ttt{backend/app/assignmentHelpers.js}. Para mantener en un único lugar los cálculos más delicados del sistema, así facilitar su mantenimiento y reducir la duplicación de lógica. Este módulo es utilizado por el servidor tanto para generar una previsualización de la asignación como para confirmarla definitivamente.
 
-El módulo estructura el proceso en tres fases diferenciadas:
-
+El proceso se organiza en tres fases:
 \begin{enumerate}
-    \item \textbf{Lectura del contexto}: funciones como \ttt{fetchAssignmentContext} recopilan la información necesaria, incluyendo equipos con entrega, miembros y entregas disponibles.
+    \item \textbf{Lectura del contexto}: se reúnen los datos necesarios para calcular la asignación, como los equipos con entrega, los miembros de cada equipo y las entregas disponibles.
     
-    \item \textbf{Construcción del plan}: en función del modo de asignación (\ttt{equipo} o \ttt{individual}), se genera un plan que incluye los pares revisor--revisado, las advertencias detectadas y el número de revisiones aplicadas.
+    \item \textbf{Construcción del plan}: a partir de esos datos se aplica el modo elegido por el profesorado, por equipos o individual. El resultado es un plan provisional que indica quién revisa a quién, qué avisos se han generado y cuántas revisiones por revisor se han podido aplicar.
     
-    \item \textbf{Persistencia}: tras la confirmación explícita del profesorado, la función \ttt{persistAssignmentPlan} almacena el resultado en la base de datos mediante una transacción.
+    \item \textbf{Persistencia}: solo si el profesor confirma el plan, este se guarda en la base de datos.
 \end{enumerate}
 
-Esta separación permite reutilizar la misma lógica de planificación tanto en la previsualización como en la confirmación, diferenciándose únicamente en la fase final de persistencia.
+La previsualización que se muestra al profesorado y la asignación definitiva se calculan de la misma forma. La única diferencia es que, en la confirmación, el plan se guarda de manera permanente. Así se evita que el sistema muestre una asignación en pantalla y registre después otra distinta.
 
-\subsection{Modo por equipos}
+\subsection{Aplicación de las reglas de asignación}
 
-El modo por equipos implementa el recorrido circular descrito en el apartado \ref{sec:382}. A partir del conjunto de equipos con entrega, el sistema genera un orden barajado y asigna a cada equipo revisor los siguientes equipos válidos, evitando en todo caso la auto-revisión.
+Los dos modos de asignación descritos en los apartados \ref{sec:382} y \ref{sec:383} se aplican en esta fase. En el modo por equipos, el sistema reparte las revisiones entre equipos completos. En el modo individual, el reparto se realiza persona a persona, respetando dos restricciones principales: no revisar al propio equipo y no repetir el mismo equipo dentro de una misma asignación.
 
-Además, el algoritmo incorpora un mecanismo de ajuste automático del número de revisiones solicitadas:
+El sistema también controla los casos en los que no es posible cumplir exactamente la configuración solicitada. Si el número de revisiones pedido por el profesor supera el máximo posible, se reduce automáticamente al valor factible y se genera un aviso. En el modo individual, si una ronda no puede completarse sin incumplir las restricciones, se descarta esa ronda y se conserva únicamente la parte del plan que sí es válida. De esta forma, el resultado final mantiene la coherencia y el profesorado recibe información sobre el ajuste realizado.
 
-\begin{itemize}
-    \item calcula el máximo factible (\ttt{equipos - 1}),
-    \item reduce el valor solicitado si lo supera,
-    \item registra una advertencia indicando el ajuste aplicado.
-\end{itemize}
+\subsection{Guardado seguro del plan}
 
-De este modo, el sistema adapta la configuración cuando esta excede los límites factibles y notifica el ajuste al usuario.
+Cuando el profesorado confirma la asignación, el plan calculado debe guardarse de forma fiable. Esta operación puede implicar la creación de muchas revisiones, por lo que no conviene tratarlas como escrituras independientes: si una fallase a mitad del proceso, la base de datos podría quedar en un estado incompleto.
 
-\subsection{Modo individual: \ttt{buildIndividualPlan}}
+Para evitarlo, todas las operaciones de guardado se agrupan en una transacción de SQLite. Esto significa que el conjunto completo de cambios se aplica como una sola unidad: si todo va bien, la asignación queda registrada; si ocurre un error, se descartan todos los cambios realizados durante el intento.
 
-Esta función materializa el algoritmo por rondas descrito en el apartado \ref{sec:383}. Su complejidad es sensiblemente mayor que la del modo por equipos, ya que debe respetar dos restricciones estrictas para cada alumno revisor: no revisar a su propio equipo y no asignar dos veces el mismo equipo dentro de una misma planificación.
+Durante este proceso, el sistema registra los pares revisor--revisado y marca la asignación como bloqueada. Este bloqueo evita que la misma tarea sea reasignada accidentalmente una vez que las revisiones ya han sido creadas. Si se produce un fallo, el backend devuelve un error al frontend y la asignación no queda guardada parcialmente.
 
-El ajuste automático del número de revisiones se calcula como el mínimo entre dos cotas: el número de equipos menos uno y el mínimo, para todas las personas revisoras, del número de personas externas a su propio equipo (caso limitante: el equipo de mayor tamaño). Si el profesor solicita un número de revisiones superior al factible, el sistema reduce el valor y genera el aviso correspondiente.
+\section{Gestión de entregas y archivos}
 
-El cuerpo principal de la función consiste en un bucle que recorre las $R$ rondas necesarias. En cada ronda se reproduce el esquema definido en el diseño:
+La gestión de entregas es uno de los procesos más relevantes del backend, ya que transforma el ZIP subido por el profesorado en un conjunto de archivos navegables desde el espacio de revisión. Este proceso incluye la identificación de las entregas individuales, su asociación con los equipos registrados y la preparación de los ficheros para que puedan consultarse y comentarse desde la interfaz.
 
-\begin{itemize}
-    \item \textbf{Cuota base}.  
-    Se barajan las listas de equipos y de personas revisoras. A continuación, se calcula \ttt{baseQuota = $\lfloor personas / equipos \rfloor$} y, para cada equipo, se seleccionan los primeros revisores válidos hasta cubrir dicha cuota.
-    
-    \item \textbf{Reparto del resto}.  
-    Las personas que no han sido asignadas en la cuota base se distribuyen posteriormente. Para cada una se intenta, en primer lugar, asignar un equipo no utilizado en esa ronda. Si no es posible, se recurre a la función \ttt{pickLeastLoadedTeam}, que selecciona el equipo válido con menor carga acumulada. 
-    
-    \item \textbf{Validación de la ronda}.  
-    Si durante el reparto del resto alguna persona no encuentra un equipo válido, la ronda se considera irresoluble.
-\end{itemize}
+\subsection{Estructura esperada del ZIP lote}
 
-Cuando una ronda resulta irresoluble, el algoritmo no aborta la operación. En su lugar, invoca la función \ttt{rollbackIndividualRound}, que revierte todas las asignaciones realizadas durante esa ronda, eliminando los destinos asignados y ajustando los contadores de carga. 
+MetaPeer trabaja con el formato habitual exportado desde Moodle: un único archivo ZIP que contiene una carpeta por cada equipo o estudiante que ha realizado una entrega. Dentro de cada carpeta se encuentra el archivo ZIP entregado originalmente por el alumnado. El profesorado no necesita modificar manualmente esta estructura, ya que el sistema está diseñado para procesar directamente el fichero descargado del Campus Virtual. 
 
-A continuación, fija el número de revisiones aplicadas al valor de la última ronda completada con éxito, añade un aviso informativo y finaliza el proceso.
+La siguiente figura muestra un ejemplo de estructura del ZIP (Figura \ref{fig:Ejemplo de estructura del ZIP lote exportado desde el Campus Virtual}).
 
-Este comportamiento garantiza que el plan devuelto es siempre consistente, incluso cuando la configuración del curso no permite alcanzar el número de revisiones solicitado por el profesorado.
+\figura{Figuras/pantalla_zip.png}{0.8}{Ejemplo de estructura del ZIP lote exportado desde el Campus Virtual}
 
-\subsection{Persistencia del plan (\ttt{persistAssignmentPlan})}
+\subsection{Detección de entregas por equipo}
 
-Cuando el profesorado confirma la asignación, el sistema debe almacenar el plan completo garantizando la ausencia de estados intermedios inconsistentes. Para ello, la función \ttt{persistAssignmentPlan} utiliza una transacción de SQLite, de modo que la operación se realiza de forma atómica: o se persiste completamente o no se aplica ningún cambio.
+Una vez recibido el ZIP, el backend lo descomprime en una ubicación temporal y recorre su contenido para localizar las entregas individuales. Para cada carpeta detectada, el sistema intenta asociarla con uno de los equipos previamente importados en la asignatura. Esta asociación admite pequeñas variaciones en los nombres, de forma que no depende exclusivamente de una coincidencia literal.
 
-Dentro de la transacción se llevan a cabo dos operaciones principales:
+Cuando una entrega puede vincularse a un equipo conocido, se registra y se prepara para su revisión. Si alguna carpeta no puede asociarse con ningún equipo, se informa al profesorado sin detener el procesamiento del resto de entregas.
 
-\begin{enumerate}
-    \item \textbf{Persistencia de revisiones}.  
-    Se insertan los pares revisor--revisado en la tabla \ttt{revision}. En caso de que ya exista una revisión para un mismo par, el registro se actualiza y su estado se reinicia, permitiendo comenzar el proceso de evaluación desde cero.
-    
-    \item \textbf{Cierre de la asignación}.  
-    Se actualiza la tabla \ttt{asignacion} con los parámetros finales aplicados, incluyendo el modo de asignación, el número efectivo de revisiones por revisor y el estado de bloqueo, impidiendo modificaciones posteriores.
-\end{enumerate}
+\subsection{Descompresión de entregas y archivos anidados}
 
-Si se produce un fallo en cualquier punto del proceso, SQLite revierte automáticamente todos los cambios realizados dentro de la transacción, garantizando la consistencia de los datos. En ese caso, el sistema devuelve un error al frontend y la asignación no queda registrada.
+Cada entrega identificada se almacena en el directorio de entregas del servidor y se descomprime para que sus ficheros puedan visualizarse desde la aplicación. Además, si dentro de una entrega aparecen otros archivos ZIP, el sistema también los descomprime. De este modo, el revisor no se encuentra con archivos comprimidos opacos, sino con una estructura de carpetas y ficheros navegable.
+
+La Figura \ref{fig:Estructura de entregas almacenadas en el servidor} muestra la organización general utilizada por el backend: las entregas se agrupan por identificador de tarea y, dentro de cada tarea, por identificador de equipo. Cada equipo conserva el ZIP original y una carpeta \ttt{contenido/} con los archivos ya preparados para su revisión.
+
+\figura{Figuras/deliveries.png}{0.7}{Estructura de entregas almacenadas en el servidor}
+
+\subsection{Tratamiento de cuadernos Jupyter}
+
+MetaPeer incorpora un tratamiento específico para los archivos de cuadernos Jupyter (\ttt{.ipynb}), frecuentes en prácticas de programación y análisis de datos. Estos documentos combinan código, texto explicativo y resultados de ejecución, por lo que no siempre resultan cómodos de revisar línea a línea en su formato original.
+
+Para facilitar la revisión, el sistema genera una versión dividida del cuaderno, organizada en ficheros numerados por celda. Esta versión se guarda junto al archivo original, permitiendo que el alumnado revisor consulte cada parte del cuaderno de forma separada.
+
+La Figura \ref{fig:Cuaderno Jupyter dividido por celdas} muestra un ejemplo de este tratamiento: junto al cuaderno original aparece una carpeta generada automáticamente con los ficheros correspondientes a sus celdas y salidas.
+
+\figura{Figuras/deliveries2.png}{0.5}{Cuaderno Jupyter dividido por celdas}
+
+\subsection{Registro de la carga}
+
+Al finalizar el procesamiento, el sistema registra un resumen de la operación: el nombre del ZIP subido, el número de entregas detectadas y la fecha de carga. Esta información se muestra posteriormente en la tarjeta de la tarea, lo que permite al profesorado comprobar si la subida se ha realizado correctamente antes de generar la asignación de revisiones.
+
+\section{Validaciones, seguridad y trazabilidad}
+
+MetaPeer gestiona información académica, entregas de estudiantes y resultados de evaluación, por lo que incorpora medidas básicas de seguridad y control de calidad de los datos. Esta sección recoge esas medidas de forma transversal: control de acceso por usuario y rol, protección de credenciales, validación y saneamiento de datos, control sobre los archivos subidos y registro estructurado de acciones relevantes.
+
+\subsection{Control de acceso por usuario y rol}
+
+Tal como se describió en el apartado dedicado a la autenticación, cada petición protegida lleva asociado un token JWT que identifica al usuario y su rol. Sobre esa base, MetaPeer aplica dos niveles complementarios de control de acceso.
+
+El primero es el control por rol. Cada ruta protegida declara qué perfiles pueden invocarla: algunas operaciones quedan reservadas al administrador, como la gestión de profesorado o la importación de alumnado; otras se comparten entre administración y profesorado, como la creación de tareas, la subida de entregas o el lanzamiento de asignaciones; y otras están disponibles para cualquier usuario autenticado, como la consulta del perfil.
+
+El segundo es el control por pertenencia. Comprobar el rol no basta cuando varios usuarios del mismo perfil podrían intentar acceder a recursos que no les corresponden. Por ejemplo, un profesor solo debe poder gestionar tareas de las asignaturas en las que participa, y un alumno solo debe ver las revisiones que se le han asignado o el feedback asociado a sus entregas. Para resolver estos casos, las rutas relevantes consultan la base de datos antes de operar y verifican que el usuario tiene relación con el recurso solicitado.
+
+\subsection{Protección de credenciales}
+
+Las contraseñas de los usuarios nunca se almacenan en texto plano. Cuando un usuario se da de alta o se importa desde el listado del alumnado, la contraseña se transforma mediante \ttt{bcryptjs}. Lo que se guarda en la base de datos es el hash resultante, no la contraseña original. En el inicio de sesión, el sistema compara la contraseña introducida con ese hash mediante el mecanismo de verificación de la propia biblioteca.
+
+Esta forma de almacenamiento implica que, incluso en el supuesto de que alguien obtuviera acceso a la base de datos, no podría leer directamente las contraseñas reales. También significa que el sistema no puede ``recuperar'' una contraseña olvidada, sino únicamente reemplazarla por una nueva, comportamiento deseable desde el punto de vista de la seguridad.
+
+Existe un caso particular: el del primer arranque del sistema en un entorno productivo. Si al iniciar el servidor no existe ningún administrador en la base de datos, MetaPeer crea automáticamente uno con una contraseña aleatoria generada en ese momento. Como esa contraseña no puede recuperarse después, el sistema la deja escrita en un fichero local del servidor (\ttt{pass-admin.txt}). Este mecanismo está pensado únicamente para el primer acceso, y el propio fichero recuerda que debe eliminarse después de iniciar sesión.
+
+\subsection{Validación y saneamiento de datos}
+
+Toda información que llega al servidor procedente del frontend se considera no confiable hasta haber sido validada. Esta validación opera en varios niveles.
+
+En primer lugar, los identificadores recibidos en la URL o en el cuerpo de la petición, como identificadores de tarea, entrega o revisión, se normalizan antes de utilizarse. Además, las consultas a la base de datos se realizan mediante sentencias preparadas, lo que reduce el riesgo de inyección SQL.
+
+En segundo lugar, los datos de negocio se contrastan con las reglas establecidas para cada operación. Por ejemplo, antes de guardar una rúbrica, el servidor comprueba que la suma de los pesos de los criterios sea exactamente 100. De forma análoga, las puntuaciones introducidas por el alumnado revisor se validan dentro del rango admisible antes de calcular la nota final ponderada.
+
+En tercer lugar, los textos que el usuario introduce y que después serán mostrados a otros usuarios, como comentarios por línea, comentarios por fichero, comentario global de una revisión u observaciones de meta-revisión, pasan por un proceso de saneamiento. Este proceso reemplaza caracteres con significado en HTML por equivalentes seguros, mitigando el riesgo de que un usuario introduzca contenido que el navegador de otra persona pueda interpretar como código.
+
+\subsection{Control de archivos subidos}
+
+La subida de archivos es una de las operaciones más delicadas del sistema, tanto por el tamaño potencial de los ficheros como por su interacción con el sistema de archivos del servidor. Por ello, MetaPeer aplica varias restricciones complementarias.
+
+El servidor solo acepta archivos con extensión \ttt{.zip} en la subida de entregas y aplica un límite máximo de 50 MB por archivo. Este límite se gestiona en el componente de subida, de modo que un archivo demasiado grande se rechaza antes de completar su procesamiento.
+
+Una vez aceptado el archivo, el contenido descomprimido se almacena en directorios internos del servidor a los que el navegador no accede directamente. Cuando el alumno revisor solicita visualizar un fichero concreto, el frontend no envía la ruta real del archivo en disco, sino un identificador generado por el servidor para esa revisión. El backend traduce ese identificador a la ruta correspondiente, comprueba que el usuario tiene permiso de acceso y solo entonces devuelve el contenido.
+
+Este mecanismo evita exponer rutas internas, dificulta los intentos de acceso a ficheros no autorizados y mantiene separada la representación visible para el usuario de la organización real de los datos en el servidor.
+
+\subsection{Trazabilidad de acciones relevantes}
+
+MetaPeer emite trazas estructuradas de las acciones más significativas que se producen en el sistema. Este registro no se aplica a todas las peticiones, sino únicamente a las que tienen relevancia funcional o evaluativa: inicio de sesión correcto o fallido, creación y reasignación de planes, subida de un lote de entregas, apertura del espacio de revisión, envío de una revisión, registro de una meta-revisión, exportación de calificaciones y comentarios añadidos por línea o por fichero.
+
+Cada anotación incluye los datos comunes que permiten reconstruir lo ocurrido: instante de la acción, tipo de evento, usuario que la realizó y recursos implicados, como tarea, entrega o revisión. Estas trazas se emiten en formato estructurado de una línea por evento, lo que facilita su consulta posterior con herramientas de procesamiento de texto, siempre que el entorno de ejecución conserve los logs generados por el servidor.
+
+Esta trazabilidad cumple un doble papel. Por un lado, ofrece una vía objetiva para evaluar el funcionamiento de MetaPeer durante su uso académico, alineada con los objetivos del propio TFG. Por otro, deja un registro útil para diagnosticar incidencias: ante un problema reportado por un usuario, los eventos asociados permiten reconstruir qué acciones se llevaron a cabo y en qué punto se produjo el comportamiento inesperado.
+
+A modo ilustrativo, el Listado \ref{lst:traza-ejemplo} muestra una traza generada en el momento en que un alumno envía una revisión completada. La estructura sigue el formato JSONL\footnote{JSONL: variante de JSON en la que cada línea contiene un objeto independiente, lo que facilita su lectura secuencial y su procesamiento con herramientas estándar.}: una línea de JSON por cada evento registrado.
+
+\begin{listing}[h]
+    \begin{minted}[frame=single,linenos,breaklines]{json}
+{"ts":"2026-04-09T17:42:11.328Z",
+ "event":"review_submitted",
+ "action":"submit_review",
+ "user_id":42,
+ "user_nombre":"Ana Garcia",
+ "user_rol":"ALUM",
+ "assignment_id":7,
+ "submission_id":15,
+ "review_id":83,
+ "status":"ok",
+ "nota_numerica":7.85,
+ "has_comment":true,
+ "review_cycle_hours":2.4}
+    \end{minted}
+    \caption{Ejemplo de traza generada al enviar una revisión}
+    \label{lst:traza-ejemplo}
+\end{listing}
+
+En el listado se han introducido saltos de línea por legibilidad. En los logs reales, cada evento ocupa una única línea.
+
+En la traza pueden distinguirse dos tipos de campos. Los campos comunes a todos los eventos (\ttt{ts}, \ttt{event}, \ttt{action}, \ttt{user\_id}, \ttt{user\_nombre}, \ttt{user\_rol}, \ttt{assignment\_id}, \ttt{submission\_id}, \ttt{review\_id} y \ttt{status}) permiten reconstruir quién realizó la acción, sobre qué recurso y con qué resultado. Los campos específicos varían según el tipo de evento, en este caso, recogen la nota emitida, si la revisión incluía comentario global y el tiempo transcurrido entre la asignación de la revisión y su envío.
+
+\section{Modo de desarrollo y pruebas}
+
+Durante el desarrollo de MetaPeer ha sido necesario validar de forma repetida escenarios con usuarios de distintos roles. Para reducir la introducción manual de credenciales en cada prueba, el proyecto incorpora un mecanismo de acceso rápido orientado exclusivamente al entorno de desarrollo, que no está disponible en el despliegue en producción.
 
 \subsection{Acceso rápido mediante \ttt{quick-users.local.json}}
 

@@ -3,11 +3,11 @@
 \section{Visión general del sistema}
 \subsection{Propósito del sistema}
 
-MetaPeer es una aplicación web orientada a gestionar y ejecutar evaluación por pares (peer-to-peer) de prácticas académicas, especialmente de programación. Permite organizar asignaturas y tareas, cargar entregas en formato ZIP, asignar revisiones (con previsualización y confirmación), y realizar la evaluación mediante rúbricas porcentuales y comentarios sobre el código por línea. Además, soporta meta-revisión por parte del profesorado y exportación de calificaciones para su uso externo.
+\mpeer es una aplicación web orientada a gestionar y ejecutar evaluación por pares (peer-to-peer) de prácticas académicas, especialmente de programación. Permite organizar asignaturas y tareas, cargar entregas en formato ZIP, asignar revisiones (con previsualización y confirmación), y realizar la evaluación mediante rúbricas porcentuales y comentarios sobre el código por línea. Además, soporta meta-revisión por parte del profesorado y exportación de calificaciones para su uso externo.
 
 \subsection{Roles y permisos}
 
-MetaPeer define tres roles principales con responsabilidades claramente diferenciadas, tanto a nivel funcional como de acceso a la aplicacioón: \textbf{ADMIN, PROF y ALUM}.
+\mpeer define tres roles principales con responsabilidades claramente diferenciadas, tanto a nivel funcional como de acceso a la aplicación: \textbf{ADMIN, PROF y ALUM}.
 
 \begin{itemize}
     \item  \textbf{ADMIN:} asume funciones de administración global del sistema. Su responsabilidad principal es preparar el entorno académico para que el resto de usuarios puedan trabajar sobre él: gestionar asignaturas, dar de alta profesorado y cargar o sincronizar la base de datos inicial de alumnado y grupos.
@@ -25,13 +25,13 @@ MetaPeer define tres roles principales con responsabilidades claramente diferenc
 
 \section{Requisitos}
 
-Los requisitos del sistema se definieron mediante reuniones con los tutores del TFG, donde se acordaron el alcance, los supuestos y las restricciones que guían el diseño de MetaPeer.
+Los requisitos del sistema se definieron mediante reuniones con los tutores del TFG, donde se acordaron el alcance, los supuestos y las restricciones que guían el diseño de \mpeer.
 
 \subsection{Supuestos y restricciones}
 
-\textbf{Origen y formato de las entregas:} Se asume que el profesorado descarga desde el Campus Virtual un ZIP ``lote'' de una tarea (exportación de la plataforma docente) que contiene carpetas por grupo/estudiante y, dentro, el ZIP de entrega. MetaPeer no se integra mediante API con el Campus Virtual: el flujo es subida manual por el profesorado del ZIP lote al sistema.
+\textbf{Origen y formato de las entregas:} Se asume que el profesorado descarga desde el Campus Virtual un ZIP ``lote'' de una tarea (exportación de la plataforma docente) que contiene carpetas por grupo/estudiante y, dentro, el ZIP de entrega. \mpeer no se integra mediante API con el Campus Virtual: el flujo es subida manual por el profesorado del ZIP lote al sistema.
 
-\textbf{Formato del CSV de grupos:} El CSV es exportado por el profesorado desde Moodle, contiene los datos de cada alumno y el grupo al que pertenece. MetaPeer importa este fichero para crear y sincronizar usuarios y equipos en la asignatura.
+\textbf{Formato del CSV de grupos:} El CSV es exportado por el profesorado desde Moodle, contiene los datos de cada alumno y el grupo al que pertenece. \mpeer importa este fichero para crear y sincronizar usuarios y equipos en la asignatura.
 
 \textbf{Anonimato:} El anonimato entre el alumnado depende del modo de asignación. En modo equipo, solo se muestra el nombre del equipo revisor (no los miembros), preservando anonimato individual. En modo individual, el revisado puede identificar al revisor asignado.
 
@@ -73,7 +73,7 @@ Los requisitos del sistema se definieron mediante reuniones con los tutores del 
 
 \section{Diagrama de comportamiento}
 
-El diagrama de la figura \ref{fig:Diagrama de comportamiento del sistema} representa el flujo de interacción general del sistema mediante un esquema de líneas verticales que diferencia los tres actores principales: el profesorado, el sistema MetaPeer y el alumnado.
+El diagrama de la figura \ref{fig:Diagrama de comportamiento del sistema. Fuente: elaboración propia} representa el flujo de interacción general del sistema mediante un esquema de líneas verticales que diferencia los tres actores principales: el profesorado, el sistema \mpeer y el alumnado.
 
 El flujo se inicia con las tareas de preparación docente: el profesorado importa la estructura de alumnos y equipos a través de un CSV, crea la tarea con su rúbrica asociada y sube las entregas descargadas del Campus Virtual. Una vez completada esta fase, genera y confirma la asignación de revisiones, momento a partir del cual el sistema hace visibles al alumnado las revisiones que tiene asignadas.
 
@@ -81,13 +81,13 @@ A continuación, el alumnado accede a las entregas que le corresponde revisar, a
 
 Paralelamente, el profesorado consulta las revisiones realizadas por el alumnado y emite su meta-revisión, valorando la calidad del trabajo de revisión. El flujo concluye con la exportación de las calificaciones en formato CSV para su uso externo.
 
-Este diagrama refleja el ciclo completo de evaluación por pares implementado en MetaPeer, desde la configuración inicial de la actividad hasta la obtención de los resultados finales.
+Este diagrama refleja el ciclo completo de evaluación por pares implementado en \mpeer, desde la configuración inicial de la actividad hasta la obtención de los resultados finales.
 
-\figura{Figuras/comportamiento_general.png}{}{Diagrama de comportamiento del sistema}
+\figura{Figuras/comportamiento_general.png}{}{Diagrama de comportamiento del sistema. Fuente: elaboración propia}
 
 \section{Arquitectura del sistema}
 
-MetaPeer se basa en una arquitectura \textit{Cliente-Servidor}, en la que se separan claramente la interfaz de usuario, la lógica de la aplicación y la persistencia de la información. El usuario accede al sistema a través de un navegador web, desde el que interactúa con la aplicación cliente. Esta aplicación se comunica con un servidor API, encargado de procesar las peticiones, aplicar la lógica de negocio y coordinar el acceso a los datos.
+\mpeer se basa en una arquitectura \textit{Cliente-Servidor}, en la que se separan claramente la interfaz de usuario, la lógica de la aplicación y la persistencia de la información. El usuario accede al sistema a través de un navegador web, desde el que interactúa con la aplicación cliente. Esta aplicación se comunica con un servidor API, encargado de procesar las peticiones, aplicar la lógica de negocio y coordinar el acceso a los datos.
 
 La arquitectura se articula en torno a cuatro elementos principales:
 
@@ -101,17 +101,17 @@ La arquitectura se articula en torno a cuatro elementos principales:
     \item \textbf{Almacenamiento de archivos}: directorios en el sistema de ficheros del servidor donde se almacenan las entregas de los estudiantes.
 \end{itemize}
 
-La figura \ref{fig:Arquitectura de la aplicación} muestra de forma esquemática los componentes principales de esta arquitectura y las relaciones entre ellos.
+La figura \ref{fig:Arquitectura de la aplicación. Fuente: elaboración propia} muestra de forma esquemática los componentes principales de esta arquitectura y las relaciones entre ellos.
 
-\figura{Figuras/arquitectura_general.png}{}{Arquitectura de la aplicación}
+\figura{Figuras/arquitectura_general.png}{}{Arquitectura de la aplicación. Fuente: elaboración propia}
 
 \section{Tecnologías de frontend}
 
-El \textit{frontend} constituye la capa cliente del sistema, es decir, la parte de la aplicación con la que interactúan directamente los usuarios a través del navegador. En MetaPeer, esta capa debe dar soporte a flujos diferenciados según el rol del usuario (ADMIN, PROF y ALUM), incluyendo la gestión de tareas y rúbricas, la revisión de entregas, la consulta de feedback y la navegación entre vistas sin recargas completas de página. Por ello, se optó por una arquitectura \textit{SPA} (\textit{Single-Page Application}), adecuada para interfaces web con alta interactividad y actualización dinámica de contenido \cite{spa_wikipedia}.
+El \textit{frontend} constituye la capa cliente del sistema, es decir, la parte de la aplicación con la que interactúan directamente los usuarios a través del navegador. En \mpeer, esta capa debe dar soporte a flujos diferenciados según el rol del usuario (ADMIN, PROF y ALUM), incluyendo la gestión de tareas y rúbricas, la revisión de entregas, la consulta de feedback y la navegación entre vistas sin recargas completas de página. Por ello, se optó por una arquitectura \textit{SPA} (\textit{Single-Page Application}), adecuada para interfaces web con alta interactividad y actualización dinámica de contenido \cite{spa_wikipedia}.
 
 \subsection{React}
 
-La tecnología principal del frontend es \textbf{React}\footnote{\url{https://react.dev/}}, utilizada como biblioteca para construir la interfaz web mediante componentes reutilizables. Su elección se justifica por su adecuación al desarrollo de aplicaciones SPA con múltiples vistas y estados de interacción, como ocurre en MetaPeer. Además, React cuenta con una amplia utilización en el ámbito profesional, lo que refuerza su idoneidad también desde un punto de vista formativo. Según la \textit{Stack Overflow Developer Survey 2024}, más de un 40\% de los encuestados decía usarla, se sitúa entre las tecnologías web más utilizadas por desarrolladores profesionales \cite{stackoverflow2024}.
+La tecnología principal del frontend es \textbf{React}\footnote{\url{https://react.dev/}}, utilizada como biblioteca para construir la interfaz web mediante componentes reutilizables. Su elección se justifica por su adecuación al desarrollo de aplicaciones SPA con múltiples vistas y estados de interacción, como ocurre en \mpeer. Además, React cuenta con una amplia utilización en el ámbito profesional, lo que refuerza su idoneidad también desde un punto de vista formativo. Según la \textit{Stack Overflow Developer Survey 2024}, más de un 40\% de los encuestados decía usarla, se sitúa entre las tecnologías web más utilizadas por desarrolladores profesionales \cite{stackoverflow2024}.
 
 \subsection{Vite}
 
@@ -124,7 +124,7 @@ Para el visor de código integrado en las revisiones se utiliza \textbf{CodeMirr
 
 \section{Tecnologías de backend}
 
-El \textit{backend} constituye la capa servidora del sistema y concentra la lógica de negocio, el control de acceso, la persistencia y el procesamiento de datos. En MetaPeer, esta capa es responsable de gestionar la autenticación de usuarios, las operaciones asociadas a asignaturas y tareas, la subida y tratamiento de entregas en formato ZIP, la asignación de revisiones, la meta-revisión y la exportación de resultados. Dado que el sistema requiere una separación clara entre interfaz y lógica, se adoptó una arquitectura basada en API REST.
+El \textit{backend} constituye la capa servidora del sistema y concentra la lógica de negocio, el control de acceso, la persistencia y el procesamiento de datos. En \mpeer, esta capa es responsable de gestionar la autenticación de usuarios, las operaciones asociadas a asignaturas y tareas, la subida y tratamiento de entregas en formato ZIP, la asignación de revisiones, la meta-revisión y la exportación de resultados. Dado que el sistema requiere una separación clara entre interfaz y lógica, se adoptó una arquitectura basada en API REST.
 
 \subsection{Node.js}
 
@@ -136,17 +136,17 @@ Sobre este entorno se utiliza \textbf{Express}\footnote{\url{https://expressjs.c
 
 \subsection{SQLite}
 
-En la capa de persistencia se emplea \textbf{SQLite}\footnote{\url{https://sqlite.org/}, repositorio GitHub en \url{https://github.com/sqlite/sqlite}}, que actúa como base de datos relacional embebida del sistema. Su elección se justifica por su ligereza y por no requerir un servidor de base de datos independiente, lo que simplifica el despliegue y la reproducibilidad del proyecto. Además, su modelo relacional encaja adecuadamente con las entidades principales de MetaPeer —usuarios, asignaturas, tareas, equipos, entregas, revisiones y rúbricas— y permite definir claves foráneas y restricciones de integridad de forma sencilla \cite{sqlite_docs}.
+En la capa de persistencia se emplea \textbf{SQLite}\footnote{\url{https://sqlite.org/}, repositorio GitHub en \url{https://github.com/sqlite/sqlite}}, que actúa como base de datos relacional embebida del sistema. Su elección se justifica por su ligereza y por no requerir un servidor de base de datos independiente, lo que simplifica el despliegue y la reproducibilidad del proyecto. Además, su modelo relacional encaja adecuadamente con las entidades principales de \mpeer —usuarios, asignaturas, tareas, equipos, entregas, revisiones y rúbricas— y permite definir claves foráneas y restricciones de integridad de forma sencilla \cite{sqlite_docs}.
 
 \section{Diseño de la base datos}
 
 \subsection{Diseño inicial de la base de datos}
 
-El diseño inicial, reflejado en el primer diagrama \ref{fig:Esquema inicial}, ya contenía el núcleo conceptual del sistema: usuarios, asignaturas, tareas, equipos, entregas, revisiones, rúbricas y meta-revisiones. En esa fase temprana, el modelo estaba claramente orientado a representar el flujo básico \textit{crear tarea → recibir entrega → asignar revisión → evaluar}.
+El diseño inicial, reflejado en el primer diagrama \ref{fig:Esquema inicial. Fuente: elaboración propia}, ya contenía el núcleo conceptual del sistema: usuarios, asignaturas, tareas, equipos, entregas, revisiones, rúbricas y meta-revisiones. En esa fase temprana, el modelo estaba claramente orientado a representar el flujo básico \textit{crear tarea → recibir entrega → asignar revisión → evaluar}.
 
 Sin embargo, este primer modelo todavía presentaba una definición incompleta de algunas responsabilidades. Y ciertos elementos del esquema requerían una redefinición posterior para adaptarse mejor a los requisitos efectivos del sistema, especialmente en lo relativo a la configuración de asignaciones, la persistencia de comentarios y la trazabilidad de las revisiones.
 
-\figura{Figuras/bd_inicial.png}{}{Esquema inicial}
+\figura{Figuras/bd_inicial.png}{}{Esquema inicial. Fuente: elaboración propia}
 
 \subsection{Evolución del diseño de base de datos}
 El esquema fue refinándose para separar con mayor claridad la organización académica, la gestión de entregas, la configuración de las asignaciones de revisión y el almacenamiento del feedback generado durante el proceso evaluador. En esa evolución se incorporaron nuevas entidades, se simplificaron otras y se desplazaron determinadas responsabilidades hacia tablas más específicas.
@@ -155,13 +155,13 @@ Entre los cambios más relevantes destacan la consolidación del vínculo entre 
 
 \subsection{Diseño final}
 
-El modelo final \ref{fig:Esquema final} se articula en varios bloques funcionales relacionados. En primer lugar, la organización académica se apoya en las entidades \ttt{usuario}, \ttt{asignatura} y \ttt{usuario\_asignatura}, lo que permite representar de forma unificada los distintos perfiles del sistema (\ttt{ADMIN}, \ttt{PROF} y \ttt{ALUM}) y su vinculación con el contexto docente correspondiente. 
+El modelo final \ref{fig:Esquema final. Fuente: elaboración propia} se articula en varios bloques funcionales relacionados. En primer lugar, la organización académica se apoya en las entidades \ttt{usuario}, \ttt{asignatura} y \ttt{usuario\_asignatura}, lo que permite representar de forma unificada los distintos perfiles del sistema (\ttt{ADMIN}, \ttt{PROF} y \ttt{ALUM}) y su vinculación con el contexto docente correspondiente. 
 
 Esta decisión evita duplicar estructuras por tipo de usuario y sitúa la asignatura como unidad básica de organización académica. A ello se añade la representación de equipos mediante \ttt{equipo} y \ttt{miembro\_equipo}, necesaria para la participación del alumnado en tareas que pueden resolverse colectivamente.
 
 Sobre esta base se construye el bloque de actividad docente, formado por \ttt{tarea}, \ttt{entregas} y \ttt{carga\_entregas}. La entidad \ttt{tarea} representa la práctica académica en sí misma, mientras que \ttt{entregas} identifica la unidad concreta que será revisada y \ttt{carga\_entregas} conserva la información asociada al lote de subida realizado por el profesorado. 
 
-Esta separación constituye una decisión de diseño relevante, ya que permite distinguir entre el proceso de importación de materiales y las entregas efectivamente evaluables dentro del sistema. De este modo, la base de datos refleja mejor el flujo real de trabajo de MetaPeer, en el que las entregas se incorporan al sistema a partir de un ZIP y pasan después a convertirse en objetos de revisión.
+Esta separación constituye una decisión de diseño relevante, ya que permite distinguir entre el proceso de importación de materiales y las entregas efectivamente evaluables dentro del sistema. De este modo, la base de datos refleja mejor el flujo real de trabajo de \mpeer, en el que las entregas se incorporan al sistema a partir de un ZIP y pasan después a convertirse en objetos de revisión.
 
 Un tercer bloque lo forman \ttt{asignacion} y \ttt{rubrica\_items}. En el diseño final, la configuración del proceso de revisión se concentra en una entidad específica vinculada de forma uno a uno con \ttt{tarea}. Esta decisión permite desacoplar la definición de la práctica de la configuración del mecanismo de revisión por pares. 
 
@@ -175,7 +175,7 @@ La segunda representa la valoración docente asociada a dicha revisión, manteni
 
 Esta separación entre revisión y meta-revisión constituye una de las decisiones estructurales más relevantes del modelo, ya que permite diferenciar con claridad dos niveles de evaluación con finalidades distintas: uno orientado a la entrega revisada y otro orientado a la calidad del trabajo realizado por el revisor.
 
-\figura{Figuras/bd_final.png}{}{Esquema final}
+\figura{Figuras/bd_final.png}{}{Esquema final. Fuente: elaboración propia}
 
 \section{Diseño de los algoritmos principales}
 \label{sec:38}
@@ -207,9 +207,9 @@ Este planteamiento garantiza por construcción dos propiedades fundamentales: ni
 
 Si el profesor solicita más revisiones por revisor de las posibles (por ejemplo, $5$ cuando solo hay $4$ equipos distintos disponibles), el sistema ajusta automáticamente ese número al máximo factible y avisa del ajuste mediante un mensaje de advertencia, en lugar de rechazar la operación.
 
-La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
+La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
 
-\figura{Figuras/asignacion-equipos}{}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado}
+\figura{Figuras/asignacion-equipos}{0.9}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia}
 
 \subsection{Asignación individual}
 \label{sec:383}
@@ -229,23 +229,22 @@ La idea del algoritmo es la siguiente:
     
 \end{itemize}
 
-La Figura \ref{fig:Asignación individual con restricciones y ajuste automático} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
+La Figura \ref{fig:Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
 
-\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático}
+\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia}
 
 El resultado final es un plan de asignación con tres garantías: ningún alumno revisa su propio equipo, no se repiten revisiones sobre el mismo equipo y el reparto entre receptores es equilibrado siempre que las restricciones estructurales lo permitan. En caso contrario, el sistema devuelve una asignación ajustada junto con los avisos necesarios para facilitar la toma de decisiones por parte del profesor.
-
 \chapter{Implementación}
 
 \section{Visión general de la implementación}
 \label{sec:41}
 
 
-La implementación de MetaPeer materializa la arquitectura cliente-servidor descrita en el capítulo de diseño mediante dos subproyectos diferenciados: un backend construido sobre Node.js y Express, y un frontend de página única desarrollado en React. Ambos conviven en el mismo repositorio y se comunican exclusivamente a través de HTTP: el frontend consume la API REST\footnote{API REST: estilo de arquitectura que permite la comunicación cliente-servidor mediante recursos identificados por URLs y operaciones HTTP estándar.} expuesta por el backend, que a su vez gestiona la persistencia en SQLite y el almacenamiento de entregas en el sistema de ficheros del servidor.
+La implementación de \mpeer materializa la arquitectura cliente-servidor descrita en el capítulo de diseño mediante dos subproyectos diferenciados: un backend construido sobre Node.js y Express, y un frontend de página única desarrollado en React. Ambos conviven en el mismo repositorio y se comunican exclusivamente a través de HTTP: el frontend consume la API REST\footnote{API REST: estilo de arquitectura que permite la comunicación cliente-servidor mediante recursos identificados por URLs y operaciones HTTP estándar.} expuesta por el backend, que a su vez gestiona la persistencia en SQLite y el almacenamiento de entregas en el sistema de ficheros del servidor.
 
-Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de MetaPeer} resume esa organización.
+Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de \mpeer} resume esa organización.
 
-\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de MetaPeer}
+\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de \mpeer}
 
 \subsection{Organización del frontend}
 
@@ -282,16 +281,16 @@ Posteriormente, el router delega la lógica de negocio en los módulos auxiliare
 
 Por último, la respuesta se devuelve al cliente a través de \ttt{api.js}, que la interpreta y la entrega a la página solicitante, la cual actualiza la interfaz para reflejar el nuevo estado del sistema.
 
-La Figura \ref{fig:Ciclo simplificado de una petición en MetaPeer entre frontend y backend} resume el recorrido de una petición típica en MetaPeer: desde la acción del usuario en el frontend hasta su procesamiento en el backend y la persistencia de datos, con retorno de respuesta para actualizar la interfaz.
+La Figura \ref{fig:Ciclo simplificado de una petición en \mpeer entre frontend y backend} resume el recorrido de una petición típica en \mpeer: desde la acción del usuario en el frontend hasta su procesamiento en el backend y la persistencia de datos, con retorno de respuesta para actualizar la interfaz.
 
-\figura{Figuras/ciclo_peticion.png}{}{Ciclo simplificado de una petición en MetaPeer entre frontend y backend}
+\figura{Figuras/ciclo_peticion.png}{}{Ciclo simplificado de una petición en \mpeer entre frontend y backend}
 
 Los apartados siguientes profundizan en cada una de estas piezas: primero se describe el frontend y sus pantallas y, por último, la concreción en código de los algoritmos de asignación ya presentados en el capítulo de diseño.
 
 
 \section{Implementación del frontend}
 
-Las pantallas que componen la interfaz de MetaPeer se presentan a continuación siguiendo el orden natural del ciclo de revisión por pares descrito en el diagrama de comportamiento: preparación docente, revisión por el alumnado, y cierre y exportación. 
+Las pantallas que componen la interfaz de \mpeer se presentan a continuación siguiendo el orden natural del ciclo de revisión por pares descrito en el diagrama de comportamiento: preparación docente, revisión por el alumnado, y cierre y exportación. 
 
 Para cada pantalla se incluye una captura representativa y una explicación concisa de lo que la persona usuaria puede ver y hacer en ella, así como su relación con el flujo general del sistema.
 
@@ -303,7 +302,7 @@ La barra de navegación superior, implementada en el componente \ttt{Nav.jsx}, a
 
 \figura{Figuras/pantalla_login1.png}{0.7}{Pantalla de inicio de sesión}
 
-La pantalla de inicio de sesión (Figura \ref{fig:Pantalla de inicio de sesión}) es la primera vista que encuentra cualquier usuario al acceder a MetaPeer. Presenta un formulario con dos campos: correo electrónico y contraseña, y un botón de acceso. Al enviar las credenciales, el frontend las transmite al backend, que las verifica y, en caso de ser válidas, devuelve un token JWT.
+La pantalla de inicio de sesión (Figura \ref{fig:Pantalla de inicio de sesión}) es la primera vista que encuentra cualquier usuario al acceder a \mpeer. Presenta un formulario con dos campos: correo electrónico y contraseña, y un botón de acceso. Al enviar las credenciales, el frontend las transmite al backend, que las verifica y, en caso de ser válidas, devuelve un token JWT.
 
 Este token se almacena en el contexto de autenticación de la aplicación y se adjunta automáticamente a todas las peticiones posteriores, tal como se describió en el apartado 4.1.
 
@@ -393,7 +392,7 @@ Cuando el alumno accede al espacio de revisión, la primera vista que encuentra 
 
 \figura{Figuras/pantalla_revision1.png}{}{Espacio de revisión central}
 
-El espacio de revisión constituye la pantalla central de MetaPeer (Figura \ref{fig:Espacio de revisión central}), ya que es donde se materializa la actividad de evaluación por pares. Su diseño combina tres zonas.
+El espacio de revisión constituye la pantalla central de \mpeer (Figura \ref{fig:Espacio de revisión central}), ya que es donde se materializa la actividad de evaluación por pares. Su diseño combina tres zonas.
 
 La zona izquierda presenta un árbol de ficheros navegable que reproduce la estructura de directorios de la entrega descomprimida. Junto a cada fichero se muestra un contador con el número de comentarios existentes: tanto por línea como por fichero, lo que permite al revisor identificar rápidamente los archivos ya anotados. Las carpetas se pueden expandir y colapsar, y el separador entre esta zona y la central se puede arrastrar para ajustar el ancho según la profundidad del árbol.
 
@@ -486,7 +485,7 @@ Por último, la pantalla de gestión de grupos (\ttt{AdminDB.jsx}) (Figura \ref{
 
 \section{Implementación del backend}
 
-En el apartado \ref{sec:41} se presentó el backend de MetaPeer como un servidor basado en Node.js y Express que recibe peticiones del frontend, consulta la base de datos SQLite y devuelve respuestas en formato JSON. 
+En el apartado \ref{sec:41} se presentó el backend de \mpeer como un servidor basado en Node.js y Express que recibe peticiones del frontend, consulta la base de datos SQLite y devuelve respuestas en formato JSON. 
 
 En este apartado se describe su funcionamiento interno: cómo se procesa una petición en el servidor, cómo se identifican los recursos mediante rutas, cómo se gestiona la autenticación de los usuarios y cómo se distribuye la lógica entre los distintos módulos.
 
@@ -494,7 +493,7 @@ En este apartado se describe su funcionamiento interno: cómo se procesa una pet
 
 Cuando una petición HTTP llega al servidor, Express la procesa como una secuencia de funciones encadenadas. Cada una de ellas recibe los objetos \ttt{req}, \ttt{res} y \ttt{next}, y decide si continúa el flujo o finaliza la respuesta.
 
-En MetaPeer, el orden de procesamiento definido en \ttt{server.js} es el siguiente:
+En \mpeer, el orden de procesamiento definido en \ttt{server.js} es el siguiente:
 
 \begin{enumerate}
     \item \ttt{cors}: permite las llamadas desde el frontend durante el desarrollo.
@@ -514,7 +513,7 @@ Este esquema permite que cada ruta se centre en su lógica específica, mientras
 
 \subsection{Variables de ruta: el uso de \ttt{:id}}
 
-En MetaPeer, muchas operaciones se realizan sobre un recurso concreto, como una tarea, una entrega o una asignatura, en lugar de sobre el conjunto completo. Para expresar este comportamiento, Express permite definir variables de ruta, es decir, segmentos dinámicos en la URL que se indican mediante el prefijo \ttt{:}.
+En \mpeer, muchas operaciones se realizan sobre un recurso concreto, como una tarea, una entrega o una asignatura, en lugar de sobre el conjunto completo. Para expresar este comportamiento, Express permite definir variables de ruta, es decir, segmentos dinámicos en la URL que se indican mediante el prefijo \ttt{:}.
 
 Un ejemplo representativo es la ruta \ttt{GET /api/assignments/:assignmentId}. 
 
@@ -535,7 +534,7 @@ El uso de identificadores numéricos autoincrementales responde a criterios prá
 
 El protocolo HTTP es sin estado, lo que implica que cada petición se procesa de forma independiente sin conservar información sobre interacciones anteriores. En consecuencia, el backend no puede determinar por sí mismo si un usuario ya se ha autenticado, por lo que cada petición debe incluir un mecanismo que permita identificar al solicitante y verificar sus permisos.
 
-Para resolver este problema, MetaPeer utiliza \textit{JSON Web Tokens} (JWT), un mecanismo ampliamente adoptado que permite al servidor emitir una credencial firmada que el frontend adjunta en cada petición posterior.
+Para resolver este problema, \mpeer utiliza \textit{JSON Web Tokens} (JWT), un mecanismo ampliamente adoptado que permite al servidor emitir una credencial firmada que el frontend adjunta en cada petición posterior.
 
 El núcleo del sistema es un secreto compartido, una clave privada conocida únicamente por el servidor y leída desde la variable de entorno \ttt{JWT\_SECRET}. Esta clave se emplea tanto para firmar los tokens en el momento de su generación como para verificar su validez cuando son recibidos. Dado que solo el servidor conoce esta clave, no es posible fabricar ni modificar un token válido sin invalidar su firma.
 
@@ -558,7 +557,7 @@ Este esquema permite que los routers declaren sus permisos de forma concisa en l
 
 \subsection{Organización por dominios}
 
-En MetaPeer se opta por una organización por dominios, en la que cada fichero agrupa rutas correspondientes a una misma área de responsabilidad. El backend cuenta con nueve routers ubicados en el directorio \ttt{backend/app/routes/}:
+En \mpeer se opta por una organización por dominios, en la que cada fichero agrupa rutas correspondientes a una misma área de responsabilidad. El backend cuenta con nueve routers ubicados en el directorio \ttt{backend/app/routes/}:
 
 \begin{itemize}
     \item \ttt{authRoutes}: gestión del inicio de sesión y de la sesión activa.
@@ -574,7 +573,7 @@ En MetaPeer se opta por una organización por dominios, en la que cada fichero a
 
 Cada router define sus propias rutas y aplica las comprobaciones de autenticación y control de acceso según el rol del usuario. Todos ellos se integran en \ttt{server.js} mediante llamadas sucesivas a \ttt{app.use(...)}, de modo que Express despacha cada petición al router correspondiente en función de la ruta solicitada.
 
-Como apoyo a esta organización por routers, MetaPeer utiliza una capa de utilidades compartidas donde \ttt{helpers.js} actúa como fachada de acceso. Esta fachada centraliza funciones reutilizadas por distintos dominios (validaciones, resolución de permisos, operaciones de asignación o registro de actividad), evitando duplicación de código y manteniendo los routers enfocados en la coordinación de la petición.
+Como apoyo a esta organización por routers, \mpeer utiliza una capa de utilidades compartidas donde \ttt{helpers.js} actúa como fachada de acceso. Esta fachada centraliza funciones reutilizadas por distintos dominios (validaciones, resolución de permisos, operaciones de asignación o registro de actividad), evitando duplicación de código y manteniendo los routers enfocados en la coordinación de la petición.
 
 \section{Implementación de la asignación de revisiones}
 
@@ -615,7 +614,7 @@ La gestión de entregas es uno de los procesos más relevantes del backend, ya q
 
 \subsection{Estructura esperada del ZIP lote}
 
-MetaPeer trabaja con el formato habitual exportado desde Moodle: un único archivo ZIP que contiene una carpeta por cada equipo o estudiante que ha realizado una entrega. Dentro de cada carpeta se encuentra el archivo ZIP entregado originalmente por el alumnado. El profesorado no necesita modificar manualmente esta estructura, ya que el sistema está diseñado para procesar directamente el fichero descargado del Campus Virtual. 
+\mpeer trabaja con el formato habitual exportado desde Moodle: un único archivo ZIP que contiene una carpeta por cada equipo o estudiante que ha realizado una entrega. Dentro de cada carpeta se encuentra el archivo ZIP entregado originalmente por el alumnado. El profesorado no necesita modificar manualmente esta estructura, ya que el sistema está diseñado para procesar directamente el fichero descargado del Campus Virtual. 
 
 La siguiente figura muestra un ejemplo de estructura del ZIP (Figura \ref{fig:Ejemplo de estructura del ZIP lote exportado desde el Campus Virtual}).
 
@@ -637,11 +636,13 @@ La Figura \ref{fig:Estructura de entregas almacenadas en el servidor} muestra la
 
 \subsection{Tratamiento de cuadernos Jupyter}
 
-MetaPeer incorpora un tratamiento específico para los archivos de cuadernos Jupyter (\ttt{.ipynb}), frecuentes en prácticas de programación y análisis de datos. Estos documentos combinan código, texto explicativo y resultados de ejecución, por lo que no siempre resultan cómodos de revisar línea a línea en su formato original.
+\mpeer incorpora un tratamiento específico para los archivos de cuadernos Jupyter (\ttt{.ipynb}), frecuentes en prácticas de programación y análisis de datos. Estos documentos combinan código, texto explicativo y resultados de ejecución, por lo que no siempre resultan cómodos de revisar línea a línea en su formato original.
 
 Para facilitar la revisión, el sistema genera una versión dividida del cuaderno, organizada en ficheros numerados por celda. Esta versión se guarda junto al archivo original, permitiendo que el alumnado revisor consulte cada parte del cuaderno de forma separada.
 
 La Figura \ref{fig:Cuaderno Jupyter dividido por celdas} muestra un ejemplo de este tratamiento: junto al cuaderno original aparece una carpeta generada automáticamente con los ficheros correspondientes a sus celdas y salidas.
+
+El código de tratamiento ha sido desarrollado por uno de los tutores de este trabajo y está disponible en github\footnote{\url{https://github.com/manuel-freire/ipynbsplit/}}. En \mpeer se usa una versión adaptada\footnote{\url{https://github.com/Yundie77/mp/blob/main/backend/utils/ipynbSplit.js}}
 
 \figura{Figuras/deliveries2.png}{0.5}{Cuaderno Jupyter dividido por celdas}
 
@@ -651,11 +652,11 @@ Al finalizar el procesamiento, el sistema registra un resumen de la operación: 
 
 \section{Validaciones, seguridad y trazabilidad}
 
-MetaPeer gestiona información académica, entregas de estudiantes y resultados de evaluación, por lo que incorpora medidas básicas de seguridad y control de calidad de los datos. Esta sección recoge esas medidas de forma transversal: control de acceso por usuario y rol, protección de credenciales, validación y saneamiento de datos, control sobre los archivos subidos y registro estructurado de acciones relevantes.
+\mpeer gestiona información académica, entregas de estudiantes y resultados de evaluación, por lo que incorpora medidas básicas de seguridad y control de calidad de los datos. Esta sección recoge esas medidas de forma transversal: control de acceso por usuario y rol, protección de credenciales, validación y saneamiento de datos, control sobre los archivos subidos y registro estructurado de acciones relevantes.
 
 \subsection{Control de acceso por usuario y rol}
 
-Tal como se describió en el apartado dedicado a la autenticación, cada petición protegida lleva asociado un token JWT que identifica al usuario y su rol. Sobre esa base, MetaPeer aplica dos niveles complementarios de control de acceso.
+Tal como se describió en el apartado dedicado a la autenticación, cada petición protegida lleva asociado un token JWT que identifica al usuario y su rol. Sobre esa base, \mpeer aplica dos niveles complementarios de control de acceso.
 
 El primero es el control por rol. Cada ruta protegida declara qué perfiles pueden invocarla: algunas operaciones quedan reservadas al administrador, como la gestión de profesorado o la importación de alumnado; otras se comparten entre administración y profesorado, como la creación de tareas, la subida de entregas o el lanzamiento de asignaciones; y otras están disponibles para cualquier usuario autenticado, como la consulta del perfil.
 
@@ -667,7 +668,7 @@ Las contraseñas de los usuarios nunca se almacenan en texto plano. Cuando un us
 
 Esta forma de almacenamiento implica que, incluso en el supuesto de que alguien obtuviera acceso a la base de datos, no podría leer directamente las contraseñas reales. También significa que el sistema no puede ``recuperar'' una contraseña olvidada, sino únicamente reemplazarla por una nueva, comportamiento deseable desde el punto de vista de la seguridad.
 
-Existe un caso particular: el del primer arranque del sistema en un entorno productivo. Si al iniciar el servidor no existe ningún administrador en la base de datos, MetaPeer crea automáticamente uno con una contraseña aleatoria generada en ese momento. Como esa contraseña no puede recuperarse después, el sistema la deja escrita en un fichero local del servidor (\ttt{pass-admin.txt}). Este mecanismo está pensado únicamente para el primer acceso, y el propio fichero recuerda que debe eliminarse después de iniciar sesión.
+Existe un caso particular: el del primer arranque del sistema en un entorno productivo. Si al iniciar el servidor no existe ningún administrador en la base de datos, \mpeer crea automáticamente uno con una contraseña aleatoria generada en ese momento. Como esa contraseña no puede recuperarse después, el sistema la deja escrita en un fichero local del servidor (\ttt{pass-admin.txt}). Este mecanismo está pensado únicamente para el primer acceso, y el propio fichero recuerda que debe eliminarse después de iniciar sesión.
 
 \subsection{Validación y saneamiento de datos}
 
@@ -681,7 +682,7 @@ En tercer lugar, los textos que el usuario introduce y que después serán mostr
 
 \subsection{Control de archivos subidos}
 
-La subida de archivos es una de las operaciones más delicadas del sistema, tanto por el tamaño potencial de los ficheros como por su interacción con el sistema de archivos del servidor. Por ello, MetaPeer aplica varias restricciones complementarias.
+La subida de archivos es una de las operaciones más delicadas del sistema, tanto por el tamaño potencial de los ficheros como por su interacción con el sistema de archivos del servidor. Por ello, \mpeer aplica varias restricciones complementarias.
 
 El servidor solo acepta archivos con extensión \ttt{.zip} en la subida de entregas y aplica un límite máximo de 50 MB por archivo. Este límite se gestiona en el componente de subida, de modo que un archivo demasiado grande se rechaza antes de completar su procesamiento.
 
@@ -691,11 +692,11 @@ Este mecanismo evita exponer rutas internas, dificulta los intentos de acceso a 
 
 \subsection{Trazabilidad de acciones relevantes}
 
-MetaPeer emite trazas estructuradas de las acciones más significativas que se producen en el sistema. Este registro no se aplica a todas las peticiones, sino únicamente a las que tienen relevancia funcional o evaluativa: inicio de sesión correcto o fallido, creación y reasignación de planes, subida de un lote de entregas, apertura del espacio de revisión, envío de una revisión, registro de una meta-revisión, exportación de calificaciones y comentarios añadidos por línea o por fichero.
+\mpeer emite trazas estructuradas de las acciones más significativas que se producen en el sistema. Este registro no se aplica a todas las peticiones, sino únicamente a las que tienen relevancia funcional o evaluativa: inicio de sesión correcto o fallido, creación y reasignación de planes, subida de un lote de entregas, apertura del espacio de revisión, envío de una revisión, registro de una meta-revisión, exportación de calificaciones y comentarios añadidos por línea o por fichero.
 
 Cada anotación incluye los datos comunes que permiten reconstruir lo ocurrido: instante de la acción, tipo de evento, usuario que la realizó y recursos implicados, como tarea, entrega o revisión. Estas trazas se emiten en formato estructurado de una línea por evento, lo que facilita su consulta posterior con herramientas de procesamiento de texto, siempre que el entorno de ejecución conserve los logs generados por el servidor.
 
-Esta trazabilidad cumple un doble papel. Por un lado, ofrece una vía objetiva para evaluar el funcionamiento de MetaPeer durante su uso académico, alineada con los objetivos del propio TFG. Por otro, deja un registro útil para diagnosticar incidencias: ante un problema reportado por un usuario, los eventos asociados permiten reconstruir qué acciones se llevaron a cabo y en qué punto se produjo el comportamiento inesperado.
+Esta trazabilidad cumple un doble papel. Por un lado, ofrece una vía objetiva para evaluar el funcionamiento de \mpeer durante su uso académico, alineada con los objetivos del propio TFG. Por otro, deja un registro útil para diagnosticar incidencias: ante un problema reportado por un usuario, los eventos asociados permiten reconstruir qué acciones se llevaron a cabo y en qué punto se produjo el comportamiento inesperado.
 
 A modo ilustrativo, el Listado \ref{lst:traza-ejemplo} muestra una traza generada en el momento en que un alumno envía una revisión completada. La estructura sigue el formato JSONL\footnote{JSONL: variante de JSON en la que cada línea contiene un objeto independiente, lo que facilita su lectura secuencial y su procesamiento con herramientas estándar.}: una línea de JSON por cada evento registrado.
 
@@ -725,7 +726,7 @@ En la traza pueden distinguirse dos tipos de campos. Los campos comunes a todos 
 
 \section{Modo de desarrollo y pruebas}
 
-Durante el desarrollo de MetaPeer ha sido necesario validar de forma repetida escenarios con usuarios de distintos roles. Para reducir la introducción manual de credenciales en cada prueba, el proyecto incorpora un mecanismo de acceso rápido orientado exclusivamente al entorno de desarrollo, que no está disponible en el despliegue en producción.
+Durante el desarrollo de \mpeer ha sido necesario validar de forma repetida escenarios con usuarios de distintos roles. Para reducir la introducción manual de credenciales en cada prueba, el proyecto incorpora un mecanismo de acceso rápido orientado exclusivamente al entorno de desarrollo, que no está disponible en el despliegue en producción.
 
 \subsection{Acceso rápido mediante \ttt{quick-users.local.json}}
 

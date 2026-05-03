@@ -230,9 +230,9 @@ Este planteamiento garantiza por construcción dos propiedades fundamentales: ni
 
 Si el profesor solicita más revisiones por revisor de las posibles (por ejemplo, $5$ cuando solo hay $4$ equipos distintos disponibles), el sistema ajusta automáticamente ese número al máximo factible y avisa del ajuste mediante un mensaje de advertencia, en lugar de rechazar la operación. Dado que el número aplicado nunca supera $|\text{equipos}| - 1$, el recorrido circular no alcanza al propio equipo.
 
-La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
+La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
 
-\figura{Figuras/asignacion-equipos}{}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado}
+\figura{Figuras/asignacion-equipos}{}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia}
 
 \subsection{Asignación individual}
 \label{sec:383}
@@ -252,9 +252,9 @@ La idea del algoritmo es la siguiente:
 
 \end{itemize}
 
-La Figura \ref{fig:Asignación individual con restricciones y ajuste automático} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
+La Figura \ref{fig:Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
 
-\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático}
+\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia}
 
 El resultado final es un plan de asignación con tres garantías: ningún alumno revisa su propio equipo, no se repiten revisiones sobre el mismo equipo y el reparto entre receptores es equilibrado siempre que las restricciones estructurales lo permitan. En caso contrario, el sistema devuelve una asignación ajustada junto con los avisos necesarios para facilitar la toma de decisiones por parte del profesor.
 \chapter{Implementación}

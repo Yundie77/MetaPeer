@@ -3,24 +3,26 @@
 \section{Visión general del sistema}
 \subsection{Propósito del sistema}
 
-\mpeer es una aplicación web orientada a gestionar y ejecutar evaluación por pares (peer-to-peer) de prácticas académicas, especialmente de programación. Permite organizar asignaturas y tareas, cargar entregas en formato ZIP, asignar revisiones (con previsualización y confirmación), y realizar la evaluación mediante rúbricas porcentuales y comentarios sobre el código por línea. Además, soporta meta-revisión por parte del profesorado y exportación de calificaciones para su uso externo.
+\mpeer es una aplicación web orientada a gestionar y ejecutar procesos de evaluación por pares (peer-to-peer), es decir, evaluación entre iguales, en prácticas académicas, especialmente de programación. El sistema permite organizar asignaturas y tareas, subir entregas en formato ZIP, generar asignaciones de revisión con previsualización y confirmación, y realizar la evaluación mediante rúbricas porcentuales y comentarios asociados al código. Además, incorpora meta-revisión por parte del profesorado y exportación de resultados para su uso externo.
 
 \subsection{Roles y permisos}
 
-\mpeer define tres roles principales con responsabilidades claramente diferenciadas, tanto a nivel funcional como de acceso a la aplicación: \textbf{ADMIN, PROF y ALUM}.
+\mpeer define tres roles principales con responsabilidades diferenciadas, tanto desde el punto de vista funcional como desde el acceso a las distintas secciones de la aplicación: \textbf{ADMIN, PROF y ALUM}.
 
 \begin{itemize}
-    \item  \textbf{ADMIN:} asume funciones de administración global del sistema. Su responsabilidad principal es preparar el entorno académico para que el resto de usuarios puedan trabajar sobre él: gestionar asignaturas, dar de alta profesorado y cargar o sincronizar la base de datos inicial de alumnado y grupos.
-    
-    En términos prácticos, un ejemplo de uso sería el de un administrador que crea una nueva asignatura, registra a un profesor y le asigna dicha asignatura para que posteriormente pueda crear tareas y gestionar revisiones. 
-    \item  \textbf{PROF:} concentra la gestión docente del proceso de revisión por pares. Es el usuario que configura la actividad académica: crea tareas, define y modifica rúbricas, sube las entregas descargadas del Campus Virtual en formato ZIP, lanza la asignación de revisiones y realiza meta-revisiones sobre las evaluaciones hechas por el alumnado.
-    
-    Por ejemplo, un profesor puede importar el CSV de grupos de una asignatura, crear una práctica con su fecha de entrega, definir una rúbrica porcentual y, una vez subidas las entregas, generar una asignación en la que cada grupo revise a otro. Después, puede consultar las revisiones hechas y valorar la calidad de dichas correcciones mediante meta-revisión.
-    \item  \textbf{ALUM:} corresponde al estudiante que participa en la evaluación por pares, tanto actuando como revisor o como revisado. 
-    
-    Como revisor, puede acceder a las revisiones que le han sido asignadas, navegar por los ficheros entregados, añadir comentarios por línea o por fichero, cumplimentar la rúbrica y enviar la revisión. 
-    
-    Como revisado, puede consultar el feedback recibido sobre su propia entrega y visualizarlo en modo lectura. 
+    \item \textbf{ADMIN:} asume las funciones de administración global del sistema. Su responsabilidad principal es preparar el entorno académico para que el resto de usuarios pueda trabajar sobre él: crear asignaturas, dar de alta al profesorado, vincularlo a las asignaturas correspondientes e importar el listado de alumnado y la estructura de equipos a partir del CSV exportado desde el Campus Virtual.
+
+    En términos prácticos, un administrador puede crear una nueva asignatura, importar el CSV con su alumnado y equipos, registrar a un profesor y vincularle dicha asignatura para que posteriormente pueda crear tareas y gestionar revisiones.
+
+    \item \textbf{PROF:} concentra la gestión docente del proceso de revisión por pares. Es el usuario que configura la actividad académica dentro de las asignaturas que le han sido asignadas: crea tareas, define y modifica rúbricas, sube las entregas descargadas del Campus Virtual en formato ZIP, genera la asignación de revisiones y realiza meta-revisiones sobre las evaluaciones elaboradas por el alumnado.
+
+    Por ejemplo, una vez que el administrador ha dado de alta la asignatura y su alumnado, un profesor puede crear una práctica con su fecha de entrega, definir una rúbrica porcentual y, una vez subidas las entregas, generar una asignación de revisiones según el modo configurado. Después, puede consultar las revisiones realizadas y valorar la calidad de dichas correcciones mediante meta-revisión.
+
+    \item \textbf{ALUM:} corresponde al estudiante que participa en la evaluación por pares, actuando tanto en calidad de revisor como de revisado.
+
+    Como revisor, puede acceder a las revisiones que le han sido asignadas, navegar por los ficheros entregados, añadir comentarios por línea o por fichero, cumplimentar la rúbrica y enviar la revisión.
+
+    Como revisado, puede consultar el feedback recibido sobre su propia entrega y visualizarlo en modo de solo lectura.
 \end{itemize}
 
 \section{Requisitos}
@@ -33,7 +35,7 @@ Los requisitos del sistema se definieron mediante reuniones con los tutores del 
 
 \textbf{Formato del CSV de grupos:} El CSV es exportado por el profesorado desde Moodle, contiene los datos de cada alumno y el grupo al que pertenece. \mpeer importa este fichero para crear y sincronizar usuarios y equipos en la asignatura.
 
-\textbf{Anonimato:} El anonimato entre el alumnado depende del modo de asignación. En modo equipo, solo se muestra el nombre del equipo revisor (no los miembros), preservando anonimato individual. En modo individual, el revisado puede identificar al revisor asignado.
+\textbf{Anonimato:} El anonimato se plantea como una decisión de presentación al alumnado, no como una propiedad absoluta del sistema. En modo equipo, la revisión se muestra asociada al equipo revisor y no a sus integrantes, preservando el anonimato individual frente al revisado. En modo individual, la revisión queda asociada a una persona concreta. En ambos casos, el sistema conserva internamente la composición de los equipos y el último revisor que envió cada revisión para permitir la gestión docente y la trazabilidad.
 
 \subsection{Requisitos funcionales (RF)}
 
@@ -46,7 +48,8 @@ Los requisitos del sistema se definieron mediante reuniones con los tutores del 
         \rf{Almacenamiento en local y descompresión de entregas}{El backend debe persistir las entregas y extraer su contenido para permitir su inspección en la revisión, incluyendo tratamiento de ZIPs anidados y archivos .ipynb.}
         \rf{Generación de asignación de revisiones configurable}{El profesorado debe poder generar una previsualización de una asignación para revisar y ajustar parámetros como modo equipo/individual y el número de revisiones por revisor antes de confirmarla.}
         \rf{Confirmación de la asignación y bloqueo operativo}{El sistema debe persistir la asignación confirmada y evitar relanzarla cuando ya existen revisiones asignadas.}
-        \rf{Acceso del alumnado a las revisiones asignadas}{El alumno debe poder ver qué revisiones tiene asignadas y su estado (pendiente/enviada).}
+        \rf{Reasignación destructiva con confirmación}{El sistema debe permitir relanzar la asignación de revisiones de una tarea cuando esta ya está bloqueada, advirtiendo al usuario de que se perderán las revisiones y comentarios existentes y exigiendo una confirmación explícita antes de aplicar la operación.}
+        \rf{Acceso del alumnado a las revisiones asignadas}{El alumnado debe poder ver qué revisiones tiene asignadas y consultar su estado actual: pendiente, enviada con nota o meta-revisada por el profesorado.}
         \rf{Visualización de ficheros de una entrega}{El revisor debe poder ver y navegar por los archivos descomprimidos y visualizarlos durante la revisión, texto, PDF, imagen, etc. Y con opción de poder ver a pantalla completa los archivos.}
         \rf{Permalink y copia de referencia a línea de código}{El sistema debe permitir al revisor copiar una línea concreta de código o generar un enlace permanente (permalink) que apunte directamente a esa línea dentro de la revisión, facilitando la referencia precisa y la navegación directa.}
         \rf{Comentario por fichero (no ligado a línea) en una revisión}{El revisor debe poder adjuntar un comentario general a un fichero concreto (independiente del comentario global de la revisión).}
@@ -66,9 +69,8 @@ Los requisitos del sistema se definieron mediante reuniones con los tutores del 
         \rf{Control de tamaño máximo de subida}{Las cargas de ficheros deben estar restringidas de tamaño para evitar saturación de disco/memoria.}
         \rf{Mantenibilidad}{El código debe organizarse en módulos con responsabilidades bien definidas para facilitar su evolución y permitir que el proyecto pueda ser retomado o ampliado por personas distintas a las que lo han desarrollado.}
         \rf{Compatibilidad}{La aplicación debe funcionar en navegadores modernos de escritorio sin requerir instalación de software adicional en el lado del cliente.}
-        \rf{Trazabilidad de acciones}{El sistema debe registrar de forma persistente las acciones relevantes de los usuarios, incluyendo autor, contexto e instante, para permitir su análisis posterior en la evaluación.}
-        \rf{Seguridad de credenciales}{Las contraseñas no deben guardarse en texto plano; en su lugar, deben almacenarse como hashes\footnote{Un hash es una función que transforma un dato en una cadena de longitud fija de forma irreversible.} criptográficos acompañados de una sal aleatoria única para cada usuario.}
-
+        \rf{Trazabilidad de acciones relevantes}{El sistema debe emitir eventos estructurados de las acciones relevantes de los usuarios, incluyendo autor, rol, contexto, instante e identificadores de los recursos afectados, para que puedan conservarse y analizarse posteriormente en el entorno de despliegue.}
+        \rf{Seguridad de credenciales}{Las contraseñas no deben guardarse en texto plano. Deben almacenarse mediante una función de \textit{hash}\footnote{Una función de \textit{hash} transforma un dato en una cadena de longitud fija de forma irreversible.} resistente a ataques de fuerza bruta, incorporando una sal aleatoria por credencial para que dos usuarios con la misma contraseña no produzcan el mismo resultado almacenado.}
     \end{enumerate}
 
 \section{Diagrama de comportamiento}
@@ -87,19 +89,15 @@ Este diagrama refleja el ciclo completo de evaluación por pares implementado en
 
 \section{Arquitectura del sistema}
 
-\mpeer se basa en una arquitectura \textit{Cliente-Servidor}, en la que se separan claramente la interfaz de usuario, la lógica de la aplicación y la persistencia de la información. El usuario accede al sistema a través de un navegador web, desde el que interactúa con la aplicación cliente. Esta aplicación se comunica con un servidor API, encargado de procesar las peticiones, aplicar la lógica de negocio y coordinar el acceso a los datos.
+\mpeer se apoya en una arquitectura cliente-servidor, en la que se separan con claridad la interfaz de usuario, la lógica de la aplicación y la persistencia de la información. El usuario accede al sistema a través de un navegador web, desde el que interactúa con la aplicación cliente. Esta aplicación se comunica con un servidor API encargado de procesar las peticiones, aplicar la lógica de negocio y coordinar el acceso a los datos.
 
-La arquitectura se articula en torno a cuatro elementos principales:
+El cliente es una aplicación web ejecutada en el navegador que ofrece la interfaz con la que opera cada perfil de usuario. La comunicación con el servidor se realiza siempre mediante peticiones HTTP\footnote{HTTP (HyperText Transfer Protocol) es el protocolo de comunicación usado entre cliente y servidor en la web.}, sin que el cliente acceda en ningún momento de forma directa a los datos almacenados. El servidor API, implementado sobre Node.js y Express, recibe esas peticiones, comprueba que el usuario tiene permiso para realizarlas, ejecuta la lógica de negocio correspondiente y devuelve la respuesta al cliente.
 
-\begin{itemize}
-    \item \textbf{Cliente}: aplicación web ejecutada en el navegador que proporciona la interfaz de usuario e interactúa con el servidor mediante peticiones HTTP\footnote{HTTP (HyperText Transfer Protocol) es el protocolo de comunicación usado entre cliente y servidor en la web.}.
+La persistencia se resuelve con dos medios complementarios. Por un lado, la información estructurada del sistema, como usuarios, asignaturas, tareas, equipos, entregas, revisiones o comentarios, reside en una base de datos relacional embebida (SQLite). Por otro, el contenido físico de las entregas, es decir, los archivos ZIP subidos por el profesorado y la estructura de ficheros resultante tras descomprimirlos, se mantiene en el sistema de ficheros del servidor, en un directorio reservado a este uso.
 
-    \item \textbf{Servidor API}: componente desarrollado en Node.js y Express que gestiona la lógica de negocio del sistema, procesa las peticiones del cliente y coordina el acceso a los datos.
-    
-    \item \textbf{Base de datos}: sistema de almacenamiento relacional (SQLite) donde se guarda la información estructurada de la aplicación, como usuarios, tareas, revisiones o comentarios.
-    
-    \item \textbf{Almacenamiento de archivos}: directorios en el sistema de ficheros del servidor donde se almacenan las entregas de los estudiantes.
-\end{itemize}
+Esta separación entre la base de datos y el almacenamiento de archivos constituye una decisión de diseño explícita. La base de datos guarda únicamente los metadatos asociados a cada entrega, como su autor, su tarea, su fecha o la ruta donde se ha almacenado, mientras que los ficheros propiamente dichos quedan fuera de ella. De este modo se evita sobrecargar la base de datos con contenidos potencialmente voluminosos, se mantiene su tamaño manejable y se permite que el servidor recupere los archivos desde disco cuando un revisor necesita consultarlos. La detección, descompresión y organización interna de esas entregas pertenece al ámbito de la implementación y se aborda en el capítulo correspondiente.
+
+La elección de un único servidor API, junto con una base de datos embebida y almacenamiento local de ficheros, responde al objetivo de mantener una arquitectura ligera y reproducible, adecuada para el alcance del proyecto sin introducir componentes de infraestructura más complejos.
 
 La figura \ref{fig:Arquitectura de la aplicación. Fuente: elaboración propia} muestra de forma esquemática los componentes principales de esta arquitectura y las relaciones entre ellos.
 
@@ -107,86 +105,113 @@ La figura \ref{fig:Arquitectura de la aplicación. Fuente: elaboración propia} 
 
 \section{Tecnologías de frontend}
 
-El \textit{frontend} constituye la capa cliente del sistema, es decir, la parte de la aplicación con la que interactúan directamente los usuarios a través del navegador. En \mpeer, esta capa debe dar soporte a flujos diferenciados según el rol del usuario (ADMIN, PROF y ALUM), incluyendo la gestión de tareas y rúbricas, la revisión de entregas, la consulta de feedback y la navegación entre vistas sin recargas completas de página. Por ello, se optó por una arquitectura \textit{SPA} (\textit{Single-Page Application}), adecuada para interfaces web con alta interactividad y actualización dinámica de contenido \cite{spa_wikipedia}.
+El frontend constituye la capa cliente del sistema, es decir, la parte de la aplicación con la que interactúan directamente las personas usuarias a través del navegador. En \mpeer, esta capa debe dar soporte a flujos diferenciados según el rol del usuario (ADMIN, PROF y ALUM), incluyendo la gestión de tareas y rúbricas, la revisión de entregas, la consulta de feedback y la navegación entre vistas sin recargas completas de la página. Por ello, se optó por una arquitectura SPA (\textit{Single-Page Application}), adecuada para interfaces web con alta interactividad y actualización dinámica de contenido \cite{spa_wikipedia}.
 
 \subsection{React}
 
-La tecnología principal del frontend es \textbf{React}\footnote{\url{https://react.dev/}}, utilizada como biblioteca para construir la interfaz web mediante componentes reutilizables. Su elección se justifica por su adecuación al desarrollo de aplicaciones SPA con múltiples vistas y estados de interacción, como ocurre en \mpeer. Además, React cuenta con una amplia utilización en el ámbito profesional, lo que refuerza su idoneidad también desde un punto de vista formativo. Según la \textit{Stack Overflow Developer Survey 2024}, más de un 40\% de los encuestados decía usarla, se sitúa entre las tecnologías web más utilizadas por desarrolladores profesionales \cite{stackoverflow2024}.
+La pieza central del frontend es \textbf{React}\footnote{\url{https://react.dev/}}, una biblioteca de JavaScript que cumple en \mpeer el papel principal de la capa de presentación: define cómo se construyen las vistas y cómo se actualizan ante cambios en el estado de la aplicación. Su modelo, basado en componentes reutilizables que combinan estructura, estilo y comportamiento, encaja con el tipo de interfaz que requiere el sistema, en la que un mismo elemento (una tarjeta de tarea, un diálogo modal, el visor de un fichero) aparece en múltiples vistas y debe responder a interacciones complejas, como la introducción de comentarios sobre líneas de código.
+
+Su elección se justifica también por el grado de adopción que tiene en el desarrollo profesional. Según la \textit{Stack Overflow Developer Survey 2024}, alrededor del 40\,\% de los profesionales declaraban utilizarla, lo que la situaba entre las dos tecnologías web más empleadas \cite{stackoverflow2024}. Esta extensión refuerza su idoneidad desde un punto de vista formativo y facilita el mantenimiento futuro del proyecto.
 
 \subsection{Vite}
 
-Como herramienta de desarrollo y construcción del frontend se emplea \textbf{Vite}\footnote{\url{https://vite.dev/}}, que cumple el papel de servidor de desarrollo y sistema de \textit{build}. Su elección resulta adecuada por su rapidez de arranque, la recarga en caliente durante el desarrollo y la generación de una versión optimizada para producción, lo que facilita iteraciones cortas y un despliegue sencillo del proyecto \cite{vite_docs}.
+Como herramienta de desarrollo y construcción del frontend se emplea \textbf{Vite}\footnote{\url{https://vite.dev/}}. Vite no forma parte de la lógica de la aplicación una vez desplegada: actúa como servidor de desarrollo durante la fase de implementación y como sistema de empaquetado cuando se genera la versión destinada a producción. En \mpeer, esta doble función ha permitido iterar con rapidez sobre las distintas pantallas durante el desarrollo, gracias a su recarga en caliente, y obtener al final del proceso un conjunto de archivos estáticos optimizados que pueden servirse desde un servidor web \cite{vite_docs}.
+
+Como decisión adicional de diseño del frontend, \mpeer no incorpora una biblioteca específica de enrutado en el cliente. La navegación entre vistas se resuelve mediante el API de gestión del historial del navegador. De este modo, la URL refleja la pantalla activa y el botón de retroceso mantiene un comportamiento esperable, sin añadir una dependencia adicional para un mapa de pantallas relativamente sencillo.
 
 \subsection{CodeMirror}
 \label{sec:codemirror}
 
-Para el visor de código integrado en las revisiones se utiliza \textbf{CodeMirror}\footnote{\url{https://codemirror.net/}}, integrado en React mediante la biblioteca \ttt{@uiw/react-codemirror}. Esta tecnología desempeña un papel central en la interfaz de revisión, ya que permite mostrar código fuente en navegador, requisito esencial para la revisión por pares. Además, su integración como componente facilita su reutilización dentro del visor de revisiones \cite{codemirror_docs}.
+Para el visor de código integrado en las revisiones se utiliza \textbf{CodeMirror}\footnote{\url{https://codemirror.net/}}, un editor de código orientado a su uso dentro del navegador. En \mpeer su función no es la de un editor en el sentido habitual, ya que el alumnado no modifica el código entregado por sus compañeros, sino la de un visor enriquecido: presenta el contenido del fichero con números de línea, resalta la sintaxis cuando el lenguaje lo permite y, sobre todo, expone los puntos por línea sobre los que el revisor puede anclar comentarios. Esta capacidad es la que permite que el espacio de revisión se articule en torno al código y no como una caja de texto general sobre la entrega.
+
+CodeMirror se integra en el frontend mediante la biblioteca \texttt{@uiw/react-codemirror}\footnote{\url{https://uiwjs.github.io/react-codemirror/}}, que adapta el editor al modelo de componentes de React y simplifica su reutilización dentro del visor de revisiones \cite{codemirror_docs}.
 
 \section{Tecnologías de backend}
 
-El \textit{backend} constituye la capa servidora del sistema y concentra la lógica de negocio, el control de acceso, la persistencia y el procesamiento de datos. En \mpeer, esta capa es responsable de gestionar la autenticación de usuarios, las operaciones asociadas a asignaturas y tareas, la subida y tratamiento de entregas en formato ZIP, la asignación de revisiones, la meta-revisión y la exportación de resultados. Dado que el sistema requiere una separación clara entre interfaz y lógica, se adoptó una arquitectura basada en API REST.
+El backend constituye la capa servidora del sistema y concentra la lógica de negocio, el control de acceso, la persistencia y el procesamiento de datos. En \mpeer, esta capa es responsable de gestionar la autenticación de usuarios, las operaciones asociadas a asignaturas y tareas, la subida y tratamiento de entregas en formato ZIP, la asignación de revisiones, la meta-revisión y la exportación de resultados. Dado que el sistema requiere una separación clara entre la interfaz y la lógica, se adoptó una arquitectura basada en API REST.
 
 \subsection{Node.js}
 
-El entorno de ejecución elegido es \textbf{Node.js}\footnote{\url{https://nodejs.org/}}, empleado para implementar el servidor de la aplicación. Su elección resulta adecuada para un backend centrado en operaciones de entrada/salida, como la subida y procesamiento de ficheros ZIP, el acceso al sistema de archivos o la generación de exportaciones CSV, además de permitir un despliegue relativamente simple \cite{nodejs_docs}.
+El entorno de ejecución elegido es \textbf{Node.js}\footnote{\url{https://nodejs.org/}}. Node.js es un entorno que permite ejecutar JavaScript fuera del navegador y se utiliza ampliamente para construir servidores web. En \mpeer cumple precisamente ese papel: aloja el proceso del servidor, atiende las peticiones HTTP que llegan desde el frontend y coordina las operaciones que requieren acceso al sistema de archivos o a la base de datos. Su modelo de ejecución resulta especialmente adecuado para un backend en el que predominan las operaciones de entrada/salida, como la subida y descompresión de ficheros ZIP, la lectura del sistema de archivos para recuperar el contenido de las entregas o la generación de exportaciones CSV, por encima del cálculo intensivo \cite{nodejs_docs}.
+
+A esto se suma su elevada base de uso en el desarrollo profesional, lo que facilita encontrar documentación, bibliotecas auxiliares y soluciones a problemas concretos. El uso de JavaScript en cliente y servidor también permite reutilizar conocimiento entre ambas capas durante el desarrollo del proyecto.
 
 \subsection{Express}
 
-Sobre este entorno se utiliza \textbf{Express}\footnote{\url{https://expressjs.com/}}, un framework web que permite estructurar el backend como una API REST modular. En el proyecto, esta modularidad resulta especialmente útil para organizar las rutas según dominios funcionales —asignaturas, tareas, entregas, revisiones, exportaciones o autenticación— y para aplicar de manera uniforme mecanismos de autorización basados en middleware \cite{express_docs}.
+Sobre Node.js se utiliza \textbf{Express}\footnote{\url{https://expressjs.com/}}, un framework web minimalista que aporta el armazón para construir APIs HTTP. Su rol en \mpeer es estructurar el backend como una API REST: define cómo se asocia cada URL con la función que debe atenderla, cómo se encadenan los pasos previos a esa función (los \textit{middleware}, encargados de tareas como interpretar el cuerpo de la petición, validar el token de autenticación o verificar que el usuario tiene el rol adecuado) y cómo se construye la respuesta que se devuelve al cliente.
+
+Esta forma de organización permite agrupar las rutas por dominios funcionales coherentes (autenticación, asignaturas, tareas, entregas, revisiones, meta-revisión, exportación y perfil) y aplicar de manera uniforme las comprobaciones de autorización. La concreción de esta organización en módulos del proyecto se aborda en el capítulo de implementación \cite{express_docs}.
 
 \subsection{SQLite}
 
-En la capa de persistencia se emplea \textbf{SQLite}\footnote{\url{https://sqlite.org/}, repositorio GitHub en \url{https://github.com/sqlite/sqlite}}, que actúa como base de datos relacional embebida del sistema. Su elección se justifica por su ligereza y por no requerir un servidor de base de datos independiente, lo que simplifica el despliegue y la reproducibilidad del proyecto. Además, su modelo relacional encaja adecuadamente con las entidades principales de \mpeer —usuarios, asignaturas, tareas, equipos, entregas, revisiones y rúbricas— y permite definir claves foráneas y restricciones de integridad de forma sencilla \cite{sqlite_docs}.
+En la capa de persistencia se emplea \textbf{SQLite}\footnote{\url{https://sqlite.org/}, repositorio GitHub en \url{https://github.com/sqlite/sqlite}}, una base de datos relacional embebida. A diferencia de otros sistemas relacionales, SQLite no se ejecuta como un servidor independiente al que la aplicación se conecta por red, sino que la propia aplicación lee y escribe directamente sobre un único archivo en disco. En \mpeer, ese archivo concentra toda la información estructurada del sistema, esto es, usuarios, asignaturas, tareas, equipos, entregas, revisiones, comentarios, rúbricas y meta-revisiones, y se gestiona desde el backend.
 
-\section{Diseño de la base datos}
+La elección se justifica por tres motivos. En primer lugar, su modelo relacional encaja con las entidades principales de \mpeer y permite definir claves foráneas y restricciones de integridad de manera natural, lo que protege la coherencia entre datos relacionados (por ejemplo, evitar que una revisión apunte a una entrega inexistente). En segundo lugar, al no requerir un servidor de base de datos independiente, simplifica considerablemente el despliegue y la reproducibilidad: poner en marcha \mpeer en una máquina nueva no exige instalar y configurar un sistema de base de datos aparte. En tercer lugar, su rendimiento es suficiente para el volumen previsto en un uso académico, en el que el número de usuarios concurrentes y el tamaño de los datos estructurados son moderados \cite{sqlite_docs}.
+
+En conjunto, estas tecnologías forman una pila deliberadamente ligera. Node.js aloja el proceso del servidor, Express organiza ese proceso como una API REST y SQLite aporta una persistencia relacional sin imponer una pieza de infraestructura adicional. El resultado es un backend que puede desplegarse como un único proceso junto a un archivo de base de datos y un directorio de entregas, sin requerir necesariamente un sistema gestor de base de datos externo ni componentes de infraestructura adicionales. Esta ligereza ha sido un criterio relevante a lo largo del diseño, ya que reduce la barrera técnica para que el sistema pueda ser instalado y mantenido en el contexto académico al que va dirigido.
+
+\section{Diseño de la base de datos}
 
 \subsection{Diseño inicial de la base de datos}
 
-El diseño inicial, reflejado en el primer diagrama \ref{fig:Esquema inicial. Fuente: elaboración propia}, ya contenía el núcleo conceptual del sistema: usuarios, asignaturas, tareas, equipos, entregas, revisiones, rúbricas y meta-revisiones. En esa fase temprana, el modelo estaba claramente orientado a representar el flujo básico \textit{crear tarea → recibir entrega → asignar revisión → evaluar}.
+El diseño inicial, reflejado en el primer diagrama \ref{fig:Esquema inicial. Fuente: elaboración propia}, ya contenía el núcleo conceptual del sistema: usuarios, asignaturas, tareas, equipos, entregas, revisiones, rúbricas y meta-revisiones. En esa fase temprana, el modelo estaba orientado a representar el flujo básico \textit{crear tarea $\rightarrow$ recibir entrega $\rightarrow$ asignar revisión $\rightarrow$ evaluar}.
 
-Sin embargo, este primer modelo todavía presentaba una definición incompleta de algunas responsabilidades. Y ciertos elementos del esquema requerían una redefinición posterior para adaptarse mejor a los requisitos efectivos del sistema, especialmente en lo relativo a la configuración de asignaciones, la persistencia de comentarios y la trazabilidad de las revisiones.
+Sin embargo, este primer modelo presentaba una definición todavía incompleta de algunas responsabilidades. A medida que se concretaron los casos de uso con los tutores, fue necesario ajustar el esquema para representar mejor la organización académica, la configuración de las asignaciones, la persistencia de comentarios y la trazabilidad de las revisiones.
 
 \figura{Figuras/bd_inicial.png}{}{Esquema inicial. Fuente: elaboración propia}
 
 \subsection{Evolución del diseño de base de datos}
-El esquema fue refinándose para separar con mayor claridad la organización académica, la gestión de entregas, la configuración de las asignaciones de revisión y el almacenamiento del feedback generado durante el proceso evaluador. En esa evolución se incorporaron nuevas entidades, se simplificaron otras y se desplazaron determinadas responsabilidades hacia tablas más específicas.
 
-Entre los cambios más relevantes destacan la consolidación del vínculo entre usuarios, asignaturas y equipos; la distinción entre la entrega evaluable y la carga de entregas; la simplificación de la estructura de rúbrica; y la incorporación de mecanismos específicos para persistir comentarios por línea, comentarios generales por fichero y metadatos de trazabilidad, como el último revisor que envió efectivamente una revisión. 
+El esquema fue refinándose a lo largo del proyecto en sucesivas iteraciones con los tutores. La evolución no consistió únicamente en añadir tablas, sino también en redistribuir responsabilidades para que cada entidad representara un concepto más claro dentro del sistema.
+
+Una primera decisión fue \textbf{unificar la pertenencia de usuarios a asignaturas}. En lugar de mantener relaciones separadas para alumnado y profesorado, el modelo final utiliza la tabla \ttt{usuario\_asignatura}, que vincula cualquier usuario con una asignatura independientemente de su rol. Esta solución reduce duplicidades y permite que la asignatura actúe como unidad común de organización académica.
+
+También se separó la \textbf{práctica académica} del \textbf{mecanismo de revisión}. La tabla \ttt{tarea} describe la actividad docente como tal, con su título, descripción, fecha de entrega y asignatura asociada. En cambio, la tabla \ttt{asignacion} recoge la configuración del proceso de revisión por pares: modo de revisión, número de revisores, bloqueo operativo y fecha de asignación. Esta separación permite modificar o razonar sobre la revisión sin mezclarla con los datos básicos de la práctica.
+
+Otra decisión relevante fue simplificar la \textbf{rúbrica} a una lista de criterios con peso porcentual. En lugar de representar estructuras más complejas, la tabla \ttt{rubrica\_items} almacena el texto de cada criterio y su peso asociado. Esta solución responde a la necesidad de que la rúbrica sea comprensible para profesorado y alumnado, y permite calcular la nota final de forma directa a partir de los pesos definidos.
+
+El tratamiento de los comentarios también evolucionó durante el proyecto. La revisión de código requería que los comentarios no fueran simples textos globales, sino observaciones asociadas a un fichero concreto o a una línea determinada. Por ello se introdujeron dos tablas diferenciadas: \ttt{code\_comment}, para comentarios por línea de código, y \ttt{file\_comment}, para comentarios generales de fichero. Ambas almacenan la revisión a la que pertenecen, el contenido del comentario, su autor, la fecha de creación y una huella SHA-1 del fichero comentado, lo que ayuda a vincular los comentarios con el contenido revisado.
+
+Asimismo, se distinguió entre la \textbf{entrega evaluable} y el \textbf{lote de carga}. La tabla \ttt{entregas} representa cada entrega que puede ser revisada, asociada a una tarea y a un equipo. Por su parte, \ttt{carga\_entregas} conserva información sobre el ZIP subido por el profesorado, como el nombre del archivo, la fecha y el número de equipos procesados. Esta separación permite registrar tanto el resultado evaluable como el proceso de importación que lo originó.
+
+Finalmente, se incorporó trazabilidad específica para el modo de revisión por equipos. En este modo, varios integrantes pueden acceder a una misma revisión, por lo que no basta con saber qué equipo actuó como revisor. Para resolverlo, la tabla \ttt{revision} incorpora la columna \ttt{ultimo\_revisor}, que identifica al usuario concreto que envió la revisión. Esta información no altera el cálculo de la evaluación, pero sí permite al profesorado conocer quién realizó efectivamente el envío.
 
 \subsection{Diseño final}
 
-El modelo final \ref{fig:Esquema final. Fuente: elaboración propia} se articula en varios bloques funcionales relacionados. En primer lugar, la organización académica se apoya en las entidades \ttt{usuario}, \ttt{asignatura} y \ttt{usuario\_asignatura}, lo que permite representar de forma unificada los distintos perfiles del sistema (\ttt{ADMIN}, \ttt{PROF} y \ttt{ALUM}) y su vinculación con el contexto docente correspondiente. 
+El modelo final, representado en la figura \ref{fig:Esquema final. Fuente: elaboración propia}, se articula en cuatro bloques funcionales relacionados.
 
-Esta decisión evita duplicar estructuras por tipo de usuario y sitúa la asignatura como unidad básica de organización académica. A ello se añade la representación de equipos mediante \ttt{equipo} y \ttt{miembro\_equipo}, necesaria para la participación del alumnado en tareas que pueden resolverse colectivamente.
+El primer bloque corresponde a la \textbf{organización académica}. Se apoya en las entidades \ttt{usuario}, \ttt{asignatura} y \ttt{usuario\_asignatura}, que permiten representar de forma unificada los perfiles del sistema (\ttt{ADMIN}, \ttt{PROF} y \ttt{ALUM}) y su vinculación con las asignaturas. A ello se añaden \ttt{equipo} y \ttt{miembro\_equipo}, necesarias para modelar el trabajo en grupo. Los equipos están vinculados a una tarea concreta, no a la asignatura en su conjunto, lo que permite cambiar la composición de equipos entre tareas sin alterar el histórico de prácticas anteriores.
 
-Sobre esta base se construye el bloque de actividad docente, formado por \ttt{tarea}, \ttt{entregas} y \ttt{carga\_entregas}. La entidad \ttt{tarea} representa la práctica académica en sí misma, mientras que \ttt{entregas} identifica la unidad concreta que será revisada y \ttt{carga\_entregas} conserva la información asociada al lote de subida realizado por el profesorado. 
+El segundo bloque corresponde a la \textbf{actividad docente}. Está formado por \ttt{tarea}, \ttt{entregas} y \ttt{carga\_entregas}. Esta separación permite distinguir la práctica académica, las entregas evaluables y el lote de importación subido por el profesorado.
 
-Esta separación constituye una decisión de diseño relevante, ya que permite distinguir entre el proceso de importación de materiales y las entregas efectivamente evaluables dentro del sistema. De este modo, la base de datos refleja mejor el flujo real de trabajo de \mpeer, en el que las entregas se incorporan al sistema a partir de un ZIP y pasan después a convertirse en objetos de revisión.
+El tercer bloque agrupa la \textbf{configuración de la revisión}, formada por \ttt{asignacion} y \ttt{rubrica\_items}. La primera concentra los parámetros del proceso de revisión por pares, mientras que la segunda almacena los criterios ponderados de evaluación.
 
-Un tercer bloque lo forman \ttt{asignacion} y \ttt{rubrica\_items}. En el diseño final, la configuración del proceso de revisión se concentra en una entidad específica vinculada de forma uno a uno con \ttt{tarea}. Esta decisión permite desacoplar la definición de la práctica de la configuración del mecanismo de revisión por pares. 
+Finalmente, el \textbf{núcleo evaluador} se articula en torno a \ttt{revision}, \ttt{code\_comment}, \ttt{file\_comment} y \ttt{meta\_revision}. La tabla \ttt{revision} representa la revisión realizada sobre una entrega concreta, incluyendo respuestas de rúbrica, nota numérica, comentario global y último usuario que la envió. Las tablas \ttt{code\_comment} y \ttt{file\_comment} almacenan, respectivamente, comentarios por línea y comentarios generales de fichero. Por último, \ttt{meta\_revision} representa la valoración docente de una revisión, separando la evaluación de la entrega de la evaluación de la calidad del trabajo revisor.
 
-Así, \ttt{asignacion} recoge parámetros como el modo de revisión (por equipo o individual), el número de revisiones previstas por entrega, el estado de bloqueo y la fecha de asignación, mientras que \ttt{rubrica\_items} almacena los criterios ponderados asociados a dicha configuración. 
-
-La simplificación de la rúbrica a criterios con peso porcentual responde, asimismo, a una decisión de diseño orientada a reducir la complejidad del modelo y a persistir únicamente la información necesaria para el cálculo y la presentación de resultados.
-
-El núcleo evaluador del sistema se articula en torno a \ttt{revision} y \ttt{meta\_revision}. La primera representa la revisión realizada sobre una entrega concreta dentro de una asignación, e incorpora tanto las respuestas de la rúbrica como la calificación obtenida y un comentario global.
-
-La segunda representa la valoración docente asociada a dicha revisión, manteniendo separada la evaluación entre pares de la evaluación realizada por el profesorado. 
-
-Esta separación entre revisión y meta-revisión constituye una de las decisiones estructurales más relevantes del modelo, ya que permite diferenciar con claridad dos niveles de evaluación con finalidades distintas: uno orientado a la entrega revisada y otro orientado a la calidad del trabajo realizado por el revisor.
+Esta separación entre revisión y meta-revisión constituye una decisión estructural importante del modelo, ya que permite diferenciar dos niveles de evaluación con finalidades distintas: uno orientado a la entrega revisada y otro orientado al desempeño del revisor.
 
 \figura{Figuras/bd_final.png}{}{Esquema final. Fuente: elaboración propia}
+
+\subsection{Garantías estructurales del modelo}
+
+Más allá de las entidades y sus relaciones, el modelo incorpora un conjunto de restricciones a nivel de base de datos que protegen los invariantes principales del sistema sin depender exclusivamente de la lógica de la aplicación. Estas restricciones se aplican en cada operación de escritura y rechazan los datos que no respetan el modelo, lo que ofrece una segunda línea de defensa frente a errores de programación o manipulaciones externas.
+
+En primer lugar, varias restricciones de unicidad expresan reglas de negocio. La tabla \ttt{entregas} obliga a que solo exista una entrega por par tarea-equipo, lo que evita que un mismo equipo aparezca dos veces como autor en la misma tarea. La tabla \ttt{revision} aplica unicidad sobre el par entrega-equipo revisor, de modo que un mismo equipo no pueda tener dos revisiones asignadas sobre la misma entrega. Esta restricción no sustituye al algoritmo de asignación, pero impide que se persistan pares duplicados si se produjera un error. La tabla \ttt{asignacion} es única por tarea, materializando la relación uno a uno entre la práctica académica y la configuración de su revisión por pares. La tabla \ttt{rubrica\_items} restringe la unicidad sobre el par asignación-clave de criterio, de modo que cada criterio de la rúbrica aparece una sola vez dentro de una asignación. Finalmente, \ttt{file\_comment} aplica unicidad sobre la combinación de revisión, huella del fichero y ruta, lo que asegura que cada fichero tenga, dentro de una misma revisión, un único comentario general.
+
+En segundo lugar, las relaciones entre entidades adoptan una política de borrado en cascada para los datos que no tienen sentido fuera de su contexto. Por ejemplo, al eliminar una tarea se eliminan también sus equipos, entregas, configuración de asignación, revisiones, comentarios y meta-revisiones asociadas. Del mismo modo, al eliminar una entrega desaparecen las revisiones vinculadas a ella y, con ellas, los comentarios dependientes de esas revisiones. Esta política mantiene la coherencia del modelo de manera automática y evita que queden registros huérfanos.
+
+Por último, varios campos restringen sus valores admisibles a un conjunto cerrado mediante restricciones de dominio. El campo \ttt{rol} de \ttt{usuario} solo admite los valores \ttt{ADMIN}, \ttt{PROF} o \ttt{ALUM}, y el campo \ttt{modo} de \ttt{asignacion} solo admite los valores \ttt{equipo} o \ttt{individual}. Estas restricciones impiden que un valor inesperado, ya sea por un error en la aplicación o por una manipulación externa de los datos, llegue a almacenarse en la base de datos.
 
 \section{Diseño de los algoritmos principales}
 \label{sec:38}
 
 Una parte central del sistema es la generación de asignaciones de revisión entre el alumnado. Antes de describir su implementación en el Capítulo 4, en este apartado se presenta la idea general de los algoritmos sobre los que se sustenta esta funcionalidad.
 
-\subsection{Barajado aleatorio reproducible (Fisher-Yates)}
+\subsection{Barajado aleatorio (Fisher-Yates)}
 
-Para que las asignaciones sean justas, es necesario que los equipos y las personas se consideren en un orden aleatorio antes de emparejarlos. El sistema recurre al algoritmo de barajado de Fisher-Yates\cite{fisher_yates_wikipedia}, cuya idea consiste en recorrer el array desde el último elemento hasta el primero e intercambiar cada elemento con otro escogido al azar entre las posiciones anteriores o la actual. De este modo se obtiene una permutación uniformemente distribuida del conjunto original en tiempo lineal. 
+Para que las asignaciones sean justas, es necesario que los equipos y las personas se consideren en un orden aleatorio antes de emparejarlos. El sistema recurre al algoritmo de barajado de Fisher-Yates\cite{fisher_yates_wikipedia}, cuya idea consiste en recorrer el array desde el último elemento hasta el primero e intercambiar cada elemento con otro escogido al azar entre las posiciones anteriores o la actual. De este modo se obtiene una permutación uniformemente distribuida del conjunto original en tiempo lineal.
 
-La Figura \ref{fig:Representación gráfica del algoritmo de Fisher-Yates. Fuente: Wikipedia} muestra  el proceso iterativo de intercambio que genera la permutación final.
+La Figura \ref{fig:Representación gráfica del algoritmo de Fisher-Yates. Fuente: Wikipedia} muestra el proceso iterativo de intercambio que genera la permutación final.
 
 \figura{Figuras/Fisher-Yates.png}{0.7}{Representación gráfica del algoritmo de Fisher-Yates. Fuente: Wikipedia}
 
@@ -197,41 +222,39 @@ El modo por equipos asigna revisiones al conjunto del equipo, no a sus miembros 
 
 \begin{itemize}
     \item Se baraja aleatoriamente la lista de equipos que han entregado la práctica.
-    
-    \item Sobre esa lista se recorre de forma circular: a cada equipo se le asignan como revisores los $N$ equipos siguientes, donde $N$ es el número de revisiones por revisor solicitado por el profesor.
-    
-    \item Si en ese recorrido aparece el propio equipo, se omite y se continúa con el siguiente.
+
+    \item Sobre esa lista se recorre de forma circular: cada equipo revisa a los $N$ equipos que le siguen en el orden barajado, donde $N$ es el número de revisiones por revisor solicitado por el profesor.
 \end{itemize}
 
-Este planteamiento garantiza por construcción dos propiedades fundamentales: ningún equipo se revisa a sí mismo, y el número de revisiones recibidas por cada equipo es exactamente el mismo que el de revisiones realizadas, lo que produce un reparto uniforme. 
+Este planteamiento garantiza por construcción dos propiedades fundamentales: ningún equipo se revisa a sí mismo, y el número de revisiones recibidas por cada equipo es exactamente el mismo que el de revisiones realizadas, lo que produce un reparto uniforme.
 
-Si el profesor solicita más revisiones por revisor de las posibles (por ejemplo, $5$ cuando solo hay $4$ equipos distintos disponibles), el sistema ajusta automáticamente ese número al máximo factible y avisa del ajuste mediante un mensaje de advertencia, en lugar de rechazar la operación.
+Si el profesor solicita más revisiones por revisor de las posibles (por ejemplo, $5$ cuando solo hay $4$ equipos distintos disponibles), el sistema ajusta automáticamente ese número al máximo factible y avisa del ajuste mediante un mensaje de advertencia, en lugar de rechazar la operación. Dado que el número aplicado nunca supera $|\text{equipos}| - 1$, el recorrido circular no alcanza al propio equipo.
 
-La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
+La Figura \ref{fig:Ejemplo visual de asignación circular por equipos (N=2) tras barajado} ilustra este procedimiento con un ejemplo visual de recorrido circular y asignación de revisores.
 
-\figura{Figuras/asignacion-equipos}{0.9}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado. Fuente: elaboración propia}
+\figura{Figuras/asignacion-equipos}{}{Ejemplo visual de asignación circular por equipos (N=2) tras barajado}
 
 \subsection{Asignación individual}
 \label{sec:383}
 
-El modo individual fue, con diferencia, el de diseño más delicado. A diferencia del modo por equipos, cada alumno revisor debe recibir $R$ trabajos de otros equipos, cumpliendo dos restricciones estrictas: no puede revisar a su propio equipo, y no puede revisar dos veces al mismo equipo. Además, el reparto debe quedar lo más equilibrado posible entre los equipos receptores.
+El modo individual presenta un diseño más complejo. A diferencia del modo por equipos, cada alumno revisor debe recibir $R$ trabajos de otros equipos, cumpliendo dos restricciones estrictas: no puede revisar a su propio equipo y no puede revisar dos veces al mismo equipo. Además, el reparto debe quedar lo más equilibrado posible entre los equipos receptores.
 
 La idea del algoritmo es la siguiente:
 
 \begin{itemize}
     \rf{Cálculo de la cuota base}{Se obtiene el número de equipos con entrega y el número de personas revisoras. La división entera entre ambos, $N_r = \lfloor \text{personas} / \text{equipos} \rfloor$, indica cuántos revisores mínimos debe recibir cada equipo en una ronda para que el reparto sea uniforme.}
-    
+
     \rf{Ronda de asignación}{Se barajan la lista de equipos y la de personas. Para cada equipo, se seleccionan los $N_r$ primeros revisores válidos, es decir, que no pertenezcan al propio equipo ni tengan ya asignado a ese equipo, y se les asigna como destino. Los revisores asignados se eliminan de la lista de pendientes.}
-    
+
     \rf{Reparto del resto}{Tras cubrir las cuotas base, pueden quedar personas sin asignar. A cada una se le intenta asignar un equipo no utilizado en esa ronda; si no es posible por restricciones, se selecciona cualquier otro equipo válido, priorizando el menos cargado.}
-    
+
     \rf{Detección de situaciones irresolubles}{Existen configuraciones en las que no es posible completar una ronda sin violar las restricciones. En estos casos, el sistema revierte la ronda, ajusta el número de revisiones al máximo posible y notifica al profesor mediante un mensaje de advertencia.}
-    
+
 \end{itemize}
 
-La Figura \ref{fig:Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
+La Figura \ref{fig:Asignación individual con restricciones y ajuste automático} resume visualmente el flujo del modo individual: selección de revisores válidos, reparto equilibrado y ajuste automático en casos no resolubles.
 
-\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático. Fuente: elaboración propia}
+\figura{Figuras/asignacion-individual}{}{Asignación individual con restricciones y ajuste automático}
 
 El resultado final es un plan de asignación con tres garantías: ningún alumno revisa su propio equipo, no se repiten revisiones sobre el mismo equipo y el reparto entre receptores es equilibrado siempre que las restricciones estructurales lo permitan. En caso contrario, el sistema devuelve una asignación ajustada junto con los avisos necesarios para facilitar la toma de decisiones por parte del profesor.
 \chapter{Implementación}
@@ -242,9 +265,9 @@ El resultado final es un plan de asignación con tres garantías: ningún alumno
 
 La implementación de \mpeer materializa la arquitectura cliente-servidor descrita en el capítulo de diseño mediante dos subproyectos diferenciados: un backend construido sobre Node.js y Express, y un frontend de página única desarrollado en React. Ambos conviven en el mismo repositorio y se comunican exclusivamente a través de HTTP: el frontend consume la API REST\footnote{API REST: estilo de arquitectura que permite la comunicación cliente-servidor mediante recursos identificados por URLs y operaciones HTTP estándar.} expuesta por el backend, que a su vez gestiona la persistencia en SQLite y el almacenamiento de entregas en el sistema de ficheros del servidor.
 
-Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de \mpeer} resume esa organización.
+Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de \mpeer. Fuente: elaboración propia} resume esa organización.
 
-\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de \mpeer}
+\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de \mpeer. Fuente: elaboración propia}
 
 \subsection{Organización del frontend}
 
@@ -281,9 +304,9 @@ Posteriormente, el router delega la lógica de negocio en los módulos auxiliare
 
 Por último, la respuesta se devuelve al cliente a través de \ttt{api.js}, que la interpreta y la entrega a la página solicitante, la cual actualiza la interfaz para reflejar el nuevo estado del sistema.
 
-La Figura \ref{fig:Ciclo simplificado de una petición en \mpeer entre frontend y backend} resume el recorrido de una petición típica en \mpeer: desde la acción del usuario en el frontend hasta su procesamiento en el backend y la persistencia de datos, con retorno de respuesta para actualizar la interfaz.
+La Figura \ref{fig:Ciclo simplificado de una petición en MetaPeer entre frontend y backend. Fuente: elaboración propia} resume el recorrido de una petición típica en MetaPeer: desde la acción del usuario en el frontend hasta su procesamiento en el backend y la persistencia de datos, con retorno de respuesta para actualizar la interfaz.
 
-\figura{Figuras/ciclo_peticion.png}{}{Ciclo simplificado de una petición en \mpeer entre frontend y backend}
+\figura{Figuras/ciclo_peticion.png}{}{Ciclo simplificado de una petición en MetaPeer entre frontend y backend. Fuente: elaboración propia}
 
 Los apartados siguientes profundizan en cada una de estas piezas: primero se describe el frontend y sus pantallas y, por último, la concreción en código de los algoritmos de asignación ya presentados en el capítulo de diseño.
 
@@ -481,7 +504,13 @@ La pantalla de profesorado (\ttt{Professors.jsx}) (Figura \ref{fig:Pantalla de a
 
 \figura{Figuras/pantalla_admin2.png}{0.9}{Pantalla de administración de grupos 2}
 
-Por último, la pantalla de gestión de grupos (\ttt{AdminDB.jsx}) (Figura \ref{fig:Pantalla de administración de grupos}) permite importar el CSV de alumnos y equipos de una asignatura y, adicionalmente, reemplazar las credenciales de los usuarios existentes a partir de un CSV previamente generado (Figura \ref{fig:Pantalla de administración de grupos 2}). Las credenciales importadas se muestran temporalmente en pantalla, con un plazo de expiración de 15 minutos, para permitir su verificación por parte del administrador.
+Por último, la pantalla de gestión de grupos (\ttt{AdminDB.jsx}) (Figura \ref{fig:Pantalla de administración de grupos}) permite importar el CSV de alumnos y equipos de una asignatura y, adicionalmente, reemplazar las credenciales de los usuarios existentes a partir de un CSV previamente generado (Figura \ref{fig:Pantalla de administración de grupos 2}). Las credenciales importadas se muestran temporalmente en pantalla, con un plazo de expiración de 15 minutos, para permitir su verificación por parte del administrador
+
+\subsection{Organización de los estilos}
+
+El frontend de \mpeer organiza la presentación visual mediante objetos de estilo definidos en JavaScript, sin recurrir a un framework de CSS externo\footnote{Biblioteca de estilos predefinidos que proporciona componentes, clases o reglas visuales reutilizables para construir interfaces web.}. Esta decisión mantiene reducida la lista de dependencias del proyecto y permite que los estilos se mantengan próximos a los componentes que los utilizan, lo que facilita su lectura y modificación.
+
+A medida que el sistema fue creciendo en pantallas, se hizo evidente la necesidad de evitar la divergencia visual entre componentes desarrollados en momentos distintos. Para ello, los estilos comunes, como colores, tipografía base, espaciados, sombras y patrones de tarjeta o formulario, se centralizaron en dos módulos compartidos: \ttt{styles/ui.js} y \ttt{styles/pagePatterns.js}. El resto de componentes reutiliza estas definiciones para mantener una apariencia coherente entre vistas.
 
 \section{Implementación del backend}
 

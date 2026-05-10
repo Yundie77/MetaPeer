@@ -1,3 +1,67 @@
+\chapter{Trabajos relacionados}
+
+\section{Marco conceptual de la evaluación por pares digital}
+\label{sec:marco-pa}
+
+La evaluación por pares es una actividad académica en la que el alumnado valora el trabajo de sus compañeros y compañeras, participando así en un proceso de evaluación que tradicionalmente ha recaído de forma principal en el profesorado. Aplicada en educación superior desde hace décadas, su uso se ha extendido especialmente en los últimos años por dos motivos complementarios. Por un lado, ofrece beneficios formativos a quien revisa, que ejercita el juicio crítico, la capacidad de calibración y la autoevaluación al confrontar su trabajo con el de otras personas. Por otro, puede aliviar parcialmente la carga de corrección del profesorado, lo que resulta especialmente útil en asignaturas con un volumen elevado de alumnado \cite{vanhelden2023umbrella, brkic2024peer}.
+
+Dentro de esta práctica conviene distinguir tres modalidades, que comparten mecánica pero responden a finalidades distintas \cite{vanhelden2023umbrella}. La \textit{revisión por pares} (\textit{peer review}) consiste en que el alumnado examine el trabajo de sus compañeros y emita comentarios cualitativos sobre él, sin que de esa actividad se derive necesariamente una calificación. La \textit{calificación por pares} (\textit{peer grading}) añade a la revisión una valoración cuantitativa, formativa o sumativa, en función de unos criterios establecidos. Por último, la \textit{evaluación entre pares} (\textit{peer evaluation}) se aplica en contextos de trabajo en grupo y se centra en aspectos transversales, como la contribución de cada integrante o las habilidades colaborativas. \mpeer se sitúa en la intersección de las dos primeras: el alumnado revisa las entregas de sus compañeros mediante comentarios anclados al código y, al mismo tiempo, las califica con arreglo a una rúbrica.
+
+Los estudios previos sobre evaluación por pares han identificado un conjunto de dimensiones de diseño que caracterizan cualquier proceso de evaluación por pares y que resultan útiles más adelante como vocabulario común para comparar sistemas \cite{vanhelden2023umbrella}. Entre las más relevantes figuran el grado de anonimato entre revisor y revisado, el número de revisores asignados a cada entrega, la presencia de mecanismos de calibración o de supervisión docente, el tipo de rúbrica empleada, la forma del \textit{feedback} proporcionado, el peso de la evaluación en la nota final y el tipo de producto evaluado. Cada sistema concreto materializa estas dimensiones de manera distinta, lo que da lugar a configuraciones muy variadas y, en consecuencia, a herramientas con propósitos y casos de uso diferenciados.
+
+En la enseñanza de la programación y, en general, en cualquier práctica con solución abierta, la evaluación por pares cobra un interés particular. Una parte de las prácticas que se proponen al alumnado, como el diseño de un modelo de datos, la implementación de una aplicación o la elaboración de una solución a un problema poco cerrado, admite múltiples respuestas correctas y resulta difícil de evaluar mediante sistemas automáticos basados exclusivamente en pruebas o en una salida esperada \cite{brkic2024peer}. En estos casos, la evaluación humana sigue siendo necesaria y la evaluación por pares aparece como una alternativa para hacerla viable a escala. Es precisamente en este escenario, el de las prácticas académicas con entregas abiertas y revisables por otros estudiantes, donde se sitúa \mpeer y donde se enmarcan los sistemas relacionados que se describen en el siguiente apartado.
+
+\section{Sistemas relacionados}
+\label{sec:sistemas-relacionados}
+
+\subsection{Edgar: evaluación automática y evaluación por pares}
+\label{sec:edgar}
+
+Edgar es un sistema de evaluación automática de prácticas de programación (APAS, \textit{Automated Programming Assessment System}) desarrollado en la Facultad de Ingeniería Eléctrica e Informática de la Universidad de Zagreb \cite{mekterovic2020edgar}. Su propósito original es automatizar la corrección de ejercicios de programación en cursos universitarios con un volumen elevado de alumnado, ejecutando y evaluando las soluciones del estudiantado en un entorno controlado. Edgar admite distintos lenguajes y paradigmas, incluyendo lenguajes de propósito general como C, Java o Python y lenguajes de consulta como SQL, y se utiliza en varias asignaturas de la facultad desde el curso 2016-2017. Se distribuye como software de código abierto y, según sus autores, supera en número de funcionalidades a otros sistemas comparables disponibles públicamente \cite{mekterovic2020edgar}.
+
+Aunque Edgar nace principalmente orientado a la evaluación automática de ejercicios mediante pruebas, una parte importante de las prácticas universitarias en informática consiste en tareas abiertas, como el diseño de un modelo de datos o la elaboración de un proyecto, para las que no existe una respuesta única ni un mecanismo automático de evaluación equivalente. Para cubrir este escenario, Edgar incorpora un módulo de evaluación por pares, descrito en \cite{brkic2024peer}, que se ha utilizado durante varios cursos en la asignatura de Bases de Datos de la propia facultad, con más de quinientos estudiantes matriculados por edición.
+
+El proceso de evaluación por pares en Edgar se articula en dos fases consecutivas. En la primera, el alumnado realiza la práctica abierta y entrega su solución. En la segunda, cada estudiante recibe un conjunto de entregas de sus compañeros y las evalúa mediante un cuestionario estructurado, formado por afirmaciones sobre distintos aspectos del trabajo a las que el revisor responde en una escala Likert\footnote{Escala de respuesta graduada que permite expresar el grado de acuerdo, corrección o valoración respecto a una afirmación.} de cinco niveles, desde \textit{completamente incorrecto} hasta \textit{completamente correcto} \cite{brkic2024peer}. Este cuestionario es el instrumento principal de evaluación: el revisor no anota el artefacto en sí, sino que valora globalmente cada criterio enunciado en las afirmaciones, sin un mecanismo análogo a los comentarios anclados a líneas concretas de código o a ficheros que se utilizan en otros sistemas.
+
+El control de calidad del trabajo revisor descansa en una técnica de calibración. Cada estudiante recibe en realidad cinco entregas para evaluar: cuatro de sus compañeros, seleccionadas al azar, y una entrega adicional preparada por el profesorado y previamente puntuada por este, que se presenta indistinguible del resto. La diferencia entre la valoración del estudiante sobre esa entrega calibrada y la del profesorado proporciona una estimación del sesgo del revisor, que se tiene en cuenta posteriormente tanto para asignarle una nota por su trabajo como para procesar las puntuaciones que ha emitido sobre las entregas reales \cite{brkic2024peer}. La supervisión docente directa interviene únicamente en los casos en los que ese sesgo se aleja significativamente del comportamiento del resto del grupo.
+
+En conjunto, Edgar ofrece un proceso de evaluación por pares completo y validado en uso real, sustentado en un APAS maduro y orientado a cursos numerosos. Sus decisiones de diseño en cuanto al instrumento de evaluación, al modelo de asignación y al mecanismo de control de calidad sirven como referencia natural para situar a \mpeer, cuya comparación con Edgar se aborda en el siguiente apartado.
+
+\section{Posicionamiento de \mpeer{}}
+\label{sec:posicionamiento}
+
+Una vez descrito Edgar como sistema relacionado, en este apartado se contrasta \mpeer con él en cuatro ejes que resultan especialmente útiles para situar su aportación: la naturaleza del sistema, el tipo de entrega y la unidad de revisión, la granularidad del comentario y de la rúbrica, y el modelo de asignación y control de calidad. Las afirmaciones sobre \mpeer remiten a lo descrito en los capítulos de diseño e implementación de esta memoria.
+
+La primera diferencia es de naturaleza. Edgar es, en origen, un APAS orientado a la corrección automática de ejercicios mediante pruebas, al que el módulo de evaluación por pares se ha incorporado como complemento para cubrir aquellas prácticas en las que la corrección automática no resulta viable \cite{mekterovic2020edgar, brkic2024peer}. \mpeer, por su parte, se ha diseñado desde el inicio como un sistema dedicado a la evaluación por pares, sin ambición de incorporar evaluación automática del código entregado. Este encuadre delimita el alcance: \mpeer no compite con Edgar en aquello que un APAS resuelve mejor, sino que se centra en el caso de las prácticas con solución abierta para las que la evaluación humana sigue siendo necesaria.
+
+La segunda diferencia se refiere al tipo de entrega y a la unidad sobre la que se realiza la revisión. El módulo de evaluación por pares de Edgar se ha aplicado en su caso de estudio principal a entregas relativamente acotadas, formadas por un conjunto reducido de ficheros correspondientes a un modelo entidad-relación y a su \textit{script} de creación \cite{brkic2024peer}. \mpeer parte de un supuesto distinto: la entrega es un proyecto completo, descargado del Campus Virtual como un archivo ZIP que contiene, a su vez, los ZIP de cada equipo. El sistema descomprime de forma recursiva esta estructura y la presenta al revisor como un árbol de ficheros navegable, con un visor capaz de mostrar código fuente, imágenes y documentos PDF. Adicionalmente, los cuadernos Jupyter se dividen automáticamente por celdas para facilitar su revisión por partes. La unidad de revisión, por tanto, no es un fichero suelto, sino el conjunto del proyecto entregado.
+
+La tercera diferencia atañe a la granularidad del \textit{feedback} y al instrumento de calificación. Edgar emplea un cuestionario de afirmaciones evaluadas en una escala Likert de cinco niveles, en el que el revisor valora globalmente cada criterio sin anotar el artefacto en sí \cite{brkic2024peer}. \mpeer combina dos canales independientes y complementarios. Por un lado, el revisor puede añadir comentarios anclados a una línea concreta de código, comentarios asociados a un fichero completo y un comentario global de la revisión, lo que permite que la retroalimentación quede vinculada al lugar exacto del proyecto al que se refiere, cada línea comentada genera además un enlace permanente que facilita la referencia precisa. Por otro lado, la calificación se realiza mediante una rúbrica configurable por el profesorado, formada por criterios con peso porcentual que el sistema valida para que sumen exactamente cien, y de la que se deriva una nota numérica ponderada a partir de las puntuaciones del revisor por criterio.
+
+La cuarta diferencia se sitúa en el modelo de asignación de revisiones y en el mecanismo de control de calidad del trabajo revisor. Edgar asigna a cada estudiante cuatro entregas reales de sus compañeros junto a una entrega previamente puntuada por el profesorado, indistinguible del resto, y deduce el sesgo del revisor a partir de la diferencia entre ambas valoraciones \cite{brkic2024peer}. \mpeer adopta un planteamiento distinto en ambos aspectos. La asignación dispone de dos modos seleccionables por el profesorado, modo equipo y modo individual, sustentados en algoritmos diferenciados que comparten el barajado previo de Fisher-Yates y que garantizan, por construcción, que ningún estudiante revise su propio equipo, que no haya repetición de equipo revisado y que el reparto entre receptores sea equilibrado siempre que las restricciones lo permitan. Cuando la configuración solicitada no es factible, el sistema ajusta automáticamente el número de revisiones y avisa al profesorado del ajuste. El control de calidad descansa, en lugar de en una entrega calibrada, en una meta-revisión explícita: el profesorado puede consultar cada revisión realizada por el alumnado y emitir una valoración con nota y observación sobre la calidad del trabajo revisor. Son, pues, dos respuestas distintas a un mismo problema, con perfiles complementarios: la calibración de Edgar permite estimar el sesgo de forma agregada y semiautomática; la meta-revisión de \mpeer es directa y caso a caso, a costa de una intervención docente mayor.
+
+El cuadro \ref{tab:comparacion-edgar-metapeer} resume las diferencias descritas.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|p{3.2cm}|p{5.4cm}|p{5.4cm}|}
+\hline
+\textbf{Eje} & \textbf{Edgar} & \textbf{\mpeer} \\
+\hline
+Naturaleza del sistema & APAS con módulo de evaluación por pares añadido & Sistema dedicado a la evaluación por pares \\
+\hline
+Tipo de entrega y unidad de revisión & Entrega acotada asociada a una tarea abierta concreta & Proyecto completo en ZIP, navegable como árbol de ficheros, con tratamiento específico de cuadernos Jupyter \\
+\hline
+Granularidad del comentario y rúbrica & Cuestionario Likert de cinco niveles por aspecto, sin anclaje al código & Comentarios por línea, por fichero y globales, anclados al código; rúbrica con criterios de peso porcentual y nota ponderada \\
+\hline
+Asignación y control de calidad & Reparto aleatorio de cuatro entregas reales más una calibrada; sesgo deducido de la calibrada & Modos equipo e individual con garantías estructurales; meta-revisión docente explícita por revisión \\
+\hline
+\end{tabular}
+\caption{Comparación resumida entre Edgar y \mpeer.}
+\label{tab:comparacion-edgar-metapeer}
+\end{table}
+
+En conjunto, \mpeer se sitúa en un nicho diferenciado respecto a Edgar, orientado a las prácticas académicas con entregas en formato de proyecto y centrado en una experiencia de revisión próxima al artefacto, con \textit{feedback} anclado al código y meta-revisión docente como vía de supervisión. Conviene precisar, sin embargo, el alcance de esta aportación: Edgar es un sistema validado en uso real, utilizado durante varios cursos en asignaturas con cientos de estudiantes \cite{mekterovic2020edgar, brkic2024peer}. \mpeer, por su parte, ha sido desplegado en un servidor universitario y probado con alumnado real en el marco de este Trabajo de Fin de Grado, pero todavía no cuenta con una validación longitudinal ni con un uso continuado a la escala documentada para Edgar.
 \chapter{Diseño de sistema }
 
 \section{Visión general del sistema}
@@ -261,13 +325,11 @@ El resultado final es un plan de asignación con tres garantías: ningún alumno
 
 \section{Visión general de la implementación}
 \label{sec:41}
-
-
 La implementación de \mpeer materializa la arquitectura cliente-servidor descrita en el capítulo de diseño mediante dos subproyectos diferenciados: un backend construido sobre Node.js y Express, y un frontend de página única desarrollado en React. Ambos conviven en el mismo repositorio y se comunican exclusivamente a través de HTTP: el frontend consume la API REST\footnote{API REST: estilo de arquitectura que permite la comunicación cliente-servidor mediante recursos identificados por URLs y operaciones HTTP estándar.} expuesta por el backend, que a su vez gestiona la persistencia en SQLite y el almacenamiento de entregas en el sistema de ficheros del servidor.
 
-Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de \mpeer. Fuente: elaboración propia} resume esa organización.
+Antes de entrar en los detalles de cada capa, conviene tener una imagen mental de cómo está organizado el proyecto y de cómo fluye una petición típica desde el navegador hasta la base de datos. La figura \ref{fig:Estructura general de implementación de MetaPeer. Fuente: elaboración propia} resume esa organización.
 
-\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de \mpeer. Fuente: elaboración propia}
+\figura{Figuras/estructura_implementacion.png}{0.8}{Estructura general de implementación de MetaPeer. Fuente: elaboración propia}
 
 \subsection{Organización del frontend}
 
@@ -764,3 +826,39 @@ En la pantalla de inicio de sesión, debajo del formulario, se muestran botones 
 El proyecto incluye el fichero \ttt{.env.owner} con esta configuración predefinida, así como un comando específico, \ttt{npm run dev:owner}, que permite activar este modo durante la sesión de desarrollo.
 
 La lista de usuarios disponibles se define en el fichero \ttt{quick-users.local.json}, ubicado en la carpeta pública del frontend. Cada entrada contiene una etiqueta visible, un correo electrónico y una contraseña. Por motivos de seguridad, este fichero está incluido en \ttt{.gitignore} y no se incorpora al repositorio. En su lugar, se proporciona un fichero \ttt{quick-users.example.json} como plantilla para facilitar la configuración en nuevos entornos de desarrollo.
+
+\section{Uso de herramientas de inteligencia artificial durante el desarrollo}
+
+\subsection{Alcance del uso}
+
+Durante el desarrollo de \mpeer se han utilizado herramientas de inteligencia artificial generativa como apoyo a la programación, principalmente mediante \textit{OpenAI Codex}\footnote{\url{https://openai.com/codex/}}. Su uso se ha centrado en la generación de primeras versiones de fragmentos de código, la refactorización de módulos existentes, la resolución de errores concretos y la aceleración de tareas repetitivas de implementación.
+
+La primera versión funcional del proyecto, concebida como una plantilla mínima viable sobre la que iniciar el desarrollo, se generó a partir de un \textit{prompt} estructurado que se incluye en el Apéndice \ref{prompt-inicial}. A partir de ese punto, el sistema evolucionó de forma incremental mediante iteraciones sucesivas, revisadas y validadas manualmente antes de incorporarse al repositorio.
+
+\subsection{Método de trabajo}
+
+El uso de la herramienta se integró en un proceso de desarrollo supervisado, en el que cada interacción estuvo precedida por una reflexión previa sobre el problema a resolver y seguida de una revisión técnica del resultado obtenido. En concreto:
+
+\begin{itemize}
+    \item Cada \textit{prompt} se redactó a partir de una necesidad concreta del proyecto, normalmente acotada a un componente, ruta, función o comportamiento específico.
+    
+    \item Cada salida generada fue leída, revisada y adaptada manualmente antes de incorporarse al código, descartando o modificando aquellos fragmentos que no encajaban con la arquitectura existente, con el modelo de datos o con las decisiones funcionales acordadas.
+    
+    \item Las modificaciones se probaron de forma continua sobre la aplicación en ejecución, corrigiendo, reescribiendo o ajustando las partes que no se comportaban como se esperaba.
+\end{itemize}
+
+Este flujo permitió utilizar la herramienta como acelerador del desarrollo, sin delegar en ella la responsabilidad sobre el diseño ni sobre la validez técnica del sistema. La integración final, la depuración, las pruebas y la coherencia del código incorporado al repositorio fueron responsabilidad del autor del trabajo.
+
+\subsection{Decisiones no delegadas en la IA}
+
+Las decisiones principales de \mpeer no fueron definidas por la herramienta de IA, sino por el proceso de análisis del proyecto, las reuniones con los tutores y la reflexión posterior sobre los problemas detectados durante el desarrollo. En particular, la IA no definió la idea general del proyecto, ni los requisitos funcionales y no funcionales, ni las decisiones principales de diseño.
+
+Entre estas decisiones no delegadas se encuentran la arquitectura cliente-servidor adoptada, la elección de tecnologías, el modelado de la base de datos y su evolución, la definición de los flujos de revisión y meta-revisión, la organización de roles y permisos, y la selección de mecanismos como el visor de código, el uso de \textit{iframe} para ciertos tipos de fichero o el tratamiento de entregas comprimidas. Del mismo modo, las ideas de desarrollo y mejora implementadas a lo largo del proyecto surgieron de las reuniones de seguimiento con los tutores y fueron posteriormente concretadas en iteraciones de implementación.
+
+En el caso de la asignación de revisiones, las lógicas principales y sus restricciones fueron discutidas con los tutores durante el desarrollo. La IA se utilizó, en su caso, como apoyo para trasladar esas decisiones a código, no para determinar el comportamiento funcional que debía tener el sistema.
+
+Como evidencia del uso realizado, en el apéndice correspondiente se incluyen el \textit{prompt} inicial empleado para generar la primera versión mínima viable y algunos ejemplos representativos de interacciones posteriores. Estos ejemplos no pretenden recoger exhaustivamente todo el proceso, sino mostrar el tipo de asistencia utilizada y la forma en que se integró dentro de un desarrollo revisado y validado manualmente.
+
+\subsection{Uso en la redacción de la memoria}
+
+Asimismo, durante la redacción de esta memoria se han utilizado herramientas de inteligencia artificial de forma puntual como apoyo a la revisión de estilo, la estructuración de algunos apartados y la propuesta de reformulaciones. En todos los casos, el contenido generado ha sido revisado, contrastado con el funcionamiento real del proyecto y reescrito antes de su incorporación al texto final. La responsabilidad sobre la organización, el contenido técnico y la versión final de la memoria corresponde al autor.
